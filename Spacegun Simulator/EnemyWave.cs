@@ -5,7 +5,7 @@ using System.Linq;
 namespace Spacegun_Simulator
 {
     // ============================================================================ 
-    // ENEMY WAVE
+    // ENEMY WAVE - Single target per wave
     // ============================================================================
 
     public class EnemyWave
@@ -33,39 +33,36 @@ namespace Spacegun_Simulator
             if (rng is null) throw new ArgumentNullException(nameof(rng));
 
             var wave = new EnemyWave(waveNumber);
+            
+            // Get tier data for this wave
+            var tier = GameConstants.GetTierForWave(waveNumber);
+            int tierIndex = tier.TierIndex;
 
-            int tier = (waveNumber - 1) / 5;
-            tier = Math.Min(tier, GameConstants.InitialDistanceBaseByTier.Length - 1);
-
-            double baseDistance = GameConstants.InitialDistanceBaseByTier[tier];
-            double variance = GameConstants.InitialDistanceVarianceByTier[Math.Min(tier, GameConstants.InitialDistanceVarianceByTier.Length - 1)];
-            wave.InitialDistance = baseDistance + rng.Next((int)variance);
-
+            // Generate distance within tier's range (meters)
+            wave.InitialDistance = tier.DetectionRangeMin + 
+                rng.NextDouble() * (tier.DetectionRangeMax - tier.DetectionRangeMin);
             wave.CurrentDistance = wave.InitialDistance;
 
-            double baseVel = (tier < GameConstants.VelocityBaseByTier.Length) ? GameConstants.VelocityBaseByTier[tier] : GameConstants.VelocityBaseByTier[^1];
-            double velVar = (tier < GameConstants.VelocityVarianceByTier.Length) ? GameConstants.VelocityVarianceByTier[tier] : GameConstants.VelocityVarianceByTier[^1];
-            wave.AverageVelocity = baseVel + rng.Next((int)velVar);
+            // Generate velocity within tier's range (m/s)
+            wave.AverageVelocity = tier.VelocityMin + 
+                rng.NextDouble() * (tier.VelocityMax - tier.VelocityMin);
 
-            int targetCount = GameConstants.TargetCountBase + Math.Min(GameConstants.TargetCountTierBonus * tier, 1000) + rng.Next(GameConstants.TargetCountRandomMaxExclusive);
+            // Generate single target
+            var target = GenerateTarget(waveNumber, tierIndex, rng);
+            wave.Targets.Add(target);
 
-            // build the list in one expression
-            wave.Targets = Enumerable.Range(0, targetCount)
-                .Select(_ => GenerateTarget(waveNumber, tier, rng))
-                .ToList();
-
-            wave.AverageRadarCrossSection = wave.Targets.Average(t => t.CrossSection);
-            wave.AverageEvasiveness = wave.Targets.Average(t => t.Evasiveness);
-            wave.HasStealthCoating = tier >= 2 && rng.NextDouble() < GameConstants.StealthChanceForLateTiers;
+            wave.AverageRadarCrossSection = target.CrossSection;
+            wave.AverageEvasiveness = target.Evasiveness;
+            wave.HasStealthCoating = tierIndex >= 2 && rng.NextDouble() < GameConstants.StealthChanceForLateTiers;
 
             return wave;
         }
 
-        private static EnemyTarget GenerateTarget(int waveNumber, int tier, Random rng)
+        private static EnemyTarget GenerateTarget(int waveNumber, int tierIndex, Random rng)
         {
             if (rng is null) throw new ArgumentNullException(nameof(rng));
 
-            string[] typePool = tier switch
+            string[] typePool = tierIndex switch
             {
                 0 => GameConstants.EarlyTypes,
                 1 => ConcatArrays(GameConstants.EarlyTypes, GameConstants.MidTypes),
@@ -76,7 +73,6 @@ namespace Spacegun_Simulator
             string type = typePool[rng.Next(typePool.Length)];
 
             // Cross-section
-            // Avoid accessing tuple element names that can be lost by the compiler when types differ across branches.
             if (GameConstants.CrossSectionRanges.TryGetValue(type, out var cr))
             {
                 double csMin = cr.Item1;
@@ -97,59 +93,40 @@ namespace Spacegun_Simulator
                 }
                 double evasiveness = evMin + rng.NextDouble() * (evMax - evMin);
 
-                int initialHp = GameConstants.HpBase + tier * GameConstants.HpPerTier + rng.Next(GameConstants.HpRandomVariance);
+                int initialHp = GameConstants.HpBase + tierIndex * GameConstants.HpPerTier + rng.Next(GameConstants.HpRandomVariance);
 
-                var targetFromCr = new EnemyTarget
+                return new EnemyTarget
                 {
                     Name = $"{type} #{rng.Next(100, 999)}",
                     Altitude = 0,
                     Velocity = 0,
                     CrossSection = crossSection,
                     Evasiveness = evasiveness,
-                    ArmorThickness = GameConstants.ArmorThicknessBase + tier * GameConstants.ArmorThicknessPerTier + rng.Next(GameConstants.ArmorThicknessRandomVariance),
-                    ArmorQuality = GameConstants.ArmorQualityBase + tier * GameConstants.ArmorQualityPerTier + rng.NextDouble() * GameConstants.ArmorQualityRandomVariance,
-                    MaxHitPoints = initialHp,
-                    HitPoints = initialHp // set to same initial value as MaxHitPoints
-                };
-
-                return targetFromCr;
-            }
-            else
-            {
-                // Default cross-section range when no entry exists
-                double csMin = 50.0;
-                double csMax = 100.0;
-                double crossSection = csMin + rng.NextDouble() * (csMax - csMin);
-
-                double evMin, evMax;
-                if (GameConstants.EvasivenessRanges.TryGetValue(type, out var er2))
-                {
-                    evMin = er2.Item1;
-                    evMax = er2.Item2;
-                }
-                else
-                {
-                    evMin = 0.2;
-                    evMax = 0.5;
-                }
-                double evasiveness = evMin + rng.NextDouble() * (evMax - evMin);
-
-                int initialHp = GameConstants.HpBase + tier * GameConstants.HpPerTier + rng.Next(GameConstants.HpRandomVariance);
-
-                var defaultTarget = new EnemyTarget
-                {
-                    Name = $"{type} #{rng.Next(100, 999)}",
-                    Altitude = 0,
-                    Velocity = 0,
-                    CrossSection = crossSection,
-                    Evasiveness = evasiveness,
-                    ArmorThickness = GameConstants.ArmorThicknessBase + tier * GameConstants.ArmorThicknessPerTier + rng.Next(GameConstants.ArmorThicknessRandomVariance),
-                    ArmorQuality = GameConstants.ArmorQualityBase + tier * GameConstants.ArmorQualityPerTier + rng.NextDouble() * GameConstants.ArmorQualityRandomVariance,
+                    ArmorThickness = GameConstants.ArmorThicknessBase + tierIndex * GameConstants.ArmorThicknessPerTier + rng.Next(GameConstants.ArmorThicknessRandomVariance),
+                    ArmorQuality = GameConstants.ArmorQualityBase + tierIndex * GameConstants.ArmorQualityPerTier + rng.NextDouble() * GameConstants.ArmorQualityRandomVariance,
                     MaxHitPoints = initialHp,
                     HitPoints = initialHp
                 };
+            }
+            else
+            {
+                // Default fallback
+                double crossSection = 50.0 + rng.NextDouble() * 50.0;
+                double evasiveness = 0.2 + rng.NextDouble() * 0.3;
+                int initialHp = GameConstants.HpBase + tierIndex * GameConstants.HpPerTier + rng.Next(GameConstants.HpRandomVariance);
 
-                return defaultTarget;
+                return new EnemyTarget
+                {
+                    Name = $"{type} #{rng.Next(100, 999)}",
+                    Altitude = 0,
+                    Velocity = 0,
+                    CrossSection = crossSection,
+                    Evasiveness = evasiveness,
+                    ArmorThickness = GameConstants.ArmorThicknessBase + tierIndex * GameConstants.ArmorThicknessPerTier + rng.Next(GameConstants.ArmorThicknessRandomVariance),
+                    ArmorQuality = GameConstants.ArmorQualityBase + tierIndex * GameConstants.ArmorQualityPerTier + rng.NextDouble() * GameConstants.ArmorQualityRandomVariance,
+                    MaxHitPoints = initialHp,
+                    HitPoints = initialHp
+                };
             }
         }
 

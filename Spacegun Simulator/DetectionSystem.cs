@@ -6,7 +6,12 @@
 
     public class DetectionSystem
     {
-        public double MaxDetectionRange { get; set; }
+        /// <summary>
+        /// Multiplier applied to the tier's base detection range.
+        /// 1.0 = standard detection, > 1.0 = improved through research
+        /// </summary>
+        public double DetectionRangeMultiplier { get; set; }
+        
         public double TrackingAccuracy { get; set; }
         public double RefreshRate { get; set; }
         public int MaxSimultaneousTargets { get; set; }
@@ -17,7 +22,8 @@
 
         public DetectionSystem()
         {
-            MaxDetectionRange = 1_000_000;
+            // Detection uses tier-based ranges multiplied by this value
+            DetectionRangeMultiplier = 1.0;
             TrackingAccuracy = 0.6;
             RefreshRate = 10.0;
             MaxSimultaneousTargets = 5;
@@ -25,6 +31,16 @@
             HasSpaceBasedRadar = false;
             HasQuantumEntanglementComm = false;
             SignalProcessingPower = 1.0;
+        }
+
+        /// <summary>
+        /// Get the base detection range for a wave's tier, before modifiers.
+        /// Uses the tier's maximum detection range as baseline.
+        /// </summary>
+        private double GetTierBaseRange(EnemyWave wave)
+        {
+            var tier = GameConstants.GetTierForWave(wave.WaveNumber);
+            return tier.DetectionRangeMax * DetectionRangeMultiplier;
         }
 
         public double CalculateWarningTime(EnemyWave wave)
@@ -42,24 +58,29 @@
 
         public double CalculateEffectiveRange(EnemyWave wave)
         {
-            double baseRange = MaxDetectionRange;
+            // Start with tier's maximum detection range
+            double baseRange = GetTierBaseRange(wave);
 
+            // RCS modifier: larger objects easier to detect
             double rcsModifier = Math.Log10(wave.AverageRadarCrossSection) / 10.0;
             baseRange *= (1.0 + rcsModifier);
 
+            // Stealth coating reduces detection range significantly
             if (wave.HasStealthCoating)
             {
                 baseRange *= 0.3;
             }
 
-            if (RadarType == RadarType.GroundBased)
+            // Ground-based radar penalty only if no space-based supplement
+            if (RadarType == RadarType.GroundBased && !HasSpaceBasedRadar)
             {
-                baseRange *= 0.7;
+                baseRange *= 0.85;  // Slight penalty for ground-based limitations
             }
 
+            // Space-based radar extends range
             if (HasSpaceBasedRadar)
             {
-                baseRange *= 2.0;
+                baseRange *= 1.5;
             }
 
             return baseRange;
@@ -92,7 +113,10 @@
                 };
             }
 
-            double minimumSafeTime = 300;
+            // Adjust minimum safe time based on tier
+            var tier = GameConstants.GetTierForWave(wave.WaveNumber);
+            double minimumSafeTime = tier.TimeToImpactMin * 0.1;  // 10% of minimum viable time
+            
             if (warningTime < minimumSafeTime)
             {
                 return new DetectionStatus
@@ -100,7 +124,7 @@
                     IsDetected = true,
                     WarningTime = warningTime,
                     Quality = DetectionQuality.Emergency,
-                    Message = $"EMERGENCY: Insufficient warning time ({warningTime:F0}s)"
+                    Message = $"EMERGENCY: Insufficient warning time ({GameConstants.FormatTime(warningTime)})"
                 };
             }
 
@@ -109,7 +133,7 @@
                 IsDetected = true,
                 WarningTime = warningTime,
                 Quality = DetectionQuality.Optimal,
-                Message = $"Tracking {wave.TargetCount} contacts, {warningTime:F0}s to engagement"
+                Message = $"Tracking {wave.TargetCount} contacts, {GameConstants.FormatTime(warningTime)} to engagement"
             };
         }
     }
@@ -119,6 +143,6 @@
         public bool IsDetected { get; set; }
         public double WarningTime { get; set; }
         public DetectionQuality Quality { get; set; }
-        public string Message { get; set; } = string.Empty;  // Add this
+        public string Message { get; set; } = string.Empty;
     }
 }
