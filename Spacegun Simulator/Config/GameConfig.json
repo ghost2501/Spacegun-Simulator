@@ -1,0 +1,9 @@
+﻿json Spacegun Simulator\Config\GameConfig.json
+{
+  "TotalWaves": 25,
+  "BarrelIntegrityLossPerShot": 0.01,
+  "BudgetRewardBase": 100,
+  "BudgetRewardPerWave": 10,
+  "SteelRewardBase": 50,
+  "MinBudgetToContinue": 100
+}

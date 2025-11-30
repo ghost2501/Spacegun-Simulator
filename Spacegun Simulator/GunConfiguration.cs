@@ -19,7 +19,7 @@ namespace Spacegun_Simulator
 
         public double PowerCapacity { get; set; }
         public double CapacitorEfficiency { get; set; }
-
+        public double Capacity { get; set; }
         public CoolingSystem CoolingSystem { get; set; }
         public double CoolingCapacity { get; set; }
         public double StructuralReinforcement { get; set; }
@@ -27,7 +27,7 @@ namespace Spacegun_Simulator
         public int AmmunitionCount { get; set; }
         public ProjectileConfiguration DefaultProjectile { get; set; }
 
-        public List<string> InstalledUpgrades { get; set; } = new List<string>();
+        public List<string> InstalledUpgrades { get; set; } = new();
 
         public double MaxSafePressure => CalculateMaxPressure();
         public double HeatPerShot => CalculateHeatGeneration();

@@ -1,0 +1,77 @@
+﻿json Spacegun Simulator\Config\GameConfig.schema.json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Spacegun Simulator GameConfig",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "TotalWaves": { "type": "integer", "minimum": 1 },
+    "BarrelIntegrityLossPerShot": { "type": "number", "minimum": 0 },
+    "BudgetRewardBase": { "type": "number" },
+    "BudgetRewardPerWave": { "type": "number" },
+    "SteelRewardBase": { "type": "number" },
+    "SteelRewardPerWave": { "type": "number" },
+    "ExoticRewardBase": { "type": "number" },
+    "ExoticRewardPerWave": { "type": "number" },
+    "BudgetLossPerSurvivor": { "type": "number" },
+    "MinBudgetToContinue": { "type": "number" },
+
+    "InitialDistanceBaseByTier": {
+      "type": "array",
+      "items": { "type": "number" }
+    },
+    "InitialDistanceVarianceByTier": {
+      "type": "array",
+      "items": { "type": "number" }
+    },
+
+    "VelocityBaseByTier": {
+      "type": "array",
+      "items": { "type": "number" }
+    },
+    "VelocityVarianceByTier": {
+      "type": "array",
+      "items": { "type": "number" }
+    },
+
+    "TargetCountBase": { "type": "integer" },
+    "TargetCountTierBonus": { "type": "integer" },
+    "TargetCountRandomMaxExclusive": { "type": "integer", "minimum": 1 },
+
+    "EarlyTypes": { "type": "array", "items": { "type": "string" } },
+    "MidTypes": { "type": "array", "items": { "type": "string" } },
+    "LateTypes": { "type": "array", "items": { "type": "string" } },
+
+    "CrossSectionRanges": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": { "Min": { "type": "integer" }, "Max": { "type": "integer" } },
+        "required": ["Min","Max"]
+      }
+    },
+
+    "EvasivenessRanges": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": { "Min": { "type": "number" }, "Max": { "type": "number" } },
+        "required": ["Min","Max"]
+      }
+    },
+
+    "HpBase": { "type": "integer" },
+    "HpPerTier": { "type": "integer" },
+    "HpRandomVariance": { "type": "integer" },
+
+    "ArmorThicknessBase": { "type": "integer" },
+    "ArmorThicknessPerTier": { "type": "integer" },
+    "ArmorThicknessRandomVariance": { "type": "integer" },
+
+    "ArmorQualityBase": { "type": "number" },
+    "ArmorQualityPerTier": { "type": "number" },
+    "ArmorQualityRandomVariance": { "type": "number" },
+
+    "StealthChanceForLateTiers": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

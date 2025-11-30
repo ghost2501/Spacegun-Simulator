@@ -1,7 +1,7 @@
 ﻿using Spacegun_Simulator;
 using System;
 
-namespace SpaceGunSimulator
+namespace Spacegun_Simulator
 {
     public class Program
     {

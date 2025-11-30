@@ -1,263 +1,174 @@
 ﻿using Spacegun_Simulator;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
-namespace SpaceGunSimulator
+namespace Spacegun_Simulator
 {
+    // Simulation-only game state. No Console I/O here.
     public class GameState
     {
-        public GunConfiguration Gun { get; set; }
+        public GunConfiguration Gun { get; set; }   
         public DetectionSystem Detection { get; set; }
         public ResourcePool Resources { get; set; }
         public int CurrentWaveNumber { get; set; }
         public List<EnemyWave> CompletedWaves { get; set; }
-        public bool IsGameOver { get; set; }
-        public int WavesDefeated { get; set; }
-        public int TotalEnemiesDestroyed { get; set; }
+        public bool IsGameOver { get; private set; }
+        public int WavesDefeated { get; private set; }
+        public int TotalEnemiesDestroyed { get; private set; }
 
-        private Random rng;
+        private readonly Random rng;
 
-        public GameState()
+        public GameState(int? seed = null)
         {
             Gun = new GunConfiguration();
             Detection = new DetectionSystem();
             Resources = new ResourcePool();
             CurrentWaveNumber = 1;
-            CompletedWaves = new List<EnemyWave>();
+            CompletedWaves = new();
             IsGameOver = false;
             WavesDefeated = 0;
             TotalEnemiesDestroyed = 0;
-            rng = new Random();
+            rng = seed.HasValue ? new Random(seed.Value) : new Random();
+        }
+
+        // Result object returned to UI layer
+        public class TurnResult
+        {
+            public EnemyWave Wave { get; set; } = null!;
+            public DetectionStatus DetectionStatus { get; set; } = null!;
+            public List<EngagementResult> EngagementResults { get; set; } = new();
+            public bool WaveDefeated { get; set; }
+            public bool GameOver { get; set; }
+            public string? Message { get; set; }
+            public ResourceCost? Reward { get; set; }
+        }
+
+        public class EngagementResult
+        {
+            public string TargetName { get; set; } = string.Empty;
+            public bool Hit { get; set; }
+            public double Damage { get; set; }
+            public double RemainingHp { get; set; }
+            public bool Destroyed { get; set; }
+            public double HitProbability { get; set; }
         }
 
         /// <summary>
-        /// Main game loop - processes one complete turn
+        /// Simulate one turn/wave. Returns a TurnResult used by UI.
+        /// Uses SI units internally (m, m/s, kg, W, J, s).
         /// </summary>
-        public void ProcessTurn()
+        public TurnResult SimulateTurn()
         {
-            // Generate next wave
+            var result = new TurnResult();
+
+            // Generate next wave (wave numbers start at 1)
             var wave = EnemyWave.GenerateWave(CurrentWaveNumber, rng);
+            result.Wave = wave;
 
-            // Check detection
+            // Detection
             var detectionStatus = Detection.GetDetectionStatus(wave);
-
-            Console.Clear();
-            Console.WriteLine($"╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine($"║           SPACE GUN DEFENSE SIMULATOR                     ║");
-            Console.WriteLine($"║           Wave {CurrentWaveNumber} of 25                               ║");
-            Console.WriteLine($"╚═══════════════════════════════════════════════════════════╝\n");
-
-            // Display detection information
-            DisplayDetectionInfo(wave, detectionStatus);
+            result.DetectionStatus = detectionStatus;
 
             if (!detectionStatus.IsDetected)
             {
-                Console.WriteLine("\n=== CRITICAL FAILURE ===");
-                Console.WriteLine("Wave not detected until impact!");
-                Console.WriteLine("Catastrophic damage to infrastructure.");
-                Console.WriteLine("\n*** GAME OVER ***");
+                // Immediate catastrophic failure
                 IsGameOver = true;
-                return;
+                result.GameOver = true;
+                result.Message = "Wave not detected until impact. Catastrophic damage.";
+                return result;
             }
 
-            // Display current status
-            DisplayStatus();
-
-            // Planning phase - player makes decisions
-            PlanningPhase(wave, detectionStatus);
-
-            // Combat phase - resolve the engagement
-            CombatPhase(wave);
-
-            // Check if wave was defeated
-            bool waveDefeated = wave.Targets.TrueForAll(t => t.IsDestroyed);
-
-            if (waveDefeated)
-            {
-                WavesDefeated++;
-                TotalEnemiesDestroyed += wave.TargetCount;
-                Console.WriteLine("\n✓ WAVE DEFEATED!");
-
-                // Reward resources
-                RewardResources();
-
-                CurrentWaveNumber++;
-
-                if (CurrentWaveNumber > 25)
-                {
-                    Victory();
-                    IsGameOver = true;
-                    return;
-                }
-            }
-            else
-            {
-                Console.WriteLine("\n✗ WAVE NOT FULLY DEFEATED");
-                Console.WriteLine("Surviving enemies have inflicted damage.");
-
-                // Apply penalties for failed defense
-                ApplyDefeatPenalties(wave);
-            }
-
-            CompletedWaves.Add(wave);
-
-            Console.WriteLine("\nPress any key to continue to next wave...");
-            Console.ReadKey();
-        }
-
-        private void DisplayDetectionInfo(EnemyWave wave, DetectionStatus status)
-        {
-            Console.WriteLine("=== DETECTION REPORT ===");
-            Console.WriteLine(status.Message);
-            Console.WriteLine($"Distance: {wave.CurrentDistance / 1_000_000:F1}k km");
-            Console.WriteLine($"Velocity: {wave.AverageVelocity / 1_000:F1} km/s");
-            Console.WriteLine($"Targets: {wave.TargetCount}");
-
-            if (status.IsDetected)
-            {
-                Console.WriteLine($"Warning Time: {status.WarningTime / 60:F1} minutes");
-
-                if (status.Quality == DetectionQuality.Emergency)
-                {
-                    Console.WriteLine("\n⚠ INSUFFICIENT WARNING TIME");
-                    Console.WriteLine("Limited preparation options available.");
-                }
-            }
-            Console.WriteLine();
-        }
-
-        private void DisplayStatus()
-        {
-            Console.WriteLine("=== CURRENT STATUS ===");
-            Console.WriteLine($"Gun Barrel: {Gun.BarrelLength}m {Gun.BarrelMaterial}");
-            Console.WriteLine($"Integrity: {Gun.BarrelIntegrity * 100:F0}%");
-            Console.WriteLine($"Ammunition: {Gun.AmmunitionCount} rounds");
-            Console.WriteLine($"Propulsion: {Gun.PropulsionSystem}");
-            Console.WriteLine();
-
-            Console.WriteLine("=== RESOURCES ===");
-            Console.WriteLine($"Budget: {Resources.Budget:F0}");
-            Console.WriteLine($"Steel: {Resources.Steel:F0} tons");
-            Console.WriteLine($"Exotic Materials: {Resources.ExoticMaterials:F0} units");
-            Console.WriteLine($"Power: {Resources.PowerCapacity:F0} MW");
-            Console.WriteLine();
-        }
-
-        private void PlanningPhase(EnemyWave wave, DetectionStatus status)
-        {
-            Console.WriteLine("=== PLANNING PHASE ===");
-            Console.WriteLine("(Upgrade system will be implemented here)");
-            Console.WriteLine("For now, proceeding with current configuration...\n");
-
-            // TODO: Implement upgrade menu
-            // - Display available upgrades
-            // - Allow player to spend resources
-            // - Modify gun configuration
-        }
-
-        private void CombatPhase(EnemyWave wave)
-        {
-            Console.WriteLine("=== ENGAGEMENT ===");
+            // Combat phase
+            var engagementResults = new List<EngagementResult>();
 
             foreach (var target in wave.Targets)
             {
                 if (Gun.AmmunitionCount <= 0)
                 {
-                    Console.WriteLine("\n⚠ OUT OF AMMUNITION!");
+                    // out of ammo - stop firing
                     break;
                 }
 
-                // Set target velocity from wave
+                // Set tactical snapshot
                 target.Velocity = wave.AverageVelocity;
                 target.Altitude = wave.CurrentDistance;
 
-                // Calculate firing solution
                 double muzzleVelocity = BallisticsCalculator.CalculateMuzzleVelocity(Gun, Gun.DefaultProjectile);
                 double hitProbability = BallisticsCalculator.CalculateInterceptProbability(
                     Gun, Gun.DefaultProjectile, target, muzzleVelocity);
                 double damage = BallisticsCalculator.CalculateDamage(
                     Gun.DefaultProjectile, muzzleVelocity * 0.9, target);
 
-                Console.WriteLine($"\nTarget: {target.Name}");
-                Console.WriteLine($"  Hit Probability: {hitProbability * 100:F1}%");
-                Console.WriteLine($"  Potential Damage: {damage:F1} HP");
-
-                // Fire!
                 bool hit = rng.NextDouble() < hitProbability;
                 Gun.AmmunitionCount--;
 
                 if (hit)
                 {
                     target.TakeDamage(damage);
-                    Console.WriteLine($"  ✓ HIT! ({target.HitPoints:F0}/{target.MaxHitPoints:F0} HP remaining)");
-
-                    if (target.IsDestroyed)
-                    {
-                        Console.WriteLine($"  *** DESTROYED ***");
-                    }
                 }
-                else
+
+                // Barrel wear
+                Gun.BarrelIntegrity = Math.Max(0.0, Gun.BarrelIntegrity - GameConstants.BarrelIntegrityLossPerShot);
+
+                var er = new EngagementResult
                 {
-                    Console.WriteLine($"  ✗ MISS");
-                }
-
-                // Barrel degradation
-                Gun.BarrelIntegrity -= 0.01;
+                    TargetName = target.Name,
+                    Hit = hit,
+                    Damage = damage,
+                    RemainingHp = target.HitPoints,
+                    Destroyed = target.IsDestroyed,
+                    HitProbability = hitProbability
+                };
+                engagementResults.Add(er);
             }
-        }
 
-        private void RewardResources()
-        {
-            // Grant resources for successful defense
-            double budgetReward = 100 + (CurrentWaveNumber * 10);
-            double steelReward = 50 + (CurrentWaveNumber * 5);
-            double exoticReward = 5 + (CurrentWaveNumber * 2);
+            result.EngagementResults = engagementResults;
 
-            Resources.Budget += budgetReward;
-            Resources.Steel += steelReward;
-            Resources.ExoticMaterials += exoticReward;
+            bool waveDefeated = wave.Targets.All(t => t.IsDestroyed);
+            result.WaveDefeated = waveDefeated;
 
-            Console.WriteLine($"\nResources Gained:");
-            Console.WriteLine($"  +{budgetReward:F0} Budget");
-            Console.WriteLine($"  +{steelReward:F0} Steel");
-            Console.WriteLine($"  +{exoticReward:F0} Exotic Materials");
-        }
-
-        private void ApplyDefeatPenalties(EnemyWave wave)
-        {
-            int survivingEnemies = wave.Targets.FindAll(t => !t.IsDestroyed).Count;
-
-            // Each surviving enemy reduces resources
-            double budgetLoss = survivingEnemies * 50;
-            Resources.Budget = Math.Max(0, Resources.Budget - budgetLoss);
-
-            Console.WriteLine($"Resource Loss: -{budgetLoss:F0} Budget");
-
-            // Too many failures end the game
-            if (Resources.Budget < 100)
+            if (waveDefeated)
             {
-                Console.WriteLine("\n=== ECONOMIC COLLAPSE ===");
-                Console.WriteLine("Insufficient resources to continue defense.");
-                Console.WriteLine("\n*** GAME OVER ***");
-                IsGameOver = true;
+                WavesDefeated++;
+                TotalEnemiesDestroyed += wave.Targets.Count(t => t.IsDestroyed);
+
+                // Reward resources (convert tuned constants in GameConstants)
+                var reward = new ResourceCost(
+                    budget: GameConstants.BudgetRewardBase + CurrentWaveNumber * GameConstants.BudgetRewardPerWave,
+                    steel: GameConstants.SteelRewardBase + CurrentWaveNumber * GameConstants.SteelRewardPerWave,
+                    exotic: GameConstants.ExoticRewardBase + CurrentWaveNumber * GameConstants.ExoticRewardPerWave
+                );
+
+                Resources.Grant(reward);
+                result.Reward = reward;
+
+                CurrentWaveNumber++;
+                if (CurrentWaveNumber > GameConstants.TotalWaves)
+                {
+                    IsGameOver = true;
+                    result.GameOver = true;
+                    result.Message = "VICTORY: All waves repelled.";
+                }
             }
-        }
+            else
+            {
+                // Penalties
+                int surviving = wave.Targets.Count(t => !t.IsDestroyed);
+                double budgetLoss = surviving * GameConstants.BudgetLossPerSurvivor;
+                Resources.Budget = Math.Max(0, Resources.Budget - budgetLoss);
 
-        private void Victory()
-        {
-            Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║                                                           ║");
-            Console.WriteLine("║                   *** VICTORY ***                         ║");
-            Console.WriteLine("║                                                           ║");
-            Console.WriteLine("║          All 25 waves successfully repelled!              ║");
-            Console.WriteLine("║                                                           ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+                if (Resources.Budget < GameConstants.MinBudgetToContinue)
+                {
+                    IsGameOver = true;
+                    result.GameOver = true;
+                    result.Message = "ECONOMIC COLLAPSE: Insufficient resources to continue defense.";
+                }
+            }
 
-            Console.WriteLine($"Waves Defeated: {WavesDefeated}");
-            Console.WriteLine($"Total Enemies Destroyed: {TotalEnemiesDestroyed}");
-            Console.WriteLine($"Final Gun Integrity: {Gun.BarrelIntegrity * 100:F0}%");
-            Console.WriteLine($"Remaining Resources: {Resources.Budget:F0} Budget");
+            CompletedWaves.Add(wave);
+            result.GameOver = IsGameOver;
+            return result;
         }
     }
 }
