@@ -9,115 +9,117 @@ namespace Spacegun_Simulator
     public static class GameConstants
     {
         // ============================================================================
-        // WAVE TIER SYSTEM - Oort Cloud Scale (100,000 AU board)
+        // WAVE TIER SYSTEM - Earth Defense (400 km max range)
         // ============================================================================
+        // Campaign now scaled to planetary distances with 400 km maximum gun range.
+        // Detection/timing unchanged: enemies still spawn at original distances.
+        // Gun must wait for enemy to approach within effective range window.
+        // 3D ballistics calculations become critical with tighter engagement window.
 
-        /// <summary>
-        /// 25-wave campaign spanning from Oort Cloud (100,000 AU) to Earth
-        /// Tier 0 (Waves 1-6):   Detection at ~20,000 AU, 150-year warning
-        /// Tier 1 (Waves 7-12):  Detection at ~40,000 AU, 40-100 year warning
-        /// Tier 2 (Waves 13-19): Detection at ~70,000 AU, 8-20 year warning
-        /// Tier 3 (Waves 20-25): Detection at ~100,000 AU, 1-3 year warning
-        /// </summary>
         public class WaveTier
         {
             public int TierIndex { get; set; }
             public int StartWave { get; set; }
             public int EndWave { get; set; }
 
-            // Distance ranges (meters) - where enemies are detected
+            // Distance ranges (meters) - where enemies are detected (UNCHANGED)
             public double DetectionRangeMin { get; set; }
             public double DetectionRangeMax { get; set; }
 
-            // Velocity ranges (m/s)
+            // Velocity ranges (m/s) (UNCHANGED)
             public double VelocityMin { get; set; }
             public double VelocityMax { get; set; }
 
-            // Maximum effective gun range for this tier (meters)
+            // Maximum effective gun range for this tier (meters) - NOW 400km BASED
             public double MaxEffectiveGunRange { get; set; }
 
-            // Time to impact estimates (seconds) - WHOLE NUMBERS ONLY
+            // Time to impact estimates (seconds) - WHOLE NUMBERS ONLY (UNCHANGED)
             public long TimeToImpactMin { get; set; }
             public long TimeToImpactMax { get; set; }
         }
 
-        // Tier definitions using Oort Cloud scale (1-100,000 AU)
+        // Tier definitions using Oort Cloud scale (1-100,000 AU) with 400km tactical range
         public const double AU_TO_METERS = 1.496e11;  // 1 AU in meters
         public const double SPEED_OF_LIGHT = 299_792_458.0;  // m/s
         public const double SECONDS_PER_YEAR = 31557600.0;  // SI year
+        public const double TACTICAL_MAX_RANGE = 400_000.0;  // 400 km maximum engagement range
 
         public static readonly WaveTier[] WaveTiers = new WaveTier[]
         {
-            // TIER 0: Oort Cloud perimeter detection
-            // Distance: 15,000-25,000 AU (detected far away)
-            // Gun range: 1 AU (must wait for enemy to approach)
-            // 150+ year warning allows time to upgrade
+            // TIER 0: Early game - ample time, short range
+            // Detection: 15,000-25,000 AU (unchanged)
+            // Velocity: 50-80 km/s (10x reduction)
+            // Gun range: 100 km (tactical engagement - 25% of max)
+            // Time window: 150-400 years (unchanged)
             new WaveTier
             {
                 TierIndex = 0,
                 StartWave = 1,
                 EndWave = 6,
-                DetectionRangeMin = 15_000.0 * AU_TO_METERS,      // 15,000 AU (detection)
-                DetectionRangeMax = 25_000.0 * AU_TO_METERS,      // 25,000 AU (detection)
-                VelocityMin = 500_000,                           // 500 km/s
-                VelocityMax = 800_000,                           // 800 km/s
-                MaxEffectiveGunRange = 1.0 * AU_TO_METERS,       // 1 AU (must get close)
-                TimeToImpactMin = (long)(150.0 * SECONDS_PER_YEAR),      // 150 years
-                TimeToImpactMax = (long)(400.0 * SECONDS_PER_YEAR)       // 400 years
+                DetectionRangeMin = 15_000.0 * AU_TO_METERS,      // 15,000 AU (detection unchanged)
+                DetectionRangeMax = 25_000.0 * AU_TO_METERS,      // 25,000 AU (detection unchanged)
+                VelocityMin = 50_000,                             // 50 km/s (was 500 km/s)
+                VelocityMax = 80_000,                             // 80 km/s (was 800 km/s)
+                MaxEffectiveGunRange = 100_000.0,                // 100 km (tactical range)
+                TimeToImpactMin = (long)(150.0 * SECONDS_PER_YEAR),      // 150 years (unchanged)
+                TimeToImpactMax = (long)(400.0 * SECONDS_PER_YEAR)       // 400 years (unchanged)
             },
             
-            // TIER 1: Deep space detection
-            // Distance: 30,000-50,000 AU (detected far away)
-            // Gun range: 2 AU (upgraded range)
-            // 40-100 year warning
+            // TIER 1: Mid-early game - moderate warning, moderate range
+            // Detection: 30,000-50,000 AU (unchanged)
+            // Velocity: 1,500-4,000 km/s (10x reduction)
+            // Gun range: 200 km (tactical engagement - 50% of max)
+            // Time window: 40-100 years (unchanged)
             new WaveTier
             {
                 TierIndex = 1,
                 StartWave = 7,
                 EndWave = 12,
-                DetectionRangeMin = 30_000.0 * AU_TO_METERS,     // 30,000 AU (detection)
-                DetectionRangeMax = 50_000.0 * AU_TO_METERS,     // 50,000 AU (detection)
-                VelocityMin = 15_000_000,                        // 15,000 km/s (5% c)
-                VelocityMax = 40_000_000,                        // 40,000 km/s (13% c)
-                MaxEffectiveGunRange = 2.0 * AU_TO_METERS,       // 2 AU (upgraded)
-                TimeToImpactMin = (long)(40.0 * SECONDS_PER_YEAR),       // 40 years
-                TimeToImpactMax = (long)(100.0 * SECONDS_PER_YEAR)       // 100 years
+                DetectionRangeMin = 30_000.0 * AU_TO_METERS,     // 30,000 AU (detection unchanged)
+                DetectionRangeMax = 50_000.0 * AU_TO_METERS,     // 50,000 AU (detection unchanged)
+                VelocityMin = 1_500_000,                          // 1,500 km/s (was 15,000 km/s)
+                VelocityMax = 4_000_000,                          // 4,000 km/s (was 40,000 km/s)
+                MaxEffectiveGunRange = 200_000.0,                // 200 km (tactical range)
+                TimeToImpactMin = (long)(40.0 * SECONDS_PER_YEAR),       // 40 years (unchanged)
+                TimeToImpactMax = (long)(100.0 * SECONDS_PER_YEAR)       // 100 years (unchanged)
             },
             
-            // TIER 2: Inner Oort Cloud detection
-            // Distance: 60,000-90,000 AU (detected far away)
-            // Gun range: 3 AU (further upgraded)
-            // 8-20 year warning
+            // TIER 2: Mid-late game - tight timeline, full range
+            // Detection: 60,000-90,000 AU (unchanged)
+            // Velocity: 15,000-28,000 km/s (10x reduction)
+            // Gun range: 300 km (tactical engagement - 75% of max)
+            // Time window: 8-20 years (unchanged)
             new WaveTier
             {
                 TierIndex = 2,
                 StartWave = 13,
                 EndWave = 19,
-                DetectionRangeMin = 60_000.0 * AU_TO_METERS,     // 60,000 AU (detection)
-                DetectionRangeMax = 90_000.0 * AU_TO_METERS,     // 90,000 AU (detection)
-                VelocityMin = 150_000_000,                       // 150,000 km/s (50% c)
-                VelocityMax = 280_000_000,                       // 280,000 km/s (93% c)
-                MaxEffectiveGunRange = 3.0 * AU_TO_METERS,       // 3 AU (further upgraded)
-                TimeToImpactMin = (long)(8.0 * SECONDS_PER_YEAR),        // 8 years
-                TimeToImpactMax = (long)(20.0 * SECONDS_PER_YEAR)        // 20 years
+                DetectionRangeMin = 60_000.0 * AU_TO_METERS,     // 60,000 AU (detection unchanged)
+                DetectionRangeMax = 90_000.0 * AU_TO_METERS,     // 90,000 AU (detection unchanged)
+                VelocityMin = 15_000_000,                         // 15,000 km/s (was 150,000 km/s)
+                VelocityMax = 28_000_000,                         // 28,000 km/s (was 280,000 km/s)
+                MaxEffectiveGunRange = 300_000.0,                // 300 km (tactical range)
+                TimeToImpactMin = (long)(8.0 * SECONDS_PER_YEAR),        // 8 years (unchanged)
+                TimeToImpactMax = (long)(20.0 * SECONDS_PER_YEAR)        // 20 years (unchanged)
             },
             
-            // TIER 3: Near-Earth space, energy weapons
-            // Distance: 95,000-100,000 AU (detected far away)
-            // Gun range: 5 AU (maximum range)
-            // 1-3 year warning (barely any time!)
+            // TIER 3: Endgame - minimal warning, maximum range
+            // Detection: 95,000-100,000 AU (unchanged)
+            // Velocity: 28,000-29,979 km/s (10x reduction, capped below light speed)
+            // Gun range: 400 km (full tactical engagement)
+            // Time window: 1-3 years (unchanged)
             new WaveTier
             {
                 TierIndex = 3,
                 StartWave = 20,
                 EndWave = 25,
-                DetectionRangeMin = 95_000.0 * AU_TO_METERS,     // 95,000 AU (detection)
-                DetectionRangeMax = 100_000.0 * AU_TO_METERS,    // 100,000 AU (detection)
-                VelocityMin = 280_000_000,                       // 280,000 km/s (93% c)
-                VelocityMax = 299_792_458,                       // Speed of light (100% c)
-                MaxEffectiveGunRange = 5.0 * AU_TO_METERS,       // 5 AU (maximum)
-                TimeToImpactMin = (long)(1.0 * SECONDS_PER_YEAR),        // 1 year (almost no time!)
-                TimeToImpactMax = (long)(3.0 * SECONDS_PER_YEAR)         // 3 years
+                DetectionRangeMin = 95_000.0 * AU_TO_METERS,     // 95,000 AU (detection unchanged)
+                DetectionRangeMax = 100_000.0 * AU_TO_METERS,    // 100,000 AU (detection unchanged)
+                VelocityMin = 28_000_000,                         // 28,000 km/s (was 280,000 km/s)
+                VelocityMax = 29_979_245,                         // ~29,979 km/s (was ~299,792 km/s, capped below c)
+                MaxEffectiveGunRange = TACTICAL_MAX_RANGE,       // 400 km (full tactical range)
+                TimeToImpactMin = (long)(1.0 * SECONDS_PER_YEAR),        // 1 year (unchanged)
+                TimeToImpactMax = (long)(3.0 * SECONDS_PER_YEAR)         // 3 years (unchanged)
             }
         };
 
@@ -147,9 +149,16 @@ namespace Spacegun_Simulator
         public static double MinBudgetToContinue = 100.0;
 
         // Resource production rates (units per year) - WHOLE NUMBERS
-        public static double SteelProductionPerYear = 100.0;
-        public static double ExoticProductionPerYear = 10.0;
-        public static double BudgetProductionPerYear = 50.0;
+        // Higher rarity = lower production rate = more expensive (takes more time to gather)
+        // NOTE: Future enhancement - could implement resource combinations (e.g., 2 Steel + 1 Alloy → Advanced Composite)
+        public static double SteelProductionPerYear = 100.0;              // Base material - high production
+        public static double ExoticProductionPerYear = 10.0;              // Rare - low production
+        public static double BudgetProductionPerYear = 50.0;              // Currency - moderate production
+        
+        // NEW: Extended resource types for mid/late-game progression
+        public static double RareEarthElementsProductionPerYear = 5.0;    // Very rare - minimal production (targeting systems)
+        public static double SpecializedAlloysProductionPerYear = 15.0;   // Rare - low-moderate production (advanced materials)
+        public static double PowerCellsProductionPerYear = 8.0;           // Rare - low production (EM weapon systems)
 
         // ============================================================================
         // ENEMY GENERATION CONSTANTS
@@ -192,19 +201,6 @@ namespace Spacegun_Simulator
             ["Dreadnought"] = (0.05, 0.3),
             ["Carrier"] = (0.05, 0.3)
         };
-
-        // Armor / HP tunables
-        public static int HpBase = 200;
-        public static int HpPerTier = 200;
-        public static int HpRandomVariance = 300;
-
-        public static int ArmorThicknessBase = 50;
-        public static int ArmorThicknessPerTier = 50;
-        public static int ArmorThicknessRandomVariance = 100;
-
-        public static double ArmorQualityBase = 1.0;
-        public static double ArmorQualityPerTier = 0.3;
-        public static double ArmorQualityRandomVariance = 0.5;
 
         // Stealth chance when tier >= 2
         public static double StealthChanceForLateTiers = 0.3;
@@ -328,10 +324,19 @@ namespace Spacegun_Simulator
 
                 if (cfg.TotalWaves.HasValue) GameConstants.TotalWaves = cfg.TotalWaves.Value;
                 if (cfg.BarrelIntegrityLossPerShot.HasValue) GameConstants.BarrelIntegrityLossPerShot = cfg.BarrelIntegrityLossPerShot.Value;
+                if (cfg.BudgetRewardBase.HasValue) GameConstants.BudgetRewardBase = cfg.BudgetRewardBase.Value;
+                if (cfg.BudgetRewardPerWave.HasValue) GameConstants.BudgetRewardPerWave = cfg.BudgetRewardPerWave.Value;
+                if (cfg.SteelRewardBase.HasValue) GameConstants.SteelRewardBase = cfg.SteelRewardBase.Value;
+                if (cfg.SteelRewardPerWave.HasValue) GameConstants.SteelRewardPerWave = cfg.SteelRewardPerWave.Value;
+                if (cfg.ExoticRewardBase.HasValue) GameConstants.ExoticRewardBase = cfg.ExoticRewardBase.Value;
+                if (cfg.ExoticRewardPerWave.HasValue) GameConstants.ExoticRewardPerWave = cfg.ExoticRewardPerWave.Value;
+                if (cfg.BudgetLossPerSurvivor.HasValue) GameConstants.BudgetLossPerSurvivor = cfg.BudgetLossPerSurvivor.Value;
+                if (cfg.MinBudgetToContinue.HasValue) GameConstants.MinBudgetToContinue = cfg.MinBudgetToContinue.Value;
+                if (cfg.StealthChanceForLateTiers.HasValue) GameConstants.StealthChanceForLateTiers = cfg.StealthChanceForLateTiers.Value;
             }
             catch
             {
-                // ignore config errors
+                // Ignore config errors, use defaults
             }
         }
 
@@ -339,6 +344,15 @@ namespace Spacegun_Simulator
         {
             public int? TotalWaves { get; set; }
             public double? BarrelIntegrityLossPerShot { get; set; }
+            public double? BudgetRewardBase { get; set; }
+            public double? BudgetRewardPerWave { get; set; }
+            public double? SteelRewardBase { get; set; }
+            public double? SteelRewardPerWave { get; set; }
+            public double? ExoticRewardBase { get; set; }
+            public double? ExoticRewardPerWave { get; set; }
+            public double? BudgetLossPerSurvivor { get; set; }
+            public double? MinBudgetToContinue { get; set; }
+            public double? StealthChanceForLateTiers { get; set; }
         }
     }
 }

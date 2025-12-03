@@ -3,6 +3,12 @@
     // ============================================================================
     // BALLISTICS CALCULATOR
     // ============================================================================
+    // Core ballistics calculations: muzzle velocity, kinetic energy (damage),
+    // and target destruction validation.
+    //
+    // NOTE: Hit probability calculation has been moved to the Firing Phase UI.
+    // This allows player input (firing solution calculations) to directly influence
+    // hit probability, creating a skill-based component to the game.
 
     public static class BallisticsCalculator
     {
@@ -46,53 +52,136 @@
             return velocity;
         }
 
-        public static double CalculateInterceptProbability(
-            GunConfiguration gun,
-            ProjectileConfiguration projectile,
-            EnemyTarget target,
-            double muzzleVelocity)
+        /// <summary>
+        /// Calculate the base weapon accuracy capability.
+        /// This represents the gun's inherent accuracy potential without player input.
+        /// Used as reference for player to compare against their calculated firing solution.
+        /// </summary>
+        public static double GetBaseWeaponAccuracy(GunConfiguration gun)
         {
             double baseAccuracy = 0.5 + (gun.BarrelLength / 400.0) * gun.BarrelIntegrity;
-            baseAccuracy = Math.Min(0.95, baseAccuracy);
+            return Math.Min(0.95, baseAccuracy);
+        }
 
+        /// <summary>
+        /// Calculate the theoretical best-case hit probability for a given gun/target combination.
+        /// This is what the player should aspire to achieve with perfect firing solution.
+        /// </summary>
+        public static double GetTheoreticalMaxProbability(
+            GunConfiguration gun,
+            ProjectileConfiguration projectile,
+            EnemyTarget target)
+        {
+            double baseAccuracy = GetBaseWeaponAccuracy(gun);
+
+            // Guidance system bonus
             if (projectile.HasGuidance)
             {
                 baseAccuracy += (1.0 - baseAccuracy) * projectile.GuidanceAccuracy;
             }
 
-            double targetSpeed = target.Velocity;
-            double speedPenalty = Math.Max(0.0, (targetSpeed - 5000) / 20000.0);
-
+            // Target-specific modifiers (fixed characteristics)
             double targetSize = target.CrossSection;
             double sizeBonus = Math.Log10(targetSize) / 10.0;
 
             double evasionPenalty = target.Evasiveness * 0.3;
 
-            double finalProbability = baseAccuracy - speedPenalty + sizeBonus - evasionPenalty;
+            double theoreticalMax = baseAccuracy + sizeBonus - evasionPenalty;
 
-            return Math.Clamp(finalProbability, 0.05, 0.99);
+            return Math.Clamp(theoreticalMax, 0.05, 0.99);
         }
 
+        /// <summary>
+        /// Calculate firing solution accuracy based on player's calculated values vs optimal.
+        /// </summary>
+        public static double CalculateFiringSolutionAccuracy(
+            float playerAngleEstimate,
+            float calculatedOptimalAngle,
+            float playerTimeEstimate,
+            float calculatedTimeToImpact)
+        {
+            // Calculate angle deviation in degrees
+            float angleDifference = Math.Abs(playerAngleEstimate - calculatedOptimalAngle);
+            // Normalize to 0-180 range
+            if (angleDifference > 180f)
+                angleDifference = 360f - angleDifference;
+
+            // Calculate time deviation as percentage
+            float timeDifference = Math.Abs(playerTimeEstimate - calculatedTimeToImpact);
+            float timePercentDifference = (calculatedTimeToImpact > 0.1f) 
+                ? (timeDifference / calculatedTimeToImpact) * 100f
+                : 0;
+
+            // Combined deviation score (lower is better)
+            float totalDeviation = (angleDifference / 45f) * 50f + timePercentDifference * 0.5f;
+
+            // Convert deviation to accuracy (0 deviation = 1.0 accuracy, 100 deviation = 0.5 accuracy)
+            double accuracy = 1.0 - (totalDeviation / 100.0);
+
+            // Clamp to realistic range
+            return Math.Clamp(accuracy, 0.5, 1.0);
+        }
+
+        /// <summary>
+        /// DEPRECATED: This method is replaced by the physics-based firing solution in ConsoleUI.
+        /// Kept for compatibility but no longer used in the game flow.
+        /// </summary>
+        [Obsolete("Use physics-based firing solution from FiringSolution class instead")]
+        public static double CalculateFinalHitProbability(
+            GunConfiguration gun,
+            ProjectileConfiguration projectile,
+            EnemyTarget target,
+            double playerLeadingPercentage,
+            double playerVelocityCompensationPercentage)
+        {
+            double theoreticalMax = GetTheoreticalMaxProbability(gun, projectile, target);
+            // This old method is no longer used - keeping stub for backward compatibility
+            return theoreticalMax * 0.75; // Placeholder value
+        }
+
+        /// <summary>
+        /// Calculate kinetic energy in megajoules.
+        /// KE = 0.5 * mass * velocity²
+        /// </summary>
+        public static double CalculateKineticEnergyMJ(double projectileMassKg, double projectileVelocityMs)
+        {
+            double energyJoules = 0.5 * projectileMassKg * projectileVelocityMs * projectileVelocityMs;
+            return energyJoules / 1_000_000.0;
+        }
+
+        /// <summary>
+        /// Calculate damage as kinetic energy in megajoules.
+        /// This is the value compared against fracture energy.
+        /// </summary>
         public static double CalculateDamage(
             ProjectileConfiguration projectile,
             double impactVelocity,
             EnemyTarget target)
         {
-            double kineticEnergy = 0.5 * projectile.Mass * impactVelocity * impactVelocity;
-            double armorEffectiveness = target.ArmorThickness * target.ArmorQuality;
-
-            double penetration = projectile.PenetrationType switch
-            {
-                ArmorPenetrationType.KineticEnergy => kineticEnergy / 1_000_000,
-                ArmorPenetrationType.ShapedCharge => projectile.Mass * 50,
-                ArmorPenetrationType.Fragmentation => projectile.Mass * 20,
-                _ => kineticEnergy / 1_000_000
-            };
-
-            double damageMultiplier = penetration / armorEffectiveness;
-            double baseDamage = kineticEnergy / 10_000_000;
-
-            return baseDamage * damageMultiplier;
+            return CalculateKineticEnergyMJ(projectile.Mass, impactVelocity);
         }
+
+        /// <summary>
+        /// Determine if the projectile delivers sufficient kinetic energy to destroy the target.
+        /// Uses a 95% threshold to provide a margin for safety.
+        /// </summary>
+        public static bool CanDestroyTarget(double projectileKineticEnergyMJ, EnemyTarget target)
+        {
+            double threshold = target.FractureEnergy * 0.95;
+            return projectileKineticEnergyMJ >= threshold;
+        }
+
+        /// <summary>
+        /// Get a human-readable difficulty description based on stars.
+        /// </summary>
+        public static string GetDifficultyDescription(int stars) => stars switch
+        {
+            1 => "★☆☆☆☆ Very Easy",
+            2 => "★★☆☆☆ Easy",
+            3 => "★★★☆☆ Moderate",
+            4 => "★★★★☆ Hard",
+            5 => "★★★★★ Extreme",
+            _ => "Unknown"
+        };
     }
 }

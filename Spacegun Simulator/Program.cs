@@ -9,7 +9,8 @@ namespace Spacegun_Simulator
         {
             GameConfigLoader.LoadIfExists();
 
-            Console.WriteLine("=== SPACE GUN SIMULATOR ===\n");
+            Console.WriteLine("Loading Space Gun Defense Simulator...\n");
+            System.Threading.Thread.Sleep(1000);
 
             var gameState = new GameState();
             var ui = new ConsoleUI(gameState);

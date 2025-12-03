@@ -41,15 +41,25 @@ namespace Spacegun_Simulator
 
         // Available time budget for current wave (in WHOLE years only)
         public long AvailableYears { get; private set; }
-        public long RemainingYears { get; private set; }
+        public long RemainingYears { get; set; }
         
         // Store the actual seconds available for precise calculation
         private double availableSecondsForGunRange = 0;
 
+        // ===== NEW: Selected gun/projectile spec for this wave =====
+        public GunProjectileSpec? SelectedGunProjectileSpec { get; set; }
+
         // Accumulated resources during allocation phase (time spent as tokens)
         public Dictionary<string, double> AccumulatedResources { get; private set; } = new();
 
-        private readonly Random rng;
+        internal readonly Random rng;
+
+        /// <summary>
+        /// The single enemy type for this entire campaign.
+        /// Selected at game start and persists through all 25 waves.
+        /// All enemies will be procedurally generated variations of this type.
+        /// </summary>
+        public EnemyType? CampaignEnemyType { get; set; }
 
         public GameState(int? seed = null)
         {
@@ -65,14 +75,20 @@ namespace Spacegun_Simulator
             rng = seed.HasValue ? new Random(seed.Value) : new Random();
 
             InitializeResourceAccumulation();
+            
+            // NEW: Generate campaign-wide enemy type at game start
+            CampaignEnemyType = EnemyType.GenerateForCampaign(rng);
         }
 
         private void InitializeResourceAccumulation()
         {
             AccumulatedResources.Clear();
             AccumulatedResources["Steel"] = 0;
-            AccumulatedResources["Exotic"] = 0;
             AccumulatedResources["Budget"] = 0;
+            AccumulatedResources["SpecializedAlloys"] = 0;
+            AccumulatedResources["RareEarthElements"] = 0;
+            AccumulatedResources["PowerCells"] = 0;
+            AccumulatedResources["Exotic"] = 0;
         }
 
         // ====================================================================
@@ -92,8 +108,8 @@ namespace Spacegun_Simulator
         {
             var result = new DetectionPhaseResult();
 
-            // Generate wave with single target
-            CurrentWave = EnemyWave.GenerateWave(CurrentWaveNumber, rng);
+            // Generate wave with single target using campaign enemy type
+            CurrentWave = EnemyWave.GenerateWave(CurrentWaveNumber, rng, CampaignEnemyType);
             CurrentWave.Targets = CurrentWave.Targets.Take(1).ToList();
 
             result.Wave = CurrentWave;
@@ -306,7 +322,7 @@ namespace Spacegun_Simulator
             // Calculate how much time was spent in resource allocation phase
             long timeSpentInAllocation = AvailableYears - RemainingYears;
             
-            // Convert to seconds - use the portion of available time that was allocated
+            // Convert to seconds - use the proportion of available time that was allocated
             double proportionOfTimeSpent = timeSpentInAllocation / (double)AvailableYears;
             double secondsSpent = proportionOfTimeSpent * availableSecondsForGunRange;
 
@@ -334,20 +350,30 @@ namespace Spacegun_Simulator
 
             result.CanReachTarget = true;
 
-            // Calculate and execute shot
+            // Calculate ballistics for firing
             double muzzleVelocity = BallisticsCalculator.CalculateMuzzleVelocity(Gun, Gun.DefaultProjectile);
-            double hitProbability = BallisticsCalculator.CalculateInterceptProbability(Gun, Gun.DefaultProjectile, target, muzzleVelocity);
-            double damage = BallisticsCalculator.CalculateDamage(Gun.DefaultProjectile, muzzleVelocity * 0.9, target);
+            double projectileKE_MJ = BallisticsCalculator.CalculateDamage(Gun.DefaultProjectile, muzzleVelocity * 0.9, target);
+            
+            // NOTE: Hit probability is now calculated in the UI based on player input
+            // We'll set a default here for now, but it will be overridden in RunFiringPhase()
+            result.HitProbability = BallisticsCalculator.GetTheoreticalMaxProbability(Gun, Gun.DefaultProjectile, target);
 
-            result.HitProbability = hitProbability;
-            bool hit = rng.NextDouble() < hitProbability;
+            // FIRING OUTCOME: Determine hit or miss
+            // Hit if: (1) we can reach the target AND (2) projectile KE >= fracture energy
+            bool canDestroyWithKE = BallisticsCalculator.CanDestroyTarget(projectileKE_MJ, target);
+            // NOTE: hitRoll is now determined by player's firing solution in the UI
+            // For now, we'll use the theoretical max
+            bool hitRoll = rng.NextDouble() < result.HitProbability;
+            bool hit = canDestroyWithKE && hitRoll;
+
+            // Apply gun state changes
             Gun.AmmunitionCount--;
             Gun.BarrelIntegrity = Math.Max(0.0, Gun.BarrelIntegrity - GameConstants.BarrelIntegrityLossPerShot);
             result.Hit = hit;
 
             if (hit)
             {
-                target.TakeDamage(damage);
+                // Victory! Enemy destroyed.
                 result.WaveDefeated = true;
                 result.Message = $"✓ DIRECT HIT! Enemy destroyed at {GameConstants.FormatDistance(newDistanceMeters)}. Wave {CurrentWaveNumber} defeated!";
 
@@ -372,8 +398,16 @@ namespace Spacegun_Simulator
             }
             else
             {
+                // Defeat: Miss or insufficient energy
                 result.WaveDefeated = false;
-                result.Message = "✗ MISS! The enemy reaches Earth. GLOBAL DESTRUCTION.";
+                if (!canDestroyWithKE)
+                {
+                    result.Message = $"✗ INSUFFICIENT ENERGY! Projectile KE ({projectileKE_MJ:F0} MJ) < Fracture Energy ({target.FractureEnergy:F0} MJ). The enemy reaches Earth. GLOBAL DESTRUCTION.";
+                }
+                else
+                {
+                    result.Message = "✗ MISS! The enemy reaches Earth. GLOBAL DESTRUCTION.";
+                }
                 IsGameOver = true;
                 result.GameOver = true;
             }
@@ -392,6 +426,157 @@ namespace Spacegun_Simulator
             CurrentWave = null;
             CurrentDetectionStatus = null;
             CurrentPhase = GamePhase.Detection;
+        }
+
+        // ====================================================================
+        // TIME BUDGET ACCESSORS (for save/load)
+        // ====================================================================
+
+        /// <summary>
+        /// Get the available seconds for gun range calculation (used for serialization).
+        /// </summary>
+        public double GetAvailableSecondsForGunRange()
+        {
+            return availableSecondsForGunRange;
+        }
+
+        /// <summary>
+        /// Set the time budget state from saved data.
+        /// Restores AvailableYears, RemainingYears, and availableSecondsForGunRange.
+        /// </summary>
+        public void SetTimebudget(long availableYears, long remainingYears, double availableSecondsForGunRange)
+        {
+            AvailableYears = availableYears;
+            RemainingYears = remainingYears;
+            this.availableSecondsForGunRange = availableSecondsForGunRange;
+        }
+
+        /// <summary>
+        /// Restore the current wave state from saved data.
+        /// </summary>
+        public void RestoreCurrentWave(EnemyWave wave)
+        {
+            CurrentWave = wave;
+        }
+
+        // ====================================================================
+        // RESOURCE ALLOCATION UNDO SUPPORT
+        // ====================================================================
+
+        private Dictionary<string, double> resourceAllocationCheckpoint = new();
+
+        /// <summary>
+        /// Create a checkpoint of current accumulated resources for undo functionality.
+        /// </summary>
+        public void CreateResourceAllocationCheckpoint()
+        {
+            resourceAllocationCheckpoint.Clear();
+            foreach (var kvp in AccumulatedResources)
+            {
+                resourceAllocationCheckpoint[kvp.Key] = kvp.Value;
+            }
+        }
+
+        /// <summary>
+        /// Rollback to the last checkpoint and restore remaining years.
+        /// </summary>
+        public bool UndoLastResourceAllocation(long yearsToRestore)
+        {
+            if (resourceAllocationCheckpoint.Count == 0)
+                return false;
+
+            foreach (var kvp in resourceAllocationCheckpoint)
+            {
+                AccumulatedResources[kvp.Key] = kvp.Value;
+            }
+
+            RemainingYears += yearsToRestore;
+            return true;
+        }
+
+        // ====================================================================
+        // SAVE/LOAD SYSTEM - Single Auto-Save Slot (Anti-Save-Scum)
+        // ====================================================================
+        // Only ONE save slot exists. Saves happen automatically after each major phase.
+        // This prevents save-scumming by allowing continuation but not retry capability.
+
+        /// <summary>
+        /// Auto-save the current game state to the single save slot.
+        /// Overwrites any previous save. Called automatically after phases.
+        /// </summary>
+        public void AutoSaveGame()
+        {
+            string savePath = GetAutoSavePath();
+            try
+            {
+                var data = GameStateData.FromGameState(this);
+                var json = System.Text.Json.JsonSerializer.Serialize(data, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                System.IO.File.WriteAllText(savePath, json);
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Warning: Auto-save failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Load game from the single auto-save slot.
+        /// </summary>
+        public bool LoadAutoSave()
+        {
+            string savePath = GetAutoSavePath();
+            try
+            {
+                if (!System.IO.File.Exists(savePath))
+                    return false;
+
+                var json = System.IO.File.ReadAllText(savePath);
+                var data = System.Text.Json.JsonSerializer.Deserialize<GameStateData>(json);
+                
+                if (data is null)
+                    return false;
+
+                data.ApplyToGameState(this);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Error loading auto-save: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Check if an auto-save exists.
+        /// </summary>
+        public static bool AutoSaveExists()
+        {
+            return System.IO.File.Exists(GetAutoSavePath());
+        }
+
+        /// <summary>
+        /// Get the single auto-save file path.
+        /// </summary>
+        private static string GetAutoSavePath() => "Saves/AutoSave.json";
+
+        /// <summary>
+        /// Get auto-save timestamp for display.
+        /// </summary>
+        public static string GetAutoSaveTimestamp()
+        {
+            string savePath = GetAutoSavePath();
+            if (!System.IO.File.Exists(savePath))
+                return "No save found";
+
+            try
+            {
+                var fileInfo = new System.IO.FileInfo(savePath);
+                return fileInfo.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            catch
+            {
+                return "Unknown";
+            }
         }
     }
 }

@@ -1,9 +1,41 @@
-﻿json Spacegun Simulator\Config\GameConfig.json
-{
+﻿{
   "TotalWaves": 25,
   "BarrelIntegrityLossPerShot": 0.01,
   "BudgetRewardBase": 100,
   "BudgetRewardPerWave": 10,
   "SteelRewardBase": 50,
-  "MinBudgetToContinue": 100
+  "SteelRewardPerWave": 5,
+  "ExoticRewardBase": 5,
+  "ExoticRewardPerWave": 2,
+  "BudgetLossPerSurvivor": 50,
+  "MinBudgetToContinue": 100,
+  "TargetCountBase": 2,
+  "TargetCountTierBonus": 1,
+  "TargetCountRandomMaxExclusive": 3,
+  "EarlyTypes": ["Scout", "Fighter", "Light Cruiser"],
+  "MidTypes": ["Cruiser", "Destroyer", "Heavy Fighter"],
+  "LateTypes": ["Battlecruiser", "Dreadnought", "Carrier"],
+  "CrossSectionRanges": {
+    "Scout": { "Min": 10, "Max": 30 },
+    "Fighter": { "Min": 20, "Max": 50 },
+    "Light Cruiser": { "Min": 40, "Max": 80 },
+    "Cruiser": { "Min": 80, "Max": 140 },
+    "Destroyer": { "Min": 100, "Max": 180 },
+    "Heavy Fighter": { "Min": 50, "Max": 100 },
+    "Battlecruiser": { "Min": 150, "Max": 250 },
+    "Dreadnought": { "Min": 250, "Max": 400 },
+    "Carrier": { "Min": 300, "Max": 500 }
+  },
+  "EvasivenessRanges": {
+    "Scout": { "Min": 0.6, "Max": 0.9 },
+    "Fighter": { "Min": 0.5, "Max": 0.8 },
+    "Light Cruiser": { "Min": 0.2, "Max": 0.5 },
+    "Cruiser": { "Min": 0.2, "Max": 0.5 },
+    "Destroyer": { "Min": 0.2, "Max": 0.5 },
+    "Heavy Fighter": { "Min": 0.3, "Max": 0.6 },
+    "Battlecruiser": { "Min": 0.1, "Max": 0.4 },
+    "Dreadnought": { "Min": 0.05, "Max": 0.3 },
+    "Carrier": { "Min": 0.05, "Max": 0.3 }
+  },
+  "StealthChanceForLateTiers": 0.3
 }
