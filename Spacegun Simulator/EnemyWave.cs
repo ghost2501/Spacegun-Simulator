@@ -65,8 +65,8 @@ namespace Spacegun_Simulator
 
         /// <summary>
         /// Generate a procedural enemy within the bounds of a given archetype.
-        /// Generates basic enemy stats: velocity, mass, fracture energy, approach angles.
-        /// No trajectory validation - that happens in Firing phase when gun stats are known.
+        /// VALIDATES that the generated wave satisfies all playability constraints.
+        /// Regenerates until a valid, beatable wave is produced.
         /// </summary>
         public static EnemyWave GenerateWaveFromArchetype(int waveNumber, EnemyArchetype archetype, Random rng)
         {
@@ -78,44 +78,128 @@ namespace Spacegun_Simulator
 
             Console.WriteLine($"\n[WAVE GEN] Generating Wave {waveNumber} (Tier {tierIndex}) with archetype: {archetype.Name}");
 
-            var wave = new EnemyWave(waveNumber);
-            wave.Archetype = archetype;
+            // Intercept time constraints for this tier
+            float minInterceptTime = 2f;
+            float maxInterceptTime = tierIndex switch
+            {
+                0 => 15f,    // Early game: 2-15 seconds
+                1 => 30f,    // Mid game: 2-30 seconds
+                2 => 60f,    // Late game: 2-60 seconds
+                _ => 60f     // Default to late game
+            };
 
-            // Generate detection distance within tier's range
-            wave.InitialDistance = tier.DetectionRangeMin + 
-                rng.NextDouble() * (tier.DetectionRangeMax - tier.DetectionRangeMin);
-            wave.CurrentDistance = wave.InitialDistance;
+            // Attempt to generate valid wave (max 100 attempts)
+            const int maxAttempts = 100;
+            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                var wave = new EnemyWave(waveNumber);
+                wave.Archetype = archetype;
 
-            // Generate velocity: base tier velocity × archetype multiplier
-            double baseTierVelocity = tier.VelocityMin + 
-                rng.NextDouble() * (tier.VelocityMax - tier.VelocityMin);
-            wave.AverageVelocity = baseTierVelocity * archetype.VelocityMultiplier;
+                // Generate detection distance within tier's range
+                wave.InitialDistance = tier.DetectionRangeMin + 
+                    rng.NextDouble() * (tier.DetectionRangeMax - tier.DetectionRangeMin);
+                wave.CurrentDistance = wave.InitialDistance;
 
-            // Generate approach angles
-            float minElevation = 30f + (tierIndex * 10f);
-            float maxElevation = 60f + (tierIndex * 30f);
-            minElevation = Math.Max(30f, Math.Min(minElevation, 150f));
-            maxElevation = Math.Max(minElevation, Math.Min(maxElevation, 150f));
-            
-            wave.ApproachElevation = (float)(minElevation + rng.NextDouble() * (maxElevation - minElevation));
-            wave.ApproachAzimuth = (float)(rng.NextDouble() * 360.0);
+                // Generate velocity: base tier velocity × archetype multiplier
+                double baseTierVelocity = tier.VelocityMin + 
+                    rng.NextDouble() * (tier.VelocityMax - tier.VelocityMin);
+                wave.AverageVelocity = baseTierVelocity * archetype.VelocityMultiplier;
 
-            Console.WriteLine($"  Elev: {wave.ApproachElevation:F1}°, Azim: {wave.ApproachAzimuth:F1}°, Vel: {wave.AverageVelocity:F0} m/s");
+                // Generate approach angles
+                float minElevation = 30f + (tierIndex * 10f);
+                float maxElevation = 60f + (tierIndex * 30f);
+                minElevation = Math.Max(30f, Math.Min(minElevation, 150f));
+                maxElevation = Math.Max(minElevation, Math.Min(maxElevation, 150f));
+                
+                wave.ApproachElevation = (float)(minElevation + rng.NextDouble() * (maxElevation - minElevation));
+                wave.ApproachAzimuth = (float)(rng.NextDouble() * 360.0);
 
-            // Generate target
-            var target = GenerateTargetFromArchetype(waveNumber, tierIndex, archetype, rng);
-            wave.Targets.Add(target);
+                // Generate target
+                var target = GenerateTargetFromArchetype(waveNumber, tierIndex, archetype, rng);
+                wave.Targets.Add(target);
 
-            wave.AverageRadarCrossSection = target.CrossSection;
-            wave.AverageEvasiveness = target.Evasiveness;
-            wave.HasStealthCoating = tierIndex >= 2 && rng.NextDouble() < GameConstants.StealthChanceForLateTiers;
+                wave.AverageRadarCrossSection = target.CrossSection;
+                wave.AverageEvasiveness = target.Evasiveness;
+                wave.HasStealthCoating = tierIndex >= 2 && rng.NextDouble() < GameConstants.StealthChanceForLateTiers;
 
-            // Calculate time to impact from detection range and velocity
-            double timeToImpactSeconds = wave.InitialDistance / wave.AverageVelocity;
-            Console.WriteLine($"  Time to impact: {GameConstants.FormatTime(timeToImpactSeconds)}");
-            Console.WriteLine($"  Target mass: {target.Mass:F0} tons, Fracture energy: {target.FractureEnergy:F0} MJ");
+                // ===== VALIDATION: Check if this wave is playable =====
+                if (!IsWavePlayable(wave, tier, minInterceptTime, maxInterceptTime))
+                {
+                    Console.WriteLine($"  [Attempt {attempt + 1}/{maxAttempts}] ✗ Wave rejected: unplayable ballistic constraints");
+                    continue;
+                }
 
-            return wave;
+                // Wave passed validation
+                double timeToImpactSeconds = wave.InitialDistance / wave.AverageVelocity;
+                Console.WriteLine($"  [Attempt {attempt + 1}/{maxAttempts}] ✓ VALID WAVE");
+                Console.WriteLine($"    Elev: {wave.ApproachElevation:F1}°, Azim: {wave.ApproachAzimuth:F1}°, Vel: {wave.AverageVelocity:F0} m/s");
+                Console.WriteLine($"    Time to impact: {GameConstants.FormatTime(timeToImpactSeconds)}");
+                Console.WriteLine($"    Target mass: {target.Mass:F0} tons, Fracture energy: {target.FractureEnergy:F0} MJ");
+
+                return wave;
+            }
+
+            // Fallback: After 100 attempts, throw error indicating balance problem
+            throw new InvalidOperationException(
+                $"[WAVE GEN] Failed to generate valid wave {waveNumber} after {maxAttempts} attempts. " +
+                $"Archetype velocity/energy parameters may be incompatible with tier intercept constraints. " +
+                $"Consider adjusting archetype multipliers or tier time windows.");
+        }
+
+        /// <summary>
+        /// Validate that a generated wave satisfies all playability constraints.
+        /// Checks that the enemy horizon crossing time allows for valid intercepts.
+        /// </summary>
+        private static bool IsWavePlayable(EnemyWave wave, GameConstants.WaveTier tier, float minInterceptTime, float maxInterceptTime)
+        {
+            // Calculate 3D position and velocity from approach angles
+            Vector3 enemyPosition = FiringSolution.AnglesToCartesian(
+                wave.ApproachElevation, 
+                wave.ApproachAzimuth, 
+                (float)wave.CurrentDistance);
+
+            // Decompose velocity along approach vector
+            float approachElRad = wave.ApproachElevation * (float)Math.PI / 180f;
+            float approachAzRad = wave.ApproachAzimuth * (float)Math.PI / 180f;
+
+            float horizontalComponent = -(float)wave.AverageVelocity * (float)Math.Cos(approachElRad);
+            float verticalComponent = -(float)wave.AverageVelocity * (float)Math.Sin(approachElRad);
+
+            float vx = horizontalComponent * (float)Math.Sin(approachAzRad);
+            float vy = horizontalComponent * (float)Math.Cos(approachAzRad);
+            float vz = verticalComponent;
+
+            Vector3 enemyVelocity = new Vector3(vx, vy, vz);
+
+            // CRITICAL: Calculate when enemy reaches horizon (Z=0)
+            float horizonTime = float.MaxValue;
+            if (vz < -0.1f)  // Enemy descending
+            {
+                horizonTime = -enemyPosition.Z / vz;
+                
+                // Enemy must stay above horizon long enough for intercepts
+                float safeHorizonTime = horizonTime * 0.95f;  // 95% safety margin
+                
+                if (safeHorizonTime < minInterceptTime * 1.1f)  // 1.1x safety on intercept time
+                {
+                    return false;  // Enemy descends too quickly
+                }
+            }
+            else if (vz >= -0.1f)
+            {
+                // Enemy not descending significantly - always playable
+                return true;
+            }
+
+            // Additional check: Minimum velocity must be achievable
+            var target = wave.Targets[0];
+            double minVelocityNeeded = Math.Sqrt(2 * target.FractureEnergy / 100.0);  // Assume 100kg projectile
+            if (minVelocityNeeded > tier.MaxEffectiveGunRange)
+            {
+                return false;  // Fracture energy too high for tier
+            }
+
+            return true;
         }
 
         /// <summary>

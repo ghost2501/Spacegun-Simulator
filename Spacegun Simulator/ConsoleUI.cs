@@ -621,9 +621,17 @@ namespace Spacegun_Simulator
             Console.WriteLine($"Formula: KE = 0.5 × mass × velocity²");
             Console.WriteLine($"  Mass: {projectileMass:F1} kg");
             Console.WriteLine($"  Velocity: {playerLaunchVelocity:F0} m/s");
-            Console.WriteLine($"  Calculation: 0.5 × {projectileMass:F1} × ({playerLaunchVelocity:F0})²");
-            Console.WriteLine($"  = 0.5 × {projectileMass:F1} × {playerLaunchVelocity * playerLaunchVelocity:F0}");
-            Console.WriteLine($"  = {solution.KineticEnergyMJ:F1} MJ");
+            
+            // FIX: Use double arithmetic for display calculation too
+            double displayVel = playerLaunchVelocity;
+            double displayMass = projectileMass;
+            double displayVelSquared = displayVel * displayVel;
+            double displayEnergyJoules = 0.5 * displayMass * displayVelSquared;
+            double displayEnergyMJ = displayEnergyJoules / 1_000_000.0;
+            
+            Console.WriteLine($"  Calculation: 0.5 × {displayMass:F1} × ({displayVel:F0})²");
+            Console.WriteLine($"  = 0.5 × {displayMass:F1} × {displayVelSquared:F0}");
+            Console.WriteLine($"  = {displayEnergyMJ:F1} MJ");
             Console.WriteLine($"Required: {solution.FractureEnergyRequired:F0} MJ");
             Console.WriteLine($"✓ Energy Check: {(solution.CanDestroy ? "PASS" : "FAIL")} ({solution.KineticEnergyMJ:F1} MJ vs {solution.FractureEnergyRequired:F0} MJ threshold)\n");
 
@@ -661,7 +669,8 @@ namespace Spacegun_Simulator
             Console.WriteLine("=== HIT PROBABILITY ===");
             Console.WriteLine($"Base weapon accuracy: {BallisticsCalculator.GetBaseWeaponAccuracy(engine.Gun):P1}");
             Console.WriteLine($"Theoretical max hit probability: {hitProbability:P1}");
-            Console.WriteLine($"Random roll generated: {engine.rng.NextDouble():F4}");
+            double randomRoll = engine.rng.NextDouble();  // ← Store it ONCE
+            Console.WriteLine($"Random roll generated: {randomRoll:F4}");
             Console.WriteLine($"Hit threshold: {hitProbability:F4}");
             Console.WriteLine($"✓ Probability Check: Hit rolled as {(hit ? "TRUE" : "FALSE")}\n");
 

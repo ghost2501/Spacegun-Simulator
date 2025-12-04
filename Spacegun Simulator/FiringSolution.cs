@@ -315,22 +315,22 @@ namespace Spacegun_Simulator
             // Silent validation - no messages to player
             if (playerInterceptTime <= 0 || playerInterceptTime < minInterceptTime || playerInterceptTime > maxInterceptTime)
             {
-                return InvalidResult();
+                return InvalidResult(enemyCurrentPosition, playerInterceptTime);
             }
 
             if (playerTargetElevation < -90 || playerTargetElevation > 90)
             {
-                return InvalidResult();
+                return InvalidResult(enemyCurrentPosition, playerInterceptTime);
             }
 
             if (playerTargetAzimuth < 0 || playerTargetAzimuth >= 360)
             {
-                return InvalidResult();
+                return InvalidResult(enemyCurrentPosition, playerInterceptTime);
             }
 
             if (playerLaunchVelocity <= 0 || playerLaunchVelocity > maxGunVelocity)
             {
-                return InvalidResult();
+                return InvalidResult(enemyCurrentPosition, playerInterceptTime);
             }
 
             // Calculate trajectories
@@ -340,6 +340,10 @@ namespace Spacegun_Simulator
                 playerLaunchVelocity,
                 playerTargetElevation,
                 playerTargetAzimuth);
+
+            // Calculate kinetic energy NOW (before any early returns)
+            float minVelocity = CalculateRequiredVelocity();
+            double playerKE_MJ = CalculateKineticEnergyMJ(playerLaunchVelocity);
 
             // Check projectile doesn't go below ground
             bool projectileAboveGround = true;
@@ -355,14 +359,15 @@ namespace Spacegun_Simulator
 
             if (!projectileAboveGround)
             {
-                return InvalidResult();
+                return InvalidResult(enemyAtInterceptTime, playerInterceptTime, minVelocity, playerKE_MJ);
             }
 
-            // CRITICAL: Final elevation must be 0° to 85°
+            // CRITICAL: Final elevation must be in valid firing range
+            // Allow negative elevations for descending targets, but cap at -45° floor
             var (finalElevation, _) = CartesianToAngles(projectileAtInterceptTime);
-            if (finalElevation < 0 || finalElevation > 85)
+            if (finalElevation < -45 || finalElevation > 85)
             {
-                return InvalidResult();
+                return InvalidResult(enemyAtInterceptTime, playerInterceptTime, minVelocity, playerKE_MJ);
             }
 
             // Calculate miss distance
@@ -373,8 +378,6 @@ namespace Spacegun_Simulator
             bool canHit = interceptDeviation < 1.0f;
 
             // Energy check
-            float minVelocity = CalculateRequiredVelocity();
-            double playerKE_MJ = CalculateKineticEnergyMJ(playerLaunchVelocity);
             bool hasEnergy = playerKE_MJ >= enemyFractureEnergy;
 
             bool isValid = hasEnergy && canHit;
@@ -394,20 +397,39 @@ namespace Spacegun_Simulator
                 MinVelocityRequired = minVelocity,
                 MaxVelocityAvailable = maxGunVelocity,
                 ProjectileVelocity = playerLaunchVelocity,
-                KineticEnergyMJ = playerKE_MJ,
+                KineticEnergyMJ = playerKE_MJ,  // ← NOW SET EARLY
                 FractureEnergyRequired = enemyFractureEnergy,
                 InterceptDeviation = interceptDeviation,
                 Message = message
             };
         }
 
-        private FiringSolutionResult InvalidResult()
+        private FiringSolutionResult InvalidResult(Vector3 enemyInterceptPoint, float interceptTime)
         {
             return new FiringSolutionResult
             {
                 CanDestroy = false,
                 CanHit = false,
                 SolutionValid = false,
+                EnemyInterceptPoint = enemyInterceptPoint,
+                InterceptTime = interceptTime,
+                FractureEnergyRequired = enemyFractureEnergy,
+                Message = "✗ Miss"
+            };
+        }
+
+        private FiringSolutionResult InvalidResult(Vector3 enemyInterceptPoint, float interceptTime, float minVelocity, double playerKE_MJ)
+        {
+            return new FiringSolutionResult
+            {
+                CanDestroy = false,
+                CanHit = false,
+                SolutionValid = false,
+                EnemyInterceptPoint = enemyInterceptPoint,
+                InterceptTime = interceptTime,
+                MinVelocityRequired = minVelocity,
+                KineticEnergyMJ = playerKE_MJ,  // ← POPULATE ON INVALID RESULTS TOO
+                FractureEnergyRequired = enemyFractureEnergy,
                 Message = "✗ Miss"
             };
         }
