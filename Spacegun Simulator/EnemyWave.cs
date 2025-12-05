@@ -5,8 +5,20 @@ using System.Linq;
 namespace Spacegun_Simulator
 {
     // ============================================================================ 
-    // ENEMY WAVE - Single target per wave
+    // ENEMY WAVE - Detection Phase Enemy Generation
     // ============================================================================
+    // SIMPLIFIED: Generates ONLY detection-phase statistics.
+    // 
+    // Detection Phase generates:
+    // - Velocity (m/s)
+    // - Detection Distance
+    // - ETA (Estimated Time to reach gun)
+    // - Mass (metric tons)
+    // - Diameter (meters) - used as Radar Cross-Section
+    // - Fracture Energy (MJ)
+    //
+    // NO trajectory data generated here. Elevation/Azimuth/Cartesian position 
+    // are generated during FIRING PHASE when engagement distance (500-600km) is known.
 
     public class EnemyWave
     {
@@ -20,19 +32,20 @@ namespace Spacegun_Simulator
         public double AverageEvasiveness { get; set; }
         public bool HasStealthCoating { get; set; }
 
-        // ====== NEW: Archetype data for ballistics ======
+        /// <summary>
+        /// Archetype for this wave (Scout, Balanced, Titan, Sniper).
+        /// </summary>
         public EnemyArchetype Archetype { get; set; } = null!;
 
-        // ====== NEW: 3D approach vector in sky coordinates ======
         /// <summary>
-        /// Elevation angle in degrees (30° = low approach, 150° = steep overhead).
-        /// Represents the direction from which enemy approaches.
+        /// Approach elevation angle (generated during firing phase, not detection).
+        /// Elevation: 0° = horizon, 90° = zenith, -90° = nadir
         /// </summary>
         public float ApproachElevation { get; set; }
 
         /// <summary>
-        /// Azimuth bearing in degrees (0° = North, 90° = East, 180° = South, 270° = West).
-        /// Represents the compass direction from which enemy approaches.
+        /// Approach azimuth bearing (generated during firing phase, not detection).
+        /// Azimuth: 0° = North, 90° = East, 180° = South, 270° = West
         /// </summary>
         public float ApproachAzimuth { get; set; }
 
@@ -58,15 +71,26 @@ namespace Spacegun_Simulator
                 return GenerateWaveFromArchetype(waveNumber, campaignEnemyType.Archetype, rng);
             }
 
-            // Fallback: Generate with random archetype (for backward compatibility)
+            // Fallback: Generate with random archetype
             var archetype = EnemyArchetype.SelectRandom(rng);
             return GenerateWaveFromArchetype(waveNumber, archetype, rng);
         }
 
         /// <summary>
-        /// Generate a procedural enemy within the bounds of a given archetype.
-        /// VALIDATES that the generated wave satisfies all playability constraints.
-        /// Regenerates until a valid, beatable wave is produced.
+        /// Generate a procedural enemy wave for detection phase.
+        /// 
+        /// SIMPLIFIED: No trajectory validation here. Generates only:
+        /// - Velocity (within tier × archetype bounds)
+        /// - Detection Distance (within tier bounds)
+        /// - ETA (distance / velocity)
+        /// - Mass (within archetype bounds)
+        /// - Diameter (calculated from mass assuming standard density)
+        /// - Radar Cross-Section = Diameter (displayed as RCS in detection phase)
+        /// - Fracture Energy (within archetype bounds)
+        /// - Evasiveness (within type bounds)
+        /// 
+        /// Trajectory data (elevation, azimuth, position) is generated during
+        /// FIRING PHASE when engagement distance (500-600km) is known.
         /// </summary>
         public static EnemyWave GenerateWaveFromArchetype(int waveNumber, EnemyArchetype archetype, Random rng)
         {
@@ -78,132 +102,59 @@ namespace Spacegun_Simulator
 
             Console.WriteLine($"\n[WAVE GEN] Generating Wave {waveNumber} (Tier {tierIndex}) with archetype: {archetype.Name}");
 
-            // Intercept time constraints for this tier
-            float minInterceptTime = 2f;
-            float maxInterceptTime = tierIndex switch
-            {
-                0 => 15f,    // Early game: 2-15 seconds
-                1 => 30f,    // Mid game: 2-30 seconds
-                2 => 60f,    // Late game: 2-60 seconds
-                _ => 60f     // Default to late game
-            };
+            var wave = new EnemyWave(waveNumber);
+            wave.Archetype = archetype;
 
-            // Attempt to generate valid wave (max 100 attempts)
-            const int maxAttempts = 100;
-            for (int attempt = 0; attempt < maxAttempts; attempt++)
-            {
-                var wave = new EnemyWave(waveNumber);
-                wave.Archetype = archetype;
+            // ===== DETECTION PHASE GENERATION =====
 
-                // Generate detection distance within tier's range
-                wave.InitialDistance = tier.DetectionRangeMin + 
-                    rng.NextDouble() * (tier.DetectionRangeMax - tier.DetectionRangeMin);
-                wave.CurrentDistance = wave.InitialDistance;
+            // Generate detection distance within tier's range
+            wave.InitialDistance = tier.DetectionRangeMin + 
+                rng.NextDouble() * (tier.DetectionRangeMax - tier.DetectionRangeMin);
+            wave.CurrentDistance = wave.InitialDistance;
 
-                // Generate velocity: base tier velocity × archetype multiplier
-                double baseTierVelocity = tier.VelocityMin + 
-                    rng.NextDouble() * (tier.VelocityMax - tier.VelocityMin);
-                wave.AverageVelocity = baseTierVelocity * archetype.VelocityMultiplier;
+            // Generate velocity: base tier velocity × archetype multiplier
+            double baseTierVelocity = tier.VelocityMin + 
+                rng.NextDouble() * (tier.VelocityMax - tier.VelocityMin);
+            wave.AverageVelocity = baseTierVelocity * archetype.VelocityMultiplier;
 
-                // Generate approach angles
-                float minElevation = 30f + (tierIndex * 10f);
-                float maxElevation = 60f + (tierIndex * 30f);
-                minElevation = Math.Max(30f, Math.Min(minElevation, 150f));
-                maxElevation = Math.Max(minElevation, Math.Min(maxElevation, 150f));
-                
-                wave.ApproachElevation = (float)(minElevation + rng.NextDouble() * (maxElevation - minElevation));
-                wave.ApproachAzimuth = (float)(rng.NextDouble() * 360.0);
+            // Generate target with stats
+            var target = GenerateTargetFromArchetype(waveNumber, tierIndex, archetype, rng);
+            wave.Targets.Add(target);
 
-                // Generate target
-                var target = GenerateTargetFromArchetype(waveNumber, tierIndex, archetype, rng);
-                wave.Targets.Add(target);
+            // Calculate diameter from mass - this IS the radar cross-section
+            double diameterMeters = CalculateDiameterFromMass(target.Mass);
+            
+            // Set BOTH wave average AND target's CrossSection
+            wave.AverageRadarCrossSection = diameterMeters;  // RCS = Diameter
+            target.CrossSection = diameterMeters;             // Set target's cross-section too
+            wave.AverageEvasiveness = target.Evasiveness;
+            wave.HasStealthCoating = tierIndex >= 2 && rng.NextDouble() < GameConstants.StealthChanceForLateTiers;
 
-                wave.AverageRadarCrossSection = target.CrossSection;
-                wave.AverageEvasiveness = target.Evasiveness;
-                wave.HasStealthCoating = tierIndex >= 2 && rng.NextDouble() < GameConstants.StealthChanceForLateTiers;
+            // ===== TRAJECTORY DATA NOT GENERATED HERE =====
+            // ApproachElevation and ApproachAzimuth remain unset (0.0)
+            // These are generated during FIRING PHASE
 
-                // ===== VALIDATION: Check if this wave is playable =====
-                if (!IsWavePlayable(wave, tier, minInterceptTime, maxInterceptTime))
-                {
-                    Console.WriteLine($"  [Attempt {attempt + 1}/{maxAttempts}] ✗ Wave rejected: unplayable ballistic constraints");
-                    continue;
-                }
+            // Calculate display information
+            double timeToImpactSeconds = wave.InitialDistance / wave.AverageVelocity;
 
-                // Wave passed validation
-                double timeToImpactSeconds = wave.InitialDistance / wave.AverageVelocity;
-                Console.WriteLine($"  [Attempt {attempt + 1}/{maxAttempts}] ✓ VALID WAVE");
-                Console.WriteLine($"    Elev: {wave.ApproachElevation:F1}°, Azim: {wave.ApproachAzimuth:F1}°, Vel: {wave.AverageVelocity:F0} m/s");
-                Console.WriteLine($"    Time to impact: {GameConstants.FormatTime(timeToImpactSeconds)}");
-                Console.WriteLine($"    Target mass: {target.Mass:F0} tons, Fracture energy: {target.FractureEnergy:F0} MJ");
+            Console.WriteLine($"  ✓ Wave generated successfully");
+            Console.WriteLine($"    Velocity: {GameConstants.FormatVelocity(wave.AverageVelocity)}");
+            Console.WriteLine($"    Detection Distance: {GameConstants.FormatDistance(wave.InitialDistance)}");
+            Console.WriteLine($"    ETA: {GameConstants.FormatTime(timeToImpactSeconds)}");
+            Console.WriteLine($"    Target Mass: {target.Mass:F0} tons, Diameter: {diameterMeters:F1}m");
+            Console.WriteLine($"    Radar Cross-Section: {diameterMeters:F1} m²");
+            Console.WriteLine($"    Fracture Energy: {target.FractureEnergy:F0} MJ");
 
-                return wave;
-            }
-
-            // Fallback: After 100 attempts, throw error indicating balance problem
-            throw new InvalidOperationException(
-                $"[WAVE GEN] Failed to generate valid wave {waveNumber} after {maxAttempts} attempts. " +
-                $"Archetype velocity/energy parameters may be incompatible with tier intercept constraints. " +
-                $"Consider adjusting archetype multipliers or tier time windows.");
-        }
-
-        /// <summary>
-        /// Validate that a generated wave satisfies all playability constraints.
-        /// Checks that the enemy horizon crossing time allows for valid intercepts.
-        /// </summary>
-        private static bool IsWavePlayable(EnemyWave wave, GameConstants.WaveTier tier, float minInterceptTime, float maxInterceptTime)
-        {
-            // Calculate 3D position and velocity from approach angles
-            Vector3 enemyPosition = FiringSolution.AnglesToCartesian(
-                wave.ApproachElevation, 
-                wave.ApproachAzimuth, 
-                (float)wave.CurrentDistance);
-
-            // Decompose velocity along approach vector
-            float approachElRad = wave.ApproachElevation * (float)Math.PI / 180f;
-            float approachAzRad = wave.ApproachAzimuth * (float)Math.PI / 180f;
-
-            float horizontalComponent = -(float)wave.AverageVelocity * (float)Math.Cos(approachElRad);
-            float verticalComponent = -(float)wave.AverageVelocity * (float)Math.Sin(approachElRad);
-
-            float vx = horizontalComponent * (float)Math.Sin(approachAzRad);
-            float vy = horizontalComponent * (float)Math.Cos(approachAzRad);
-            float vz = verticalComponent;
-
-            Vector3 enemyVelocity = new Vector3(vx, vy, vz);
-
-            // CRITICAL: Calculate when enemy reaches horizon (Z=0)
-            float horizonTime = float.MaxValue;
-            if (vz < -0.1f)  // Enemy descending
-            {
-                horizonTime = -enemyPosition.Z / vz;
-                
-                // Enemy must stay above horizon long enough for intercepts
-                float safeHorizonTime = horizonTime * 0.95f;  // 95% safety margin
-                
-                if (safeHorizonTime < minInterceptTime * 1.1f)  // 1.1x safety on intercept time
-                {
-                    return false;  // Enemy descends too quickly
-                }
-            }
-            else if (vz >= -0.1f)
-            {
-                // Enemy not descending significantly - always playable
-                return true;
-            }
-
-            // Additional check: Minimum velocity must be achievable
-            var target = wave.Targets[0];
-            double minVelocityNeeded = Math.Sqrt(2 * target.FractureEnergy / 100.0);  // Assume 100kg projectile
-            if (minVelocityNeeded > tier.MaxEffectiveGunRange)
-            {
-                return false;  // Fracture energy too high for tier
-            }
-
-            return true;
+            return wave;
         }
 
         /// <summary>
         /// Generate a target procedurally within archetype bounds.
+        /// 
+        /// NOTE: CrossSection is set to calculated diameter during wave generation,
+        /// not randomly selected from type ranges. This ensures consistency between
+        /// detection phase (where diameter is displayed as RCS) and firing phase
+        /// (where diameter is used to calculate hit tolerance).
         /// </summary>
         private static EnemyTarget GenerateTargetFromArchetype(int waveNumber, int tierIndex, EnemyArchetype archetype, Random rng)
         {
@@ -220,13 +171,6 @@ namespace Spacegun_Simulator
 
             string type = typePool[rng.Next(typePool.Length)];
 
-            // Get cross-section range for this type
-            double crossSection = 50.0;
-            if (GameConstants.CrossSectionRanges.TryGetValue(type, out var cr))
-            {
-                crossSection = cr.Item1 + rng.NextDouble() * (cr.Item2 - cr.Item1);
-            }
-
             // Get evasiveness range for this type
             double evasiveness = 0.35;
             if (GameConstants.EvasivenessRanges.TryGetValue(type, out var er))
@@ -240,22 +184,45 @@ namespace Spacegun_Simulator
             
             double mass = archetype.MassRange.Min + 
                 (rng.NextDouble() * (archetype.MassRange.Max - archetype.MassRange.Min)) +
-                (waveProgression * (archetype.MassRange.Max - archetype.MassRange.Min) * 0.1); // Slight increase
+                (waveProgression * (archetype.MassRange.Max - archetype.MassRange.Min) * 0.1);
 
             double fractureEnergy = archetype.FractureEnergyRange.Min + 
                 (rng.NextDouble() * (archetype.FractureEnergyRange.Max - archetype.FractureEnergyRange.Min)) +
-                (waveProgression * (archetype.FractureEnergyRange.Max - archetype.FractureEnergyRange.Min) * 0.1); // Slight increase
+                (waveProgression * (archetype.FractureEnergyRange.Max - archetype.FractureEnergyRange.Min) * 0.1);
 
+            // CrossSection will be set to calculated diameter during wave generation
+            // This ensures consistency between detection and firing phases
             return new EnemyTarget
             {
                 Name = $"{archetype.Name} ({type}) #{rng.Next(100, 999)}",
                 Altitude = 0,
                 Velocity = 0,
-                CrossSection = crossSection,
+                CrossSection = 0.0,  // Will be overwritten with diameter in GenerateWaveFromArchetype
                 Evasiveness = evasiveness,
                 Mass = mass,
                 FractureEnergy = fractureEnergy
             };
+        }
+
+        /// <summary>
+        /// Calculate ship diameter from mass assuming standard density.
+        /// Assumes spherical vessel with density ~500 kg/m³ (similar to space-grade alloys)
+        /// Formula: Volume = Mass / Density, then Diameter = 2 * ∛(3V/4π)
+        /// 
+        /// This diameter is used as the Radar Cross-Section in detection phase
+        /// and as the basis for hit tolerance calculation in firing phase.
+        /// </summary>
+        private static double CalculateDiameterFromMass(double massTons)
+        {
+            const double STANDARD_DENSITY = 500.0;  // kg/m³
+            const double TONS_TO_KG = 1000.0;
+
+            double massKg = massTons * TONS_TO_KG;
+            double volumeM3 = massKg / STANDARD_DENSITY;
+            double radiusM = Math.Pow(3.0 * volumeM3 / (4.0 * Math.PI), 1.0 / 3.0);
+            double diameterM = radiusM * 2.0;
+
+            return diameterM;
         }
 
         /// <summary>

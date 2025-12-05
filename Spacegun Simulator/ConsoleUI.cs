@@ -478,7 +478,7 @@ namespace Spacegun_Simulator
             // ===== 3D BALLISTIC FIRING SOLUTION =====
             Console.WriteLine("=== CALCULATE 3D BALLISTIC FIRING SOLUTION ===\n");
             Console.WriteLine("You must calculate a precise 3D intercept trajectory.");
-            Console.WriteLine("Enter four critical parameters:\n");
+            Console.WriteLine("Enter critical parameters:\n");
 
             var target = engine.CurrentWave?.Targets[0];
             if (target == null)
@@ -488,7 +488,15 @@ namespace Spacegun_Simulator
                 return;
             }
 
-            // Get weapon/projectile info from SELECTED SPEC, not default
+            if (engine.CurrentWave == null)
+            {
+                Console.WriteLine("✗ Critical error: Wave data lost during firing phase!");
+                engine.IsGameOver = true;
+                return;
+            }
+
+            var tier = GameConstants.GetTierForWave(engine.CurrentWaveNumber);
+
             double muzzleVelocity = engine.SelectedGunProjectileSpec != null
                 ? engine.SelectedGunProjectileSpec.MuzzleVelocityMs
                 : BallisticsCalculator.CalculateMuzzleVelocity(engine.Gun, engine.Gun.DefaultProjectile);
@@ -502,72 +510,74 @@ namespace Spacegun_Simulator
             Console.WriteLine($"Max Muzzle Velocity: {muzzleVelocity:F0} m/s");
             Console.WriteLine($"Has Guidance System: {(engine.Gun.DefaultProjectile.HasGuidance ? "Yes" : "No")}\n");
             
-            // Get enemy approach angles (generated during wave creation)
-            float enemyCurrentElevation = engine.CurrentWave?.ApproachElevation ?? 45.0f;
-            float enemyCurrentAzimuth = engine.CurrentWave?.ApproachAzimuth ?? 0.0f;
-            float enemyDistance = (float)firingResult.TargetDistance;
+            // ===== GENERATE FIRING PROBLEM =====
+            var calculator = new FiringSolution(
+                (float)projectileMass, 
+                (float)target.FractureEnergy,
+                target.Mass);
 
-            // Convert to 3D Cartesian coordinates
-            Vector3 enemyPosition = FiringSolution.AnglesToCartesian(enemyCurrentElevation, enemyCurrentAzimuth, enemyDistance);
+            FiringProblem firingProblem;
+            try
+            {
+                firingProblem = calculator.GenerateFiringProblem(
+                    engine.CurrentWave,
+                    (float)muzzleVelocity,
+                    (float)tier.MaxEffectiveGunRange,
+                    engine.rng);
+            }
+            catch (InvalidOperationException ex)
+            {
+                Console.WriteLine($"✗ {ex.Message}");
+                engine.IsGameOver = true;
+                return;
+            }
 
-            // Enemy velocity: moving toward gun along approach vector
-            // Decompose the approach direction into velocity components
-            float approachElRad = enemyCurrentElevation * (float)Math.PI / 180f;
-            float approachAzRad = enemyCurrentAzimuth * (float)Math.PI / 180f;
-            
-            float horizontalComponent = -(float)target.Velocity * (float)Math.Cos(approachElRad);
-            float verticalComponent = -(float)target.Velocity * (float)Math.Sin(approachElRad);
-            
-            float vx = horizontalComponent * (float)Math.Sin(approachAzRad);
-            float vy = horizontalComponent * (float)Math.Cos(approachAzRad);
-            float vz = verticalComponent;
-            
-            Vector3 enemyVelocity = new Vector3(vx, vy, vz);
+            float enemyCurrentElevation = firingProblem.ApproachElevation;
+            float enemyCurrentAzimuth = firingProblem.ApproachAzimuth;
+            Vector3 enemyPosition = firingProblem.EnemyPosition;
+            Vector3 enemyVelocity = firingProblem.EnemyVelocity;
 
-            // Display target data for player calculations
             Console.WriteLine("=== TARGET DATA FOR CALCULATIONS ===");
             Console.WriteLine($"Enemy Approach Vector:");
             Console.WriteLine($"  Elevation: {enemyCurrentElevation:F1}° (in sky)");
             Console.WriteLine($"  Azimuth: {enemyCurrentAzimuth:F1}° (bearing)");
-            Console.WriteLine($"  Distance: {GameConstants.FormatDistance(enemyDistance)}");
+            Console.WriteLine($"  Distance: {GameConstants.FormatDistance((double)firingProblem.EngagementDistance)}");
             Console.WriteLine($"  Cartesian Position: {enemyPosition}");
-            Console.WriteLine($"Enemy Velocity Vector: ({vx:F1}, {vy:F1}, {vz:F1}) m/s");
-            Console.WriteLine($"Approach Speed: {(float)target.Velocity:F0} m/s");
-            Console.WriteLine($"Fracture Energy Required: {target.FractureEnergy:F0} MJ\n");
+            Console.WriteLine($"Enemy Velocity Vector: ({enemyVelocity.X:F1}, {enemyVelocity.Y:F1}, {enemyVelocity.Z:F1}) m/s");
+            Console.WriteLine($"Approach Speed: {firingProblem.ApproachSpeed:F0} m/s");
+            Console.WriteLine($"Fracture Energy Required: {firingProblem.FractureEnergyRequired:F0} MJ\n");
 
-            // Create firing solution calculator
-            var calculator = new FiringSolution((float)projectileMass, (float)target.FractureEnergy);
-
-            // Calculate constraints
             float minVelocity = calculator.CalculateRequiredVelocity();
+            double targetRadarCrossSection = target.CrossSection;
+            
             Console.WriteLine($"=== BALLISTIC CONSTRAINTS ===");
             Console.WriteLine($"Minimum velocity to destroy: {minVelocity:F0} m/s");
-            Console.WriteLine($"Maximum velocity available: {muzzleVelocity:F0} m/s\n");
+            Console.WriteLine($"Maximum velocity available: {muzzleVelocity:F0} m/s");
+            Console.WriteLine($"Target Radar Cross-Section: {targetRadarCrossSection:F1} m²\n");
 
-            // Get player's four inputs
             Console.WriteLine("=== ENTER FIRING PARAMETERS ===\n");
-            float playerInterceptTime = GetPlayerTimeInput("Intercept time (seconds): ");
+            float playerLaunchDelayTime = GetPlayerTimeInput("Launch delay time (seconds): ");
             float playerTargetElevation = GetPlayerElevationInput("Target elevation angle (0-90 degrees): ");
             float playerTargetAzimuth = GetPlayerAzimuthInput("Target azimuth bearing (0-360 degrees, 0=North): ");
             float playerLaunchVelocity = GetPlayerVelocityInput($"Launch velocity ({minVelocity:F0}-{muzzleVelocity:F0} m/s): ");
 
             Console.WriteLine();
 
-            // Calculate firing solution
             var solution = calculator.CalculateSolution(
                 enemyPosition,
                 enemyVelocity,
-                playerInterceptTime,
+                playerLaunchDelayTime,
                 playerTargetElevation,
                 playerTargetAzimuth,
                 playerLaunchVelocity,
                 (float)muzzleVelocity,
-                engine.CurrentWaveNumber);  // Add wave number for tier-based constraints
+                (float)tier.MaxEffectiveGunRange,
+                engine.CurrentWaveNumber,
+                target.Mass);
 
-            // Display solution analysis
             Console.WriteLine("=== FIRING SOLUTION ANALYSIS ===");
             Console.WriteLine($"Your Input Parameters:");
-            Console.WriteLine($"  Intercept Time: {playerInterceptTime:F2} seconds");
+            Console.WriteLine($"  Launch Delay Time: {playerLaunchDelayTime:F2} seconds");
             Console.WriteLine($"  Target Elevation: {playerTargetElevation:F1}°");
             Console.WriteLine($"  Target Azimuth: {playerTargetAzimuth:F1}°");
             Console.WriteLine($"  Launch Velocity: {playerLaunchVelocity:F0} m/s\n");
@@ -581,38 +591,17 @@ namespace Spacegun_Simulator
             if (solution.CanHit && solution.EnemyInterceptPoint.HasValue)
             {
                 Console.WriteLine($"Intercept Point: {solution.EnemyInterceptPoint.Value}");
-                Console.WriteLine($"Time to Impact: {solution.InterceptTime:F2} seconds\n");
+                Console.WriteLine($"Launch Delay Time: {solution.LaunchDelayTime:F2} seconds\n");
             }
 
             Console.WriteLine($"Solution Status: {solution.Message}\n");
 
-            // Determine hit based on solution validity
-            double hitProbability = 0.0;
-            if (solution.SolutionValid)
-            {
-                // Calculate theoretical max probability
-                double theoreticalMax = BallisticsCalculator.GetTheoreticalMaxProbability(
-                    engine.Gun,
-                    engine.Gun.DefaultProjectile,
-                    target);
-
-                // Perfect solution = full theoretical probability
-                hitProbability = theoreticalMax;
-
-                Console.WriteLine($"Hit Probability: {hitProbability * 100:F1}%\n");
-            }
-            else
-            {
-                Console.WriteLine($"Hit Probability: 0% (Invalid solution)\n");
-            }
-
             Console.WriteLine("Firing...\n");
             System.Threading.Thread.Sleep(1000);
 
-            // Determine hit
-            bool hit = engine.rng.NextDouble() < hitProbability;
+            // DETERMINISTIC HIT CHECK: Based solely on accuracy vs target size
+            bool hit = solution.CanDestroy && solution.CanHit;
 
-            // ===== DEBUG MATH SECTION =====
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
             Console.WriteLine("║              [DEBUG] FIRING CALCULATION MATH              ║");
             Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
@@ -622,7 +611,6 @@ namespace Spacegun_Simulator
             Console.WriteLine($"  Mass: {projectileMass:F1} kg");
             Console.WriteLine($"  Velocity: {playerLaunchVelocity:F0} m/s");
             
-            // FIX: Use double arithmetic for display calculation too
             double displayVel = playerLaunchVelocity;
             double displayMass = projectileMass;
             double displayVelSquared = displayVel * displayVel;
@@ -635,52 +623,26 @@ namespace Spacegun_Simulator
             Console.WriteLine($"Required: {solution.FractureEnergyRequired:F0} MJ");
             Console.WriteLine($"✓ Energy Check: {(solution.CanDestroy ? "PASS" : "FAIL")} ({solution.KineticEnergyMJ:F1} MJ vs {solution.FractureEnergyRequired:F0} MJ threshold)\n");
 
-            Console.WriteLine("=== INTERCEPT CALCULATION ===");
-            Console.WriteLine($"Enemy at intercept time t={playerInterceptTime:F2}s:");
+            Console.WriteLine("=== INTERCEPT ACCURACY ===");
             if (solution.EnemyInterceptPoint.HasValue)
             {
                 Vector3 enemyAtT = solution.EnemyInterceptPoint.Value;
-                Console.WriteLine($"  Position: {enemyAtT}");
-                
-                // Show projectile position calculation
-                Console.WriteLine($"\nProjectile trajectory at t={playerInterceptTime:F2}s:");
-                Console.WriteLine($"  Elevation angle: {playerTargetElevation:F1}°");
-                Console.WriteLine($"  Azimuth bearing: {playerTargetAzimuth:F1}°");
-                Console.WriteLine($"  Launch velocity: {playerLaunchVelocity:F0} m/s");
-                
-                // Horizontal and vertical components
-                float elevRad = playerTargetElevation * (float)Math.PI / 180f;
-                float azRad = playerTargetAzimuth * (float)Math.PI / 180f;
-                float vzComponent = playerLaunchVelocity * (float)Math.Sin(elevRad);
-                float vHorizontal = playerLaunchVelocity * (float)Math.Cos(elevRad);
-                float vxComponent = vHorizontal * (float)Math.Sin(azRad);
-                float vyComponent = vHorizontal * (float)Math.Cos(azRad);
-                
-                Console.WriteLine($"  Velocity components: Vx={vxComponent:F1} m/s, Vy={vyComponent:F1} m/s, Vz={vzComponent:F1} m/s");
+                Console.WriteLine($"Enemy at intercept: {enemyAtT}");
                 Console.WriteLine($"  Position deviation: {solution.InterceptDeviation:F0} meters");
-                Console.WriteLine($"✓ Intercept Check: {(solution.CanHit ? "PASS" : "FAIL")} (deviation {solution.InterceptDeviation:F0}m, tolerance 1m)\n");
+                Console.WriteLine($"  Target radar cross-section: {targetRadarCrossSection:F1} m²");
+                Console.WriteLine($"✓ Accuracy Check: {(solution.CanHit ? "PASS" : "FAIL")} ({solution.InterceptDeviation:F0}m deviation vs {targetRadarCrossSection:F1}m² target)\n");
             }
             else
             {
                 Console.WriteLine($"  ERROR: No intercept point calculated");
-                Console.WriteLine($"✗ Intercept Check: FAIL (no valid intercept)\n");
+                Console.WriteLine($"✗ Accuracy Check: FAIL\n");
             }
-
-            Console.WriteLine("=== HIT PROBABILITY ===");
-            Console.WriteLine($"Base weapon accuracy: {BallisticsCalculator.GetBaseWeaponAccuracy(engine.Gun):P1}");
-            Console.WriteLine($"Theoretical max hit probability: {hitProbability:P1}");
-            double randomRoll = engine.rng.NextDouble();  // ← Store it ONCE
-            Console.WriteLine($"Random roll generated: {randomRoll:F4}");
-            Console.WriteLine($"Hit threshold: {hitProbability:F4}");
-            Console.WriteLine($"✓ Probability Check: Hit rolled as {(hit ? "TRUE" : "FALSE")}\n");
 
             Console.WriteLine("=== OVERALL SOLUTION VALIDITY ===");
             Console.WriteLine($"Energy sufficient: {(solution.CanDestroy ? "✓ Yes" : "✗ No")}");
-            Console.WriteLine($"Intercept valid: {(solution.CanHit ? "✓ Yes" : "✗ No")}");
+            Console.WriteLine($"Accuracy valid: {(solution.CanHit ? "✓ Yes" : "✗ No")}");
             Console.WriteLine($"Solution valid: {(solution.SolutionValid ? "✓ Yes" : "✗ No")}");
-            Console.WriteLine($"Hit roll result: {(hit ? "✓ HIT" : "✗ MISS")}\n");
-
-            // ===== END DEBUG SECTION =====
+            Console.WriteLine($"Result: {(hit ? "✓ HIT" : "✗ MISS")}\n");
 
             if (hit)
             {
@@ -704,7 +666,7 @@ namespace Spacegun_Simulator
             }
             else
             {
-                Console.WriteLine("✗ MISS! The intercept solution was invalid or the projectile lacked sufficient energy.");
+                Console.WriteLine("✗ MISS! Your ballistic solution was inaccurate or lacked sufficient energy.");
                 engine.IsGameOver = true;
                 return;
             }
@@ -714,7 +676,7 @@ namespace Spacegun_Simulator
         }
 
         /// <summary>
-        /// Get player input for intercept time in seconds.
+        /// Get player input for launch delay time in seconds.
         /// </summary>
         private float GetPlayerTimeInput(string prompt)
         {
@@ -723,12 +685,12 @@ namespace Spacegun_Simulator
                 Console.Write(prompt);
                 string input = Console.ReadLine() ?? "0";
 
-                if (float.TryParse(input, out float time) && time > 0)
+                if (float.TryParse(input, out float time) && time >= 0)
                 {
                     return time;
                 }
 
-                Console.WriteLine("Invalid input. Please enter a positive time value in seconds.\n");
+                Console.WriteLine("Invalid input. Please enter a non-negative time value in seconds.\n");
             }
         }
 

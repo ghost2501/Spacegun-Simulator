@@ -303,119 +303,57 @@ namespace Spacegun_Simulator
 
         public FiringPhaseResult ExecuteFiringPhase()
         {
-            var result = new FiringPhaseResult();
-
-            if (CurrentWave is null || CurrentWave.Targets.Count == 0)
-            {
-                result.Message = "No valid target for engagement.";
-                result.GameOver = true;
-                IsGameOver = true;
-                return result;
-            }
+            if (CurrentWave == null)
+                throw new InvalidOperationException("No active wave for firing phase");
 
             var target = CurrentWave.Targets[0];
-            target.Velocity = CurrentWave.AverageVelocity;
-
             var tier = GameConstants.GetTierForWave(CurrentWaveNumber);
-            result.GunRange = tier.MaxEffectiveGunRange;
 
-            // Calculate how much time was spent in resource allocation phase
-            long timeSpentInAllocation = AvailableYears - RemainingYears;
-            
-            // Convert to seconds - use the proportion of available time that was allocated
-            double proportionOfTimeSpent = timeSpentInAllocation / (double)AvailableYears;
-            double secondsSpent = proportionOfTimeSpent * availableSecondsForGunRange;
+            var solver = new FiringSolution(
+                (float)(SelectedGunProjectileSpec?.ProjectileMassKg ?? Gun.DefaultProjectile.Mass),
+                (float)target.FractureEnergy,
+                target.Mass);
 
-            // Calculate enemy's new distance
-            // NewDistance = InitialDistance - (Velocity × TimeSpent)
-            double distanceTraveledMeters = CurrentWave.AverageVelocity * secondsSpent;
-            double newDistanceMeters = CurrentWave.InitialDistance - distanceTraveledMeters;
-
-            // Enemy can't go past Earth (0)
-            newDistanceMeters = Math.Max(0, newDistanceMeters);
-
-            CurrentWave.CurrentDistance = newDistanceMeters;
-            target.Altitude = newDistanceMeters;
-            result.TargetDistance = newDistanceMeters;
-
-            // If we're still beyond gun range, we failed
-            if (newDistanceMeters > tier.MaxEffectiveGunRange)
+            FiringProblem firingProblem = null!;
+            try
             {
-                result.CanReachTarget = false;
-                result.Message = $"Target still beyond effective gun range after {timeSpentInAllocation} years. ({GameConstants.FormatDistance(newDistanceMeters)} vs {GameConstants.FormatDistance(tier.MaxEffectiveGunRange)})";
-                IsGameOver = true;
-                result.GameOver = true;
-                return result;
+                // Pass gun's effective range to constrain engagement
+                firingProblem = solver.GenerateFiringProblem(
+                    CurrentWave, 
+                    (float)(SelectedGunProjectileSpec?.MuzzleVelocityMs ?? 
+                            BallisticsCalculator.CalculateMuzzleVelocity(Gun, Gun.DefaultProjectile)),
+                    (float)tier.MaxEffectiveGunRange,
+                    rng);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return new FiringPhaseResult
+                {
+                    CanReachTarget = false,
+                    TargetDistance = 1_100_000,
+                    GunRange = tier.MaxEffectiveGunRange,
+                    Message = $"Gun is insufficient for this target: {ex.Message}",
+                    Reward = null,
+                    GameOver = false
+                };
             }
 
-            result.CanReachTarget = true;
+            // Store for use in ConsoleUI firing phase
+            CurrentFiringProblem = firingProblem;
 
-            // Calculate ballistics for firing
-            double muzzleVelocity = BallisticsCalculator.CalculateMuzzleVelocity(Gun, Gun.DefaultProjectile);
-            double projectileKE_MJ = BallisticsCalculator.CalculateDamage(Gun.DefaultProjectile, muzzleVelocity * 0.9, target);
-            
-            // NOTE: Hit probability is now calculated in the UI based on player input
-            // We'll set a default here for now, but it will be overridden in RunFiringPhase()
-            result.HitProbability = BallisticsCalculator.GetTheoreticalMaxProbability(Gun, Gun.DefaultProjectile, target);
-
-            // FIRING OUTCOME: Determine hit or miss
-            // Hit if: (1) we can reach the target AND (2) projectile KE >= fracture energy
-            bool canDestroyWithKE = BallisticsCalculator.CanDestroyTarget(projectileKE_MJ, target);
-            // NOTE: hitRoll is now determined by player's firing solution in the UI
-            // For now, we'll use the theoretical max
-            bool hitRoll = rng.NextDouble() < result.HitProbability;
-            bool hit = canDestroyWithKE && hitRoll;
-
-            // Apply gun state changes
-            Gun.AmmunitionCount--;
-            Gun.BarrelIntegrity = Math.Max(0.0, Gun.BarrelIntegrity - GameConstants.BarrelIntegrityLossPerShot);
-            result.Hit = hit;
-
-            if (hit)
+            return new FiringPhaseResult
             {
-                // Victory! Enemy destroyed.
-                result.WaveDefeated = true;
-                result.Message = $"✓ DIRECT HIT! Enemy destroyed at {GameConstants.FormatDistance(newDistanceMeters)}. Wave {CurrentWaveNumber} defeated!";
-
-                var reward = new ResourceCost(
-                    budget: GameConstants.BudgetRewardBase + CurrentWaveNumber * GameConstants.BudgetRewardPerWave + (long)AccumulatedResources["Budget"],
-                    steel: GameConstants.SteelRewardBase + CurrentWaveNumber * GameConstants.SteelRewardPerWave + (long)AccumulatedResources["Steel"],
-                    exotic: GameConstants.ExoticRewardBase + CurrentWaveNumber * GameConstants.ExoticRewardPerWave + (long)AccumulatedResources["Exotic"]
-                );
-
-                Resources.Grant(reward);
-                result.Reward = reward;
-                WavesDefeated++;
-                TotalEnemiesDestroyed++;
-                CurrentWaveNumber++;
-
-                if (CurrentWaveNumber > GameConstants.TotalWaves)
-                {
-                    IsGameOver = true;
-                    result.GameOver = true;
-                    result.Message = "VICTORY: All 25 waves repelled. Humanity saved!";
-                }
-            }
-            else
-            {
-                // Defeat: Miss or insufficient energy
-                result.WaveDefeated = false;
-                if (!canDestroyWithKE)
-                {
-                    result.Message = $"✗ INSUFFICIENT ENERGY! Projectile KE ({projectileKE_MJ:F0} MJ) < Fracture Energy ({target.FractureEnergy:F0} MJ). The enemy reaches Earth. GLOBAL DESTRUCTION.";
-                }
-                else
-                {
-                    result.Message = "✗ MISS! The enemy reaches Earth. GLOBAL DESTRUCTION.";
-                }
-                IsGameOver = true;
-                result.GameOver = true;
-            }
-
-            CompletedWaves.Add(CurrentWave);
-            CurrentPhase = GamePhase.WaveComplete;
-            return result;
+                CanReachTarget = true,
+                TargetDistance = firingProblem.EngagementDistance,
+                GunRange = tier.MaxEffectiveGunRange,
+                Message = $"Target at engagement distance {GameConstants.FormatDistance(firingProblem.EngagementDistance)}",
+                Reward = null,
+                GameOver = false
+            };
         }
+
+        // Add this property to store firing problem for ConsoleUI
+        public FiringProblem? CurrentFiringProblem { get; set; }
 
         // ====================================================================
         // HELPER: Advance to next wave

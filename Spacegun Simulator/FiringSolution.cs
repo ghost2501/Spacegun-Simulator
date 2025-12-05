@@ -3,27 +3,15 @@ using System;
 namespace Spacegun_Simulator
 {
     // ============================================================================
-    // FIRING SOLUTION - 3D Ballistic Intercept System
+    // FIRING SOLUTION - 3D Ballistic Problem Generation & Validation
     // ============================================================================
-    // Calculates 3D ballistic trajectories for intercepting moving targets.
+    // ENGAGEMENT FLOW:
+    // At T+0s: Enemy is at 1000-1200km distance with known position, velocity vector
+    // Player calculates: LaunchDelayTime, Elevation, Azimuth, LaunchVelocity
+    // At T+LaunchDelayTime: Gun fires
+    // At T+LaunchDelayTime+FlightTime: Projectile intercepts target (within gun range)
     //
-    // PLAYER IS GIVEN:
-    // - Enemy's current position expressed as ELEVATION and AZIMUTH (in sky)
-    // - Enemy's velocity vector expressed as ELEVATION RATE and AZIMUTH RATE (degrees/second)
-    // - Target fracture energy
-    // - Gun's max velocity
-    //
-    // PLAYER MUST CALCULATE AND INPUT:
-    // 1. INTERCEPT TIME (seconds) - When will projectile and enemy meet?
-    // 2. LAUNCH VELOCITY (m/s) - How hard to fire?
-    // 3. TARGET ELEVATION (degrees) - Where in the sky to aim?
-    // 4. TARGET AZIMUTH (degrees) - Which compass direction to aim?
-    //
-    // SYSTEM CALCULATES:
-    // - Where enemy will be at player's intercept time
-    // - Whether projectile trajectory reaches that point
-    // - Kinetic energy at impact
-    // - Solution validity
+    // X = LaunchDelayTime + FlightTime = Total time from engagement start to intercept
 
     public struct Vector3
     {
@@ -40,9 +28,12 @@ namespace Spacegun_Simulator
 
         public float Magnitude => (float)Math.Sqrt(X * X + Y * Y + Z * Z);
 
+        public static Vector3 Zero => new(0f, 0f, 0f);
+
         public static Vector3 operator +(Vector3 a, Vector3 b) => new(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
         public static Vector3 operator -(Vector3 a, Vector3 b) => new(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
         public static Vector3 operator *(Vector3 v, float s) => new(v.X * s, v.Y * s, v.Z * s);
+        public static Vector3 operator /(Vector3 v, float s) => new(v.X / s, v.Y / s, v.Z / s);
 
         public override string ToString() => $"({X:F1}, {Y:F1}, {Z:F1})";
     }
@@ -53,7 +44,7 @@ namespace Spacegun_Simulator
         public bool CanHit { get; set; }
         public bool SolutionValid { get; set; }
         public Vector3? EnemyInterceptPoint { get; set; }
-        public float InterceptTime { get; set; }
+        public float LaunchDelayTime { get; set; }
         public float TargetElevation { get; set; }
         public float TargetAzimuth { get; set; }
         public float MinVelocityRequired { get; set; }
@@ -61,27 +52,48 @@ namespace Spacegun_Simulator
         public float ProjectileVelocity { get; set; }
         public double KineticEnergyMJ { get; set; }
         public double FractureEnergyRequired { get; set; }
-        public float InterceptDeviation { get; set; } // Distance off in meters
+        public float InterceptDeviation { get; set; }
         public string Message { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Represents a complete firing problem generated for the player.
+    /// Enemy is at 1000-1200km at T+0s. Player must calculate intercept parameters.
+    /// </summary>
+    public class FiringProblem
+    {
+        public Vector3 EnemyPosition { get; set; }
+        public Vector3 EnemyVelocity { get; set; }
+        public float ApproachElevation { get; set; }
+        public float ApproachAzimuth { get; set; }
+        public float EngagementDistance { get; set; }
+        public float ApproachSpeed { get; set; }
+        public double FractureEnergyRequired { get; set; }
+        public float CorrectLaunchDelayTime { get; set; }
+        public float CorrectElevation { get; set; }
+        public float CorrectAzimuth { get; set; }
+        public float CorrectVelocity { get; set; }
     }
 
     public class FiringSolution
     {
-        private const float GRAVITY = 9.81f; // m/s²
+        private const float GRAVITY = 9.81f;
+        private const double STANDARD_SHIP_DENSITY_KG_M3 = 500.0;
+        private const double METRIC_TONS_TO_KG = 1000.0;
+
         private float projectileMass;
         private float enemyFractureEnergy;
+        private double enemyMass;
 
-        public FiringSolution(float projectileMass, float enemyFractureEnergy)
+        public FiringSolution(float projectileMass, float enemyFractureEnergy, double enemyMass = 10000.0)
         {
             this.projectileMass = projectileMass;
             this.enemyFractureEnergy = enemyFractureEnergy;
+            this.enemyMass = enemyMass;
         }
 
         /// <summary>
         /// Convert elevation/azimuth angles (in degrees) to 3D Cartesian coordinates.
-        /// Assumes distance of 1 AU (150 million km) for reference frame.
-        /// Elevation: 0° = horizon, 90° = zenith
-        /// Azimuth: 0° = North, 90° = East, 180° = South, 270° = West
         /// </summary>
         public static Vector3 AnglesToCartesian(float elevationDeg, float azimuthDeg, float distance)
         {
@@ -99,7 +111,6 @@ namespace Spacegun_Simulator
 
         /// <summary>
         /// Convert 3D Cartesian coordinates back to elevation/azimuth angles.
-        /// Returns (elevation, azimuth) as a tuple.
         /// </summary>
         public static (float elevation, float azimuth) CartesianToAngles(Vector3 position)
         {
@@ -107,7 +118,7 @@ namespace Spacegun_Simulator
             if (distance < 0.0001f)
                 return (0, 0);
 
-            float elevation = (float)Math.Atan2(position.Z, 
+            float elevation = (float)Math.Atan2(position.Z,
                 (float)Math.Sqrt(position.X * position.X + position.Y * position.Y));
             float azimuth = (float)Math.Atan2(position.X, position.Y);
 
@@ -119,292 +130,360 @@ namespace Spacegun_Simulator
             return (elevationDeg, azimuthDeg);
         }
 
-        /// <summary>
-        /// Calculate minimum projectile velocity needed to destroy enemy.
-        /// Using KE = 0.5 * m * v^2, solve for v
-        /// </summary>
         public float CalculateRequiredVelocity()
         {
             float requiredVelocity = (float)Math.Sqrt(2 * enemyFractureEnergy / projectileMass);
             return requiredVelocity;
         }
 
-        /// <summary>
-        /// Calculate kinetic energy in megajoules from mass and velocity.
-        /// KE = 0.5 * m * v^2, result in MJ
-        /// FIXED: Use explicit double casting to avoid integer overflow
-        /// </summary>
         public double CalculateKineticEnergyMJ(float velocity)
         {
-            // Convert to double to maintain precision through calculation
             double v = velocity;
             double m = projectileMass;
-            
             double energyJoules = 0.5 * m * v * v;
             return energyJoules / 1_000_000.0;
         }
 
         /// <summary>
-        /// Calculate projectile position at time t given launch parameters.
-        /// Assumes launch from origin (0,0,0).
+        /// Calculate target diameter from mass using spherical geometry and uniform density.
         /// </summary>
-        private Vector3 CalculateProjectilePosition(float time, float launchVelocity, float elevationDeg, float azimuthDeg)
+        private float CalculateTargetDiameter()
+        {
+            double massKg = enemyMass * METRIC_TONS_TO_KG;
+            double volumeM3 = massKg / STANDARD_SHIP_DENSITY_KG_M3;
+            double radiusM = Math.Pow(3.0 * volumeM3 / (4.0 * Math.PI), 1.0 / 3.0);
+            return (float)(radiusM * 2.0);
+        }
+
+        /// <summary>
+        /// Calculate hit tolerance as 0.5 × target diameter.
+        /// </summary>
+        private float CalculateHitTolerance()
+        {
+            float diameter = CalculateTargetDiameter();
+            return diameter * 0.5f;
+        }
+
+        /// <summary>
+        /// Calculate projectile position at time T (measured from firing, not engagement start).
+        /// </summary>
+        private Vector3 CalculateProjectilePosition(float flightTime, float launchVelocity, float elevationDeg, float azimuthDeg)
         {
             float elevationRad = elevationDeg * (float)Math.PI / 180f;
             float azimuthRad = azimuthDeg * (float)Math.PI / 180f;
 
-            // Velocity components
-            float vz = launchVelocity * (float)Math.Sin(elevationRad); // Vertical
-            float vHorizontal = launchVelocity * (float)Math.Cos(elevationRad); // Horizontal magnitude
+            float vz = launchVelocity * (float)Math.Sin(elevationRad);
+            float vHorizontal = launchVelocity * (float)Math.Cos(elevationRad);
 
-            float vx = vHorizontal * (float)Math.Sin(azimuthRad); // East component
-            float vy = vHorizontal * (float)Math.Cos(azimuthRad); // North component
+            float vx = vHorizontal * (float)Math.Sin(azimuthRad);
+            float vy = vHorizontal * (float)Math.Cos(azimuthRad);
 
-            // Position = v*t - 0.5*g*t²
-            float x = vx * time;
-            float y = vy * time;
-            float z = vz * time - 0.5f * GRAVITY * time * time; // Gravity pulls down
+            float x = vx * flightTime;
+            float y = vy * flightTime;
+            float z = vz * flightTime - 0.5f * GRAVITY * flightTime * flightTime;
 
             return new Vector3(x, y, z);
         }
 
         /// <summary>
-        /// Calculate enemy position at given time.
-        /// Enemy starts at initial 3D position and moves along velocity vector.
+        /// Calculate enemy position at time T (measured from engagement start).
         /// </summary>
-        private Vector3 CalculateEnemyPosition(float time, Vector3 initialPosition, Vector3 velocityVector)
+        private Vector3 CalculateEnemyPosition(float engagementTime, Vector3 initialPosition, Vector3 velocityVector)
         {
-            return initialPosition + (velocityVector * time);
+            return initialPosition + (velocityVector * engagementTime);
         }
 
         /// <summary>
-        /// Calculate the maximum intercept time before target descends below horizon.
-        /// Returns the time when target reaches Z = 0 (horizon).
+        /// Generate a complete firing problem for the player.
+        /// REVERSED LOGIC: Pick intercept point first, then work backwards to T+0s.
+        /// 
+        /// At T+0s: Enemy is at 1000-2000km altitude, approaching with known velocity
+        /// At T+X: Enemy reaches the intercept point (closer to Earth, significantly different angle)
+        /// Player must calculate when to fire so projectile arrives at that point at T+X
+        /// 
+        /// DRAMATIC ARC: Enforces large elevation and azimuth deltas (45-90° and 90-120° respectively)
+        /// to create a visually striking arc across the sky during the 5-30 second flight.
         /// </summary>
-        private float CalculateMaxInterceptTime(Vector3 enemyCurrentPosition, Vector3 enemyVelocityVector)
+        public FiringProblem GenerateFiringProblem(
+            EnemyWave wave,
+            float playerGunMaxVelocity,
+            float gunEffectiveRange,
+            Random rng)
         {
-            // Target position: P(t) = P0 + V*t
-            // We need: Z(t) = Z0 + Vz*t > 0
-            // Solve for when Z(t) = 0: t = -Z0 / Vz (if Vz < 0)
-            
-            if (enemyVelocityVector.Z >= 0)
+            if (wave is null) throw new ArgumentNullException(nameof(wave));
+            if (rng is null) throw new ArgumentNullException(nameof(rng));
+
+            var target = wave.Targets[0];
+            this.enemyMass = target.Mass;
+
+            // STEP 1: Pick a random intercept time (5-30 seconds from engagement start)
+            float interceptTime = 5f + (float)(rng.NextDouble() * 25f);
+
+            // STEP 2: Generate T+0s angles (starting position)
+            float approachElev = 20f + (float)(rng.NextDouble() * 50f);           // 20-70° elevation
+            float approachAzim = (float)(rng.NextDouble() * 360f);               // 0-360° azimuth
+            float approachDistance = 1_500_000 + (float)(rng.NextDouble() * 500_000);  // 1500-2000 km
+
+            Vector3 enemyAtT0 = AnglesToCartesian(approachElev, approachAzim, approachDistance);
+
+            // STEP 3: Generate intercept angles with ENFORCED DRAMATIC ARC
+            // Elevation delta: 45-90 degrees
+            // Azimuth delta: 90-120 degrees
+            float elevDelta = 45f + (float)(rng.NextDouble() * 45f);  // 45-90° change
+            float azimDelta = 90f + (float)(rng.NextDouble() * 30f);  // 90-120° change
+
+            // Apply elevation delta (can increase or decrease)
+            float elevDirection = rng.NextDouble() < 0.5 ? -1f : 1f;
+            float interceptElev = approachElev + (elevDirection * elevDelta);
+            interceptElev = Math.Max(5f, Math.Min(85f, interceptElev));  // Clamp to valid range (5-85°)
+
+            // Apply azimuth delta (clockwise or counter-clockwise)
+            float azimDirection = rng.NextDouble() < 0.5 ? -1f : 1f;
+            float interceptAzim = approachAzim + (azimDirection * azimDelta);
+            if (interceptAzim < 0) interceptAzim += 360f;
+            if (interceptAzim >= 360f) interceptAzim -= 360f;
+
+            // Intercept distance: closer to Earth (20-50% closer)
+            float distanceReduction = 0.2f + (float)(rng.NextDouble() * 0.3f);
+            float interceptDistance = approachDistance * (1f - distanceReduction);
+            interceptDistance = Math.Max(1_000_000f, Math.Min(2_000_000f, interceptDistance));
+
+            Vector3 interceptPoint = AnglesToCartesian(interceptElev, interceptAzim, interceptDistance);
+
+            // STEP 4: Work backwards to find enemy velocity
+            // Calculate velocity vector to move from T+0s position to intercept position
+            Vector3 displacement = interceptPoint - enemyAtT0;
+            Vector3 enemyVelocity = (displacement * (1f / interceptTime));
+
+            // Verify the velocity magnitude matches the wave average
+            float calculatedSpeed = enemyVelocity.Magnitude;
+            float speedDifference = Math.Abs(calculatedSpeed - (float)wave.AverageVelocity);
+            if (speedDifference > (float)wave.AverageVelocity * 0.1f)
             {
-                // Enemy ascending or level - no time constraint
-                return float.MaxValue;
+                // Velocity doesn't match - normalize it to match wave velocity
+                enemyVelocity = (enemyVelocity / calculatedSpeed) * (float)wave.AverageVelocity;
             }
 
-            // Enemy descending - calculate when it reaches horizon
-            float maxTime = -enemyCurrentPosition.Z / enemyVelocityVector.Z;
-            
-            // Return 95% of max time to provide safety margin
-            return maxTime * 0.95f;
+            // STEP 5: Calculate angle change (for narrative - visible arc)
+            float elevationDeltaActual = Math.Abs(interceptElev - approachElev);
+            float azimuthDeltaActual = Math.Abs(interceptAzim - approachAzim);
+            if (azimuthDeltaActual > 180f) azimuthDeltaActual = 360f - azimuthDeltaActual;  // Get shortest arc
+
+            Console.WriteLine($"      Generated firing problem:");
+            Console.WriteLine($"        T+0s: Enemy at {GameConstants.FormatDistance(approachDistance)}, elev={approachElev:F1}°, azim={approachAzim:F1}°");
+            Console.WriteLine($"        T+{interceptTime:F1}s: Intercept at {GameConstants.FormatDistance(interceptDistance)}, elev={interceptElev:F1}°, azim={interceptAzim:F1}°");
+            Console.WriteLine($"        DRAMATIC ARC: Δelev={elevationDeltaActual:F1}° (target: 45-90°), Δazim={azimuthDeltaActual:F1}° (target: 90-120°)");
+
+            // STEP 6: Calculate correct solution parameters
+            float correctVelocity = playerGunMaxVelocity * 0.85f;
+            float correctElevation = interceptElev;
+            float correctAzimuth = interceptAzim;
+
+            return new FiringProblem
+            {
+                EnemyPosition = enemyAtT0,
+                EnemyVelocity = enemyVelocity,
+                ApproachElevation = approachElev,
+                ApproachAzimuth = approachAzim,
+                EngagementDistance = approachDistance,
+                ApproachSpeed = (float)wave.AverageVelocity,
+                FractureEnergyRequired = target.FractureEnergy,
+                CorrectLaunchDelayTime = Math.Max(1f, interceptTime - 10f),
+                CorrectElevation = correctElevation,
+                CorrectAzimuth = correctAzimuth,
+                CorrectVelocity = correctVelocity
+            };
         }
 
         /// <summary>
-        /// Validate if a valid firing solution is theoretically possible for these parameters.
-        /// During wave generation, checks if ANY valid solution exists (not if random params hit).
-        /// Returns true if playable scenario is possible.
+        /// Find a valid intercept solution.
+        /// Dynamically adjusts search window based on enemy velocity.
         /// </summary>
-        public bool CanProduceValidSolution(
-            Vector3 enemyCurrentPosition,
-            Vector3 enemyVelocityVector,
+        private bool FindValidSolution(
+            Vector3 enemyInitialPosition,
+            Vector3 enemyVelocity,
             float maxGunVelocity,
-            float minInterceptTime,
-            float maxInterceptTime)
+            float gunEffectiveRange,
+            out (float LaunchDelayTime, float Elevation, float Azimuth, float Velocity) solution)
         {
-            // Test multiple intercept times within the valid range
-            float step = 0.5f;
-            int testsRun = 0;
-            int validSolutionsFound = 0;
-            float minRequiredVelocity = CalculateRequiredVelocity();
-            
-            // If minimum required velocity exceeds gun capability, no solution possible
-            if (minRequiredVelocity > maxGunVelocity)
+            solution = default;
+
+            float minVelocity = CalculateRequiredVelocity();
+            if (minVelocity > maxGunVelocity)
             {
-                Console.WriteLine($"      Min velocity required ({minRequiredVelocity:F0} m/s) exceeds max gun velocity ({maxGunVelocity:F0} m/s)");
+                Console.WriteLine($"      ✗ Min velocity required ({minVelocity:F0} m/s) exceeds max gun velocity ({maxGunVelocity:F0} m/s)");
                 return false;
             }
+
+            float hitTolerance = CalculateHitTolerance();
+            Console.WriteLine($"      Searching for valid solution:");
+            Console.WriteLine($"        Hit tolerance: {hitTolerance:F1} m");
+            Console.WriteLine($"        Gun range: {gunEffectiveRange:F0} m");
+
+            // Dynamically determine search window based on enemy velocity
+            // Slow enemies need longer windows to stay in gun range
+            float enemySpeed = enemyVelocity.Magnitude;
+            float maxSearchTime = enemySpeed > 0 
+                ? Math.Min(600f, (gunEffectiveRange * 1.5f) / enemySpeed)  // Time for enemy to travel 1.5x gun range
+                : 600f;
             
-            for (float t = minInterceptTime; t <= maxInterceptTime; t += step)
+            Console.WriteLine($"        Enemy speed: {enemySpeed:F0} m/s, search window: 2-{maxSearchTime:F1}s");
+
+            // Search for intercept within dynamic time window
+            for (float engagementTime = 2f; engagementTime <= maxSearchTime; engagementTime += 0.5f)
             {
-                // Calculate where enemy will be at this time
-                Vector3 enemyAtT = CalculateEnemyPosition(t, enemyCurrentPosition, enemyVelocityVector);
-                
-                // CRITICAL: Enemy must be above horizon
-                if (enemyAtT.Z <= 0)
+                Vector3 enemyAtEngagementT = CalculateEnemyPosition(engagementTime, enemyInitialPosition, enemyVelocity);
+
+                // Enemy must still be above horizon
+                if (enemyAtEngagementT.Z <= 0)
                     continue;
-                
-                // Try various elevation angles (sample the space)
-                for (float elev = 5f; elev <= 80f; elev += 15f)
+
+                // Enemy must be within gun range by this time
+                float distanceToEnemy = enemyAtEngagementT.Magnitude;
+                if (distanceToEnemy > gunEffectiveRange)
+                    continue;
+
+                // Search for launch parameters with coarse angles
+                for (float elev = 5f; elev <= 85f; elev += 5f)
                 {
-                    for (float azim = 0f; azim < 360f; azim += 90f)
+                    for (float azim = 0f; azim < 360f; azim += 30f)
                     {
-                        // Clamp velocity range to ensure we test from min required to max available
-                        float velStart = Math.Min(minRequiredVelocity, maxGunVelocity);
-                        float velStep = Math.Max(1000f, (maxGunVelocity - velStart) / 4f);  // Test at least 4 points
-                        
-                        for (float vel = velStart; vel <= maxGunVelocity; vel += velStep)
+                        for (float vel = minVelocity; vel <= maxGunVelocity; vel += Math.Max(5000f, (maxGunVelocity - minVelocity) / 5f))
                         {
-                            testsRun++;
-                            Vector3 projectileAtT = CalculateProjectilePosition(t, vel, elev, azim);
-                            
-                            // Check projectile doesn't go below ground during flight
-                            bool projectileAboveGround = true;
-                            for (float checkT = 0; checkT <= t; checkT += Math.Max(0.1f, t / 20f))
+                            // Test reasonable flight times
+                            for (float flightTime = 0.5f; flightTime <= Math.Min(30f, engagementTime); flightTime += 0.5f)
                             {
-                                Vector3 checkPos = CalculateProjectilePosition(checkT, vel, elev, azim);
-                                if (checkPos.Z < 0)
+                                // Enemy position at intercept time
+                                Vector3 enemyAtIntercept = CalculateEnemyPosition(engagementTime + flightTime, enemyInitialPosition, enemyVelocity);
+
+                                // Projectile position after flight
+                                Vector3 projectileAtIntercept = CalculateProjectilePosition(flightTime, vel, elev, azim);
+
+                                // Check if intercept is valid
+                                Vector3 deviation = projectileAtIntercept - enemyAtIntercept;
+                                float distance = deviation.Magnitude;
+
+                                if (distance < hitTolerance && enemyAtIntercept.Magnitude <= gunEffectiveRange)
                                 {
-                                    projectileAboveGround = false;
-                                    break;
+                                    float launchDelayTime = engagementTime;
+                                    Console.WriteLine($"        ✓ Solution found: Launch at T+{launchDelayTime:F1}s, intercept at T+{engagementTime + flightTime:F1}s");
+                                    solution = (launchDelayTime, elev, azim, vel);
+                                    return true;
                                 }
                             }
-                            
-                            if (!projectileAboveGround)
-                                continue;
-                            
-                            // Final elevation must be 5° to 80° (relaxed from 0-85 for better margin)
-                            var (finalElev, _) = CartesianToAngles(projectileAtT);
-                            if (finalElev < 5f || finalElev > 80f)
-                                continue;
-                            
-                            // RELAXED: Check if projectile has sufficient energy
-                            // (We don't need perfect intercept during wave gen - just energy potential)
-                            double projectileKE_MJ = CalculateKineticEnergyMJ(vel);
-                            if (projectileKE_MJ < enemyFractureEnergy)
-                                continue;
-                            
-                            // If all structural checks pass, a valid solution exists
-                            validSolutionsFound++;
-                            Console.WriteLine($"      Found valid solution: t={t:F2}s, elev={elev:F0}°, vel={vel:F0} m/s → KE={projectileKE_MJ:F1} MJ");
-                            return true;  // ONE valid solution proves the wave is playable
                         }
                     }
                 }
             }
-            
-            Console.WriteLine($"      No valid solution found: {testsRun} combinations tested, {validSolutionsFound} viable approaches.");
+
+            Console.WriteLine($"      ✗ No valid solution found");
             return false;
         }
 
         /// <summary>
-        /// Calculate complete 3D ballistic firing solution.
-        /// Silently rejects invalid inputs without user-facing error messages.
+        /// Validate player solution given launch delay time and other parameters.
+        /// LaunchDelayTime represents when to fire from engagement T+0s.
+        /// Allows 0s as a valid option for immediate firing at engagement start.
         /// </summary>
         public FiringSolutionResult CalculateSolution(
-            Vector3 enemyCurrentPosition,
+            Vector3 enemyInitialPosition,
             Vector3 enemyVelocityVector,
-            float playerInterceptTime,
+            float playerLaunchDelayTime,
             float playerTargetElevation,
             float playerTargetAzimuth,
             float playerLaunchVelocity,
             float maxGunVelocity,
-            int waveNumber = 1)
+            float gunEffectiveRange,
+            int waveNumber = 1,
+            double enemyMass = 10000.0)
         {
-            // Determine weapon tier for intercept time constraints
+            this.enemyMass = enemyMass;
+
             var tier = GameConstants.GetTierForWave(waveNumber);
-            float minInterceptTime = 2f;
-            float maxInterceptTime = tier.TierIndex switch
+            float minLaunchDelayTime = 0f;  // ALLOW 0s - immediate fire is valid
+            float maxLaunchDelayTime = tier.TierIndex switch
             {
-                0 => 15f,    // Early game: 2-15 seconds
-                1 => 30f,    // Mid game: 2-30 seconds
-                2 => 60f,    // Late game: 2-60 seconds
-                _ => 60f     // Default to late game
+                0 => 60f,
+                1 => 120f,
+                2 => 180f,
+                _ => 180f
             };
 
-            // Silent validation - no messages to player
-            if (playerInterceptTime <= 0 || playerInterceptTime < minInterceptTime || playerInterceptTime > maxInterceptTime)
-            {
-                return InvalidResult(enemyCurrentPosition, playerInterceptTime);
-            }
+            // Validate launch delay time - allow 0s as a valid option
+            if (playerLaunchDelayTime < minLaunchDelayTime || playerLaunchDelayTime > maxLaunchDelayTime)
+                return InvalidResult(enemyInitialPosition, playerLaunchDelayTime);
 
             if (playerTargetElevation < -90 || playerTargetElevation > 90)
-            {
-                return InvalidResult(enemyCurrentPosition, playerInterceptTime);
-            }
+                return InvalidResult(enemyInitialPosition, playerLaunchDelayTime);
 
             if (playerTargetAzimuth < 0 || playerTargetAzimuth >= 360)
-            {
-                return InvalidResult(enemyCurrentPosition, playerInterceptTime);
-            }
+                return InvalidResult(enemyInitialPosition, playerLaunchDelayTime);
 
             if (playerLaunchVelocity <= 0 || playerLaunchVelocity > maxGunVelocity)
+                return InvalidResult(enemyInitialPosition, playerLaunchDelayTime);
+
+            // Calculate actual flight time from velocity and angles
+            // Projectile position = launchVelocity * time (minus gravity drop on Z)
+            // We need to find when projectile reaches intercept point
+            // Use iterative approach: try different flight times
+            Vector3 bestInterceptPoint = Vector3.Zero;
+            float bestDeviation = float.MaxValue;
+            float bestFlightTime = 10f;
+            
+            // STEP 1: Search for best intercept flight time
+            for (float testFlightTime = 0.1f; testFlightTime <= 60f; testFlightTime += 0.1f)
             {
-                return InvalidResult(enemyCurrentPosition, playerInterceptTime);
-            }
+                // Projectile position after testFlightTime seconds of flight
+                Vector3 projectileAtFlight = CalculateProjectilePosition(testFlightTime, playerLaunchVelocity, playerTargetElevation, playerTargetAzimuth);
 
-            // Calculate trajectories
-            Vector3 enemyAtInterceptTime = CalculateEnemyPosition(playerInterceptTime, enemyCurrentPosition, enemyVelocityVector);
-            Vector3 projectileAtInterceptTime = CalculateProjectilePosition(
-                playerInterceptTime,
-                playerLaunchVelocity,
-                playerTargetElevation,
-                playerTargetAzimuth);
+                // Enemy position at T+playerLaunchDelayTime + testFlightTime
+                Vector3 enemyAtFlight = CalculateEnemyPosition(playerLaunchDelayTime + testFlightTime, enemyInitialPosition, enemyVelocityVector);
 
-            // Calculate kinetic energy NOW (before any early returns)
-            float minVelocity = CalculateRequiredVelocity();
-            double playerKE_MJ = CalculateKineticEnergyMJ(playerLaunchVelocity);
+                // Check if they intercept (within tolerance)
+                Vector3 deviation = projectileAtFlight - enemyAtFlight;
+                float distance = deviation.Magnitude;
 
-            // Check projectile doesn't go below ground
-            bool projectileAboveGround = true;
-            for (float t = 0; t <= playerInterceptTime; t += Math.Max(0.1f, playerInterceptTime / 20f))
-            {
-                Vector3 pos = CalculateProjectilePosition(t, playerLaunchVelocity, playerTargetElevation, playerTargetAzimuth);
-                if (pos.Z < 0)
+                // Track best intercept
+                if (distance < bestDeviation)
                 {
-                    projectileAboveGround = false;
-                    break;
+                    bestDeviation = distance;
+                    bestFlightTime = testFlightTime;
+                    bestInterceptPoint = enemyAtFlight;
                 }
             }
 
-            if (!projectileAboveGround)
-            {
-                return InvalidResult(enemyAtInterceptTime, playerInterceptTime, minVelocity, playerKE_MJ);
-            }
+            float minVelocity = CalculateRequiredVelocity();
+            double playerKE_MJ = CalculateKineticEnergyMJ(playerLaunchVelocity);
+            
+            // Check intercept is within gun range
+            if (bestInterceptPoint.Magnitude > gunEffectiveRange)
+                return InvalidResult(bestInterceptPoint, playerLaunchDelayTime);
 
-            // CRITICAL: Final elevation must be in valid firing range
-            // Allow negative elevations for descending targets, but cap at -45° floor
-            var (finalElevation, _) = CartesianToAngles(projectileAtInterceptTime);
-            if (finalElevation < -45 || finalElevation > 85)
-            {
-                return InvalidResult(enemyAtInterceptTime, playerInterceptTime, minVelocity, playerKE_MJ);
-            }
-
-            // Calculate miss distance
-            Vector3 deviationVector = projectileAtInterceptTime - enemyAtInterceptTime;
-            float interceptDeviation = deviationVector.Magnitude;
-
-            // Hit check
-            bool canHit = interceptDeviation < 1.0f;
-
-            // Energy check
+            float hitTolerance = CalculateHitTolerance();
+            bool canHit = bestDeviation < hitTolerance;
             bool hasEnergy = playerKE_MJ >= enemyFractureEnergy;
-
             bool isValid = hasEnergy && canHit;
-
-            // Simple feedback - only hit/miss, no detailed explanations
-            string message = isValid ? "✓ Direct hit!" : "✗ Miss";
 
             return new FiringSolutionResult
             {
                 CanDestroy = hasEnergy,
                 CanHit = canHit,
                 SolutionValid = isValid,
-                EnemyInterceptPoint = enemyAtInterceptTime,
-                InterceptTime = playerInterceptTime,
+                EnemyInterceptPoint = bestInterceptPoint,
+                LaunchDelayTime = playerLaunchDelayTime,
                 TargetElevation = playerTargetElevation,
                 TargetAzimuth = playerTargetAzimuth,
                 MinVelocityRequired = minVelocity,
                 MaxVelocityAvailable = maxGunVelocity,
                 ProjectileVelocity = playerLaunchVelocity,
-                KineticEnergyMJ = playerKE_MJ,  // ← NOW SET EARLY
+                KineticEnergyMJ = playerKE_MJ,
                 FractureEnergyRequired = enemyFractureEnergy,
-                InterceptDeviation = interceptDeviation,
-                Message = message
+                InterceptDeviation = bestDeviation,
+                Message = isValid ? "✓ Direct hit!" : "✗ Miss"
             };
         }
 
-        private FiringSolutionResult InvalidResult(Vector3 enemyInterceptPoint, float interceptTime)
+        private FiringSolutionResult InvalidResult(Vector3 enemyInterceptPoint, float launchDelayTime)
         {
             return new FiringSolutionResult
             {
@@ -412,23 +491,7 @@ namespace Spacegun_Simulator
                 CanHit = false,
                 SolutionValid = false,
                 EnemyInterceptPoint = enemyInterceptPoint,
-                InterceptTime = interceptTime,
-                FractureEnergyRequired = enemyFractureEnergy,
-                Message = "✗ Miss"
-            };
-        }
-
-        private FiringSolutionResult InvalidResult(Vector3 enemyInterceptPoint, float interceptTime, float minVelocity, double playerKE_MJ)
-        {
-            return new FiringSolutionResult
-            {
-                CanDestroy = false,
-                CanHit = false,
-                SolutionValid = false,
-                EnemyInterceptPoint = enemyInterceptPoint,
-                InterceptTime = interceptTime,
-                MinVelocityRequired = minVelocity,
-                KineticEnergyMJ = playerKE_MJ,  // ← POPULATE ON INVALID RESULTS TOO
+                LaunchDelayTime = launchDelayTime,
                 FractureEnergyRequired = enemyFractureEnergy,
                 Message = "✗ Miss"
             };
