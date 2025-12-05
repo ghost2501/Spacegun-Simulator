@@ -208,7 +208,8 @@ namespace Spacegun_Simulator
             EnemyWave wave,
             float playerGunMaxVelocity,
             float gunEffectiveRange,
-            Random rng)
+            Random rng,
+            float initialEngagementDistance = 0f)  // Add parameter with default
         {
             if (wave is null) throw new ArgumentNullException(nameof(wave));
             if (rng is null) throw new ArgumentNullException(nameof(rng));
@@ -222,7 +223,11 @@ namespace Spacegun_Simulator
             // STEP 2: Generate T+0s angles (starting position)
             float approachElev = 20f + (float)(rng.NextDouble() * 50f);           // 20-70° elevation
             float approachAzim = (float)(rng.NextDouble() * 360f);               // 0-360° azimuth
-            float approachDistance = 1_500_000 + (float)(rng.NextDouble() * 500_000);  // 1500-2000 km
+            
+            // Use provided distance or generate new one
+            float approachDistance = initialEngagementDistance > 0f 
+                ? initialEngagementDistance
+                : 1_500_000 + (float)(rng.NextDouble() * 500_000);  // 1500-2000 km fallback
 
             Vector3 enemyAtT0 = AnglesToCartesian(approachElev, approachAzim, approachDistance);
 
@@ -268,11 +273,6 @@ namespace Spacegun_Simulator
             float elevationDeltaActual = Math.Abs(interceptElev - approachElev);
             float azimuthDeltaActual = Math.Abs(interceptAzim - approachAzim);
             if (azimuthDeltaActual > 180f) azimuthDeltaActual = 360f - azimuthDeltaActual;  // Get shortest arc
-
-            Console.WriteLine($"      Generated firing problem:");
-            Console.WriteLine($"        T+0s: Enemy at {GameConstants.FormatDistance(approachDistance)}, elev={approachElev:F1}°, azim={approachAzim:F1}°");
-            Console.WriteLine($"        T+{interceptTime:F1}s: Intercept at {GameConstants.FormatDistance(interceptDistance)}, elev={interceptElev:F1}°, azim={interceptAzim:F1}°");
-            Console.WriteLine($"        DRAMATIC ARC: Δelev={elevationDeltaActual:F1}° (target: 45-90°), Δazim={azimuthDeltaActual:F1}° (target: 90-120°)");
 
             // STEP 6: Calculate correct solution parameters
             float correctVelocity = playerGunMaxVelocity * 0.85f;
