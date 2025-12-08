@@ -16,24 +16,16 @@
         /// </summary>
         public double DetectionRangeMultiplier { get; set; }
 
-        public double TrackingAccuracy { get; set; }
-        public double RefreshRate { get; set; }
         public int MaxSimultaneousTargets { get; set; }
         public RadarType RadarType { get; set; }
         public bool HasSpaceBasedRadar { get; set; }
-        public bool HasQuantumEntanglementComm { get; set; }
-        public double SignalProcessingPower { get; set; }
 
         public DetectionSystem()
         {
             DetectionRangeMultiplier = 1.0;
-            TrackingAccuracy = 0.6;
-            RefreshRate = 10.0;
             MaxSimultaneousTargets = 5;
             RadarType = RadarType.GroundBased;
             HasSpaceBasedRadar = false;
-            HasQuantumEntanglementComm = false;
-            SignalProcessingPower = 1.0;
         }
 
         public double CalculateWarningTime(EnemyWave wave)

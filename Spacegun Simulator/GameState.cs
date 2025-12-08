@@ -92,9 +92,6 @@
             AccumulatedResources.Clear();
             AccumulatedResources["Steel"] = 0;
             AccumulatedResources["Budget"] = 0;
-            AccumulatedResources["SpecializedAlloys"] = 0;
-            AccumulatedResources["RareEarthElements"] = 0;
-            AccumulatedResources["PowerCells"] = 0;
             AccumulatedResources["Exotic"] = 0;
         }
 

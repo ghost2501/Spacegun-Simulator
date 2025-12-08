@@ -17,7 +17,6 @@
 
         public double PowerCapacity { get; set; }
         public double CapacitorEfficiency { get; set; }
-        public double Capacity { get; set; }
         public CoolingSystem CoolingSystem { get; set; }
         public double CoolingCapacity { get; set; }
         public double StructuralReinforcement { get; set; }

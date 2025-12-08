@@ -12,8 +12,6 @@
 
     public static class BallisticsCalculator
     {
-        private const double EARTH_GRAVITY = 9.81;
-
         public static double CalculateMuzzleVelocity(
             GunConfiguration gun,
             ProjectileConfiguration projectile)
@@ -120,23 +118,6 @@
 
             // Clamp to realistic range
             return Math.Clamp(accuracy, 0.5, 1.0);
-        }
-
-        /// <summary>
-        /// DEPRECATED: This method is replaced by the physics-based firing solution in ConsoleUI.
-        /// Kept for compatibility but no longer used in the game flow.
-        /// </summary>
-        [Obsolete("Use physics-based firing solution from FiringSolution class instead")]
-        public static double CalculateFinalHitProbability(
-            GunConfiguration gun,
-            ProjectileConfiguration projectile,
-            EnemyTarget target,
-            double playerLeadingPercentage,
-            double playerVelocityCompensationPercentage)
-        {
-            double theoreticalMax = GetTheoreticalMaxProbability(gun, projectile, target);
-            // This old method is no longer used - keeping stub for backward compatibility
-            return theoreticalMax * 0.75; // Placeholder value
         }
 
         /// <summary>
