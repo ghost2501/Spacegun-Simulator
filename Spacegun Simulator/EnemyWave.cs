@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-
-namespace Spacegun_Simulator
+﻿namespace Spacegun_Simulator
 {
     // ============================================================================ 
     // ENEMY WAVE - Detection Phase Enemy Generation
@@ -48,6 +44,23 @@ namespace Spacegun_Simulator
         /// Azimuth: 0° = North, 90° = East, 180° = South, 270° = West
         /// </summary>
         public float ApproachAzimuth { get; set; }
+
+        // ===== NEW: Store actual Cartesian position and velocity vectors =====
+        /// <summary>
+        /// Cached Cartesian position vector (X, Y, Z in meters).
+        /// Computed from ApproachElevation, ApproachAzimuth, and engagement distance.
+        /// MUST be persisted to ensure consistency across save/load cycles.
+        /// Uses the custom Vector3 struct from FiringSolution for precision.
+        /// </summary>
+        public Vector3? CachedEnemyPosition { get; set; }
+
+        /// <summary>
+        /// Cached enemy velocity vector (Vx, Vy, Vz in m/s).
+        /// Derived from approach angles and AverageVelocity magnitude.
+        /// MUST be persisted to ensure consistency across save/load cycles.
+        /// Uses the custom Vector3 struct from FiringSolution for precision.
+        /// </summary>
+        public Vector3? CachedEnemyVelocity { get; set; }
 
         public int TargetCount => Targets.Count;
         public double TimeToImpact => AverageVelocity > 0 ? CurrentDistance / AverageVelocity : double.PositiveInfinity;
@@ -108,12 +121,12 @@ namespace Spacegun_Simulator
             // ===== DETECTION PHASE GENERATION =====
 
             // Generate detection distance within tier's range
-            wave.InitialDistance = tier.DetectionRangeMin + 
+            wave.InitialDistance = tier.DetectionRangeMin +
                 rng.NextDouble() * (tier.DetectionRangeMax - tier.DetectionRangeMin);
             wave.CurrentDistance = wave.InitialDistance;
 
             // Generate velocity: base tier velocity × archetype multiplier
-            double baseTierVelocity = tier.VelocityMin + 
+            double baseTierVelocity = tier.VelocityMin +
                 rng.NextDouble() * (tier.VelocityMax - tier.VelocityMin);
             wave.AverageVelocity = baseTierVelocity * archetype.VelocityMultiplier;
 
@@ -123,7 +136,7 @@ namespace Spacegun_Simulator
 
             // Calculate diameter from mass - this IS the radar cross-section
             double diameterMeters = CalculateDiameterFromMass(target.Mass);
-            
+
             // Set BOTH wave average AND target's CrossSection
             wave.AverageRadarCrossSection = diameterMeters;  // RCS = Diameter
             target.CrossSection = diameterMeters;             // Set target's cross-section too
@@ -132,7 +145,7 @@ namespace Spacegun_Simulator
 
             // ===== TRAJECTORY DATA NOT GENERATED HERE =====
             // ApproachElevation and ApproachAzimuth remain unset (0.0)
-            // These are generated during FIRING PHASE
+            // CachedEnemyPosition and CachedEnemyVelocity are generated during FIRING PHASE
 
             // Calculate display information
             double timeToImpactSeconds = wave.InitialDistance / wave.AverageVelocity;
@@ -181,12 +194,12 @@ namespace Spacegun_Simulator
             // Generate mass and fracture energy WITHIN ARCHETYPE BOUNDS
             // Add slight variation per wave for progression
             double waveProgression = Math.Min(1.0, waveNumber / 25.0); // 0-1 over campaign
-            
-            double mass = archetype.MassRange.Min + 
+
+            double mass = archetype.MassRange.Min +
                 (rng.NextDouble() * (archetype.MassRange.Max - archetype.MassRange.Min)) +
                 (waveProgression * (archetype.MassRange.Max - archetype.MassRange.Min) * 0.1);
 
-            double fractureEnergy = archetype.FractureEnergyRange.Min + 
+            double fractureEnergy = archetype.FractureEnergyRange.Min +
                 (rng.NextDouble() * (archetype.FractureEnergyRange.Max - archetype.FractureEnergyRange.Min)) +
                 (waveProgression * (archetype.FractureEnergyRange.Max - archetype.FractureEnergyRange.Min) * 0.1);
 

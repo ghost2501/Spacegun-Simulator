@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using Spacegun_Simulator.FireControlTools;
 
 namespace Spacegun_Simulator
@@ -66,7 +63,7 @@ namespace Spacegun_Simulator
             Console.WriteLine("\n╔═══════════════════════════════════════════════════════════╗");
             Console.WriteLine("║                    GAME OVER                              ║");
             Console.WriteLine("╚═══════════════════════════════════════════════════════════╝");
-            
+
             // DO NOT save game over state - only playable states are saved
             Console.WriteLine("\nPress any key to exit...");
             Console.ReadKey();
@@ -92,13 +89,18 @@ namespace Spacegun_Simulator
             }
 
             Console.WriteLine("[1] Start New Game");
-            
+
             if (autoSaveExists)
             {
                 Console.WriteLine("[2] Resume Game");
+                Console.WriteLine("[3] Test Mode (Firing Solution Validation)");
+                Console.WriteLine("[4] Exit");
             }
-            
-            Console.WriteLine("[3] Exit");
+            else
+            {
+                Console.WriteLine("[2] Test Mode (Firing Solution Validation)");
+                Console.WriteLine("[3] Exit");
+            }
 
             bool validChoice = false;
             while (!validChoice)
@@ -109,8 +111,25 @@ namespace Spacegun_Simulator
                 switch (input)
                 {
                     case "1":
-                        Console.WriteLine("\nStarting new game...\n");
+                        // NEW GAME: Show difficulty selection
+                        Console.WriteLine("\nInitializing new game...\n");
                         System.Threading.Thread.Sleep(800);
+
+                        // CRITICAL: Call difficulty selection before starting game
+                        GameDifficulty selectedDifficulty = ShowDifficultySelection();
+
+                        // Set difficulty and reset game state for new game
+                        engine.SelectedDifficulty = selectedDifficulty;
+                        engine.CurrentWaveNumber = 1;
+                        engine.IsGameOver = false;
+                        engine.WavesDefeated = 0;
+                        engine.CurrentPhase = GameState.GamePhase.Detection;
+
+                        var diffConfig = DifficultyConfig.GetConfig(selectedDifficulty);
+                        Console.WriteLine($"\nDifficulty: {diffConfig.DisplayName}");
+                        Console.WriteLine("Press any key to begin...\n");
+                        Console.ReadKey();
+
                         validChoice = true;
                         break;
 
@@ -137,6 +156,14 @@ namespace Spacegun_Simulator
                         break;
 
                     case "3":
+                        // Test mode - available regardless of save state
+                        RunTestMode();
+                        validChoice = true;
+                        // After test mode, return to main menu
+                        ShowMainMenu();
+                        return;
+
+                    case "4":
                         Environment.Exit(0);
                         break;
 
@@ -144,6 +171,18 @@ namespace Spacegun_Simulator
                         Console.WriteLine("Invalid choice. Please try again.\n");
                         break;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Run automated firing solution test harness.
+        /// Tests all scenarios and validates mechanics without affecting game state.
+        /// </summary>
+        private void RunTestMode()
+        {
+            using (Spacegun_Simulator.Tests.FireSimulatorTestHarness harness = new())
+            {
+                harness.RunAllTests();
             }
         }
 
@@ -191,7 +230,7 @@ namespace Spacegun_Simulator
             Console.WriteLine($"Velocity: {GameConstants.FormatVelocity(detectionResult.Wave.AverageVelocity)}");
             Console.WriteLine($"Radar Cross-Section: {detectionResult.Wave.AverageRadarCrossSection:F1} m²");
             Console.WriteLine($"Evasiveness: {detectionResult.Wave.AverageEvasiveness * 100:F0}%");
-            
+
             Console.WriteLine($"\n=== TIME BUDGET ===");
             Console.WriteLine($"Years Available: {(long)detectionResult.AvailableYears} years");
 
@@ -202,7 +241,7 @@ namespace Spacegun_Simulator
 
             Console.WriteLine("\nPress any key to proceed to Resource Allocation phase...");
             Console.ReadKey();
-            
+
             // Auto-save after detection phase
             engine.AutoSaveGame();
         }
@@ -318,10 +357,10 @@ namespace Spacegun_Simulator
 
             Console.WriteLine("\nPress any key to proceed to Development phase...");
             Console.ReadKey();
-            
+
             // CRITICAL: Set phase to Development before saving
             engine.CurrentPhase = GameState.GamePhase.Development;
-            
+
             // Auto-save after allocation phase
             engine.AutoSaveGame();
         }
@@ -381,7 +420,7 @@ namespace Spacegun_Simulator
                 Console.WriteLine($"    Mass: {spec.ProjectileMassKg}kg @ {spec.MuzzleVelocityMs:N0} m/s");
                 Console.WriteLine($"    Kinetic Energy: {spec.ResultingKE_MJ:N0} MJ");
                 Console.WriteLine($"    Cost: {spec.Cost.Budget:F0} Budget, {spec.Cost.Steel:F0} Steel, {spec.Cost.ExoticMaterials:F1} Exotic");
-                
+
                 // Show if this meets the requirement
                 if (engine.CurrentWave?.Archetype != null)
                 {
@@ -433,7 +472,7 @@ namespace Spacegun_Simulator
             // Apply the selection
             Console.WriteLine($"\n✓ Selected: {selectedSpec.Name}");
             Console.WriteLine($"Deducting resources...");
-            
+
             engine.AccumulatedResources["Budget"] -= selectedSpec.Cost.Budget;
             engine.AccumulatedResources["Steel"] -= selectedSpec.Cost.Steel;
             engine.AccumulatedResources["Exotic"] -= selectedSpec.Cost.ExoticMaterials;
@@ -449,7 +488,7 @@ namespace Spacegun_Simulator
             engine.CurrentPhase = GameState.GamePhase.Firing;
             Console.WriteLine("\nPress any key to proceed to Firing Solution phase...");
             Console.ReadKey();
-            
+
             // Auto-save after development phase
             engine.AutoSaveGame();
         }
@@ -760,6 +799,12 @@ namespace Spacegun_Simulator
             Console.WriteLine("║            FIRING SOLUTION & ENGAGEMENT PHASE             ║");
             Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
+            Console.WriteLine("=== YOUR WEAPON ===");
+            Console.WriteLine($"Projectile Mass: {(engine.SelectedGunProjectileSpec?.ProjectileMassKg ?? engine.Gun.DefaultProjectile.Mass):F1} kg");
+            Console.WriteLine($"Max Muzzle Velocity: {muzzleVelocity:F0} m/s");
+            Console.WriteLine($"Has Guidance System: {(engine.Gun.DefaultProjectile.HasGuidance ? "Yes" : "No")}");
+            Console.WriteLine($"Gun Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(engine.CurrentWaveNumber).MaxEffectiveGunRange)}\n");
+
             Console.WriteLine("=== TARGET DATA FOR CALCULATIONS ===");
             Console.WriteLine($"Designation: {target.Name}");
             Console.WriteLine($"Enemy Approach Vector:");
@@ -923,7 +968,52 @@ namespace Spacegun_Simulator
             if (engine.IsGameOver)
                 return;
 
+            engine.WavesDefeated = 0;  // Resets both waves and enemies counter
             engine.AdvanceToNextWave();
+        }
+
+        /// <summary>
+        /// Display difficulty selection menu for new game.
+        /// Returns selected difficulty.
+        /// </summary>
+        public static GameDifficulty ShowDifficultySelection()
+        {
+            while (true)
+            {
+                Console.Clear();
+                Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+                Console.WriteLine("║             SELECT YOUR SCENARIO                          ║");
+                Console.WriteLine("║         How will you defend against the threat?           ║");
+                Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+
+                var configs = DifficultyConfig.GetAllConfigs();
+
+                for (int i = 0; i < configs.Count; i++)
+                {
+                    Console.WriteLine($"\n[{i + 1}] {configs[i].DisplayName}");
+                    Console.WriteLine("────────────────────────────────────────────────────────────");
+                    Console.WriteLine(configs[i].NarrativeDescription);
+                    Console.WriteLine();
+                }
+
+                Console.WriteLine("\n[Q] Quit\n");
+                Console.Write("Select scenario (1-3 or Q): ");
+
+                string input = Console.ReadLine()?.Trim() ?? "";
+
+                if (input.Equals("Q", StringComparison.OrdinalIgnoreCase))
+                {
+                    return GameDifficulty.RealSpacegunSimulator;  // Default, or exit game
+                }
+
+                if (int.TryParse(input, out int choice) && choice >= 1 && choice <= configs.Count)
+                {
+                    return configs[choice - 1].Difficulty;
+                }
+
+                Console.WriteLine("\nInvalid selection. Please try again.");
+                System.Threading.Thread.Sleep(1500);
+            }
         }
     }
 }

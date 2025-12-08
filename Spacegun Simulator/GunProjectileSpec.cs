@@ -5,7 +5,7 @@ namespace Spacegun_Simulator
     // ============================================================================
     // Predefined combinations of guns and projectiles that player can select.
     // Each spec represents a viable strategy: fast-small, slow-heavy, balanced, etc.
-    
+
     public class GunProjectileSpec
     {
         public string Id { get; set; } = string.Empty;
@@ -47,7 +47,7 @@ namespace Spacegun_Simulator
             ProjectileMassKg = projectileMassKg;
             MuzzleVelocityMs = muzzleVelocityMs;
             Cost = cost;
-            
+
             // Pre-calculate KE using consolidated BallisticsCalculator
             ResultingKE_MJ = BallisticsCalculator.CalculateKineticEnergyMJ(projectileMassKg, muzzleVelocityMs);
         }

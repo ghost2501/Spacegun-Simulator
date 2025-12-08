@@ -1,7 +1,4 @@
-﻿using Spacegun_Simulator;
-using System;
-
-namespace Spacegun_Simulator
+﻿namespace Spacegun_Simulator
 {
     public class Program
     {
@@ -12,7 +9,8 @@ namespace Spacegun_Simulator
             Console.WriteLine("Loading Space Gun Defense Simulator...\n");
             System.Threading.Thread.Sleep(1000);
 
-            var gameState = new GameState();
+            // Create game state with default difficulty (will be overridden if new game)
+            var gameState = new GameState(difficulty: GameDifficulty.CometsAndAsteroids);
             var ui = new ConsoleUI(gameState);
 
             ui.Run();

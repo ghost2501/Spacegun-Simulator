@@ -9,7 +9,7 @@ namespace Spacegun_Simulator
     // NEW: Archetypes now include BOUNDS for procedural generation.
     // This allows all enemies to be procedurally generated within archetype constraints,
     // creating variety while maintaining a consistent strategic challenge across all 25 waves.
-    
+
     public class EnemyArchetype
     {
         public string Id { get; set; } = string.Empty;

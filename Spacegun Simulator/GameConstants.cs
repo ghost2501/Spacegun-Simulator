@@ -1,7 +1,4 @@
-using System;
-using System.IO;
 using System.Text.Json;
-using System.Collections.Generic;
 
 namespace Spacegun_Simulator
 {
@@ -153,7 +150,7 @@ namespace Spacegun_Simulator
         public static double SteelProductionPerYear = 100.0;
         public static double ExoticProductionPerYear = 10.0;
         public static double BudgetProductionPerYear = 50.0;
-        
+
         // Extended resource types for mid/late-game progression
         public static double RareEarthElementsProductionPerYear = 5.0;
         public static double SpecializedAlloysProductionPerYear = 15.0;

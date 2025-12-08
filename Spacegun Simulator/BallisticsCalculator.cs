@@ -108,7 +108,7 @@
 
             // Calculate time deviation as percentage
             float timeDifference = Math.Abs(playerTimeEstimate - calculatedTimeToImpact);
-            float timePercentDifference = (calculatedTimeToImpact > 0.1f) 
+            float timePercentDifference = (calculatedTimeToImpact > 0.1f)
                 ? (timeDifference / calculatedTimeToImpact) * 100f
                 : 0;
 

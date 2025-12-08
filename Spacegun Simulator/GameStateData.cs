@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
 namespace Spacegun_Simulator
 {
     // ============================================================================
@@ -15,7 +11,7 @@ namespace Spacegun_Simulator
     {
         // Core game state
         public int CurrentWaveNumber { get; set; }
-        public int WavesDefeated { get; set; }
+        public int WavesDefeated { get; set; }  // UNIFIED: Single property for waves/enemies
         public int TotalEnemiesDestroyed { get; set; }
         public bool IsGameOver { get; set; }
         public string CurrentPhase { get; set; } = string.Empty;
@@ -96,13 +92,23 @@ namespace Spacegun_Simulator
         public float EnemyApproachElevation { get; set; }
         public float EnemyApproachAzimuth { get; set; }
 
+        // ===== NEW: Cached Cartesian vectors =====
+        public double CachedEnemyPositionX { get; set; }
+        public double CachedEnemyPositionY { get; set; }
+        public double CachedEnemyPositionZ { get; set; }
+        public double CachedEnemyVelocityX { get; set; }
+        public double CachedEnemyVelocityY { get; set; }
+        public double CachedEnemyVelocityZ { get; set; }
+
+        // Save difficulty setting
+        public string SelectedDifficulty { get; set; } = string.Empty;
+
         public static GameStateData FromGameState(GameState gameState)
         {
             var data = new GameStateData
             {
                 CurrentWaveNumber = gameState.CurrentWaveNumber,
-                WavesDefeated = gameState.WavesDefeated,
-                TotalEnemiesDestroyed = gameState.TotalEnemiesDestroyed,
+                WavesDefeated = gameState.WavesDefeated,  // UNIFIED: Single property for waves/enemies
                 IsGameOver = gameState.IsGameOver,
                 CurrentPhase = gameState.CurrentPhase.ToString(),
 
@@ -154,8 +160,6 @@ namespace Spacegun_Simulator
                 CurrentWaveArchetypeName = gameState.CurrentWave?.Archetype?.Name ?? string.Empty,
                 CurrentWaveArchetypeDescription = gameState.CurrentWave?.Archetype?.Description ?? string.Empty,
                 CurrentWaveArchetypeVelocityMultiplier = gameState.CurrentWave?.Archetype?.VelocityMultiplier ?? 0,
-                // Note: We store the actual target values, not the archetype ranges
-                // The archetype ranges are metadata; actual wave values are in the target
                 CurrentWaveArchetypeDifficultyRating = gameState.CurrentWave?.Archetype?.BaseDifficultyRating ?? 0,
                 CurrentWaveTargetName = gameState.CurrentWave?.Targets?[0]?.Name ?? string.Empty,
                 CurrentWaveTargetAltitude = gameState.CurrentWave?.Targets?[0]?.Altitude ?? 0,
@@ -174,9 +178,20 @@ namespace Spacegun_Simulator
                 CampaignEnemyTypeCustomName = gameState.CampaignEnemyType?.CustomName ?? string.Empty,
                 CampaignEnemyTypeDescription = gameState.CampaignEnemyType?.Description ?? string.Empty,
 
-                // Add new properties
+                // Save enemy approach parameters
                 EnemyApproachElevation = gameState.CurrentWave?.ApproachElevation ?? 45f,
                 EnemyApproachAzimuth = gameState.CurrentWave?.ApproachAzimuth ?? 0f,
+
+                // ===== NEW: Save cached Cartesian vectors =====
+                CachedEnemyPositionX = gameState.CurrentWave?.CachedEnemyPosition?.X ?? 0,
+                CachedEnemyPositionY = gameState.CurrentWave?.CachedEnemyPosition?.Y ?? 0,
+                CachedEnemyPositionZ = gameState.CurrentWave?.CachedEnemyPosition?.Z ?? 0,
+                CachedEnemyVelocityX = gameState.CurrentWave?.CachedEnemyVelocity?.X ?? 0,
+                CachedEnemyVelocityY = gameState.CurrentWave?.CachedEnemyVelocity?.Y ?? 0,
+                CachedEnemyVelocityZ = gameState.CurrentWave?.CachedEnemyVelocity?.Z ?? 0,
+
+                // Save difficulty setting
+                SelectedDifficulty = gameState.SelectedDifficulty.ToString(),
 
                 SaveTimestamp = DateTime.UtcNow.ToString("O")
             };
@@ -187,6 +202,7 @@ namespace Spacegun_Simulator
         public void ApplyToGameState(GameState gameState)
         {
             gameState.CurrentWaveNumber = CurrentWaveNumber;
+            gameState.WavesDefeated = WavesDefeated;  // UNIFIED: Restore single property
             gameState.IsGameOver = IsGameOver;
 
             // Restore resources
@@ -240,13 +256,13 @@ namespace Spacegun_Simulator
             {
                 // Find the archetype from the campaign enemy type
                 var archetype = gameState.CampaignEnemyType?.Archetype;
-                
+
                 // If no campaign enemy type, look it up from All by ID
                 if (archetype == null)
                 {
                     archetype = EnemyArchetype.All.FirstOrDefault(a => a.Id == CurrentWaveArchetypeId);
                 }
-                
+
                 // If still null, create a minimal archetype (shouldn't happen but safety net)
                 if (archetype == null)
                 {
@@ -282,6 +298,10 @@ namespace Spacegun_Simulator
                     AverageEvasiveness = CurrentWaveAverageEvasiveness,
                     HasStealthCoating = CurrentWaveHasStealthCoating,
                     Archetype = archetype,
+                    ApproachElevation = EnemyApproachElevation,
+                    ApproachAzimuth = EnemyApproachAzimuth,
+                    CachedEnemyPosition = new Vector3(CachedEnemyPositionX, CachedEnemyPositionY, CachedEnemyPositionZ),
+                    CachedEnemyVelocity = new Vector3(CachedEnemyVelocityX, CachedEnemyVelocityY, CachedEnemyVelocityZ),
                     Targets = new List<EnemyTarget> { target }
                 });
             }
@@ -307,11 +327,10 @@ namespace Spacegun_Simulator
                 }
             }
 
-            // Restore wave approach parameters
-            if (gameState.CurrentWave != null && CurrentWaveNumber_Wave > 0)
+            // Restore difficulty setting
+            if (!string.IsNullOrEmpty(SelectedDifficulty) && Enum.TryParse<GameDifficulty>(SelectedDifficulty, out var difficulty))
             {
-                gameState.CurrentWave.ApproachElevation = EnemyApproachElevation;
-                gameState.CurrentWave.ApproachAzimuth = EnemyApproachAzimuth;
+                gameState.SelectedDifficulty = difficulty;
             }
 
             // Restore phase if not game over

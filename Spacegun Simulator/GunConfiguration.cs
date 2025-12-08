@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace Spacegun_Simulator
+﻿namespace Spacegun_Simulator
 {
     // ============================================================================
     // GUN CONFIGURATION

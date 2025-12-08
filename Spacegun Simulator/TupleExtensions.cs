@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Spacegun_Simulator
+﻿namespace Spacegun_Simulator
 {
     public static class TupleExtensions
     {

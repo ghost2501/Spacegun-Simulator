@@ -15,7 +15,7 @@
         /// 1.0 = standard detection, > 1.0 = improved through research
         /// </summary>
         public double DetectionRangeMultiplier { get; set; }
-        
+
         public double TrackingAccuracy { get; set; }
         public double RefreshRate { get; set; }
         public int MaxSimultaneousTargets { get; set; }
@@ -52,7 +52,7 @@
         public double CalculateEffectiveDetectionRange(EnemyWave wave)
         {
             var tier = GameConstants.GetTierForWave(wave.WaveNumber);
-            
+
             // Base detection range in AU (from tier definition)
             double detectionRangeAU = tier.DetectionRangeMax / GameConstants.AU_TO_METERS;
 
@@ -74,10 +74,10 @@
         public DetectionStatus GetDetectionStatus(EnemyWave wave)
         {
             double warningTime = CalculateWarningTime(wave);
-            
+
             // Get detection range in AU
             double effectiveDetectionRangeAU = CalculateEffectiveDetectionRange(wave);
-            
+
             // Convert wave distance to AU for comparison
             double waveDistanceAU = wave.CurrentDistance / GameConstants.AU_TO_METERS;
 

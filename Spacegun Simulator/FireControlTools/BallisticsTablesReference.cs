@@ -198,10 +198,6 @@ namespace Spacegun_Simulator.FireControlTools
         /// Display Energy Reference Table.
         /// Shows kinetic energy at different velocities for weapon specs.
         /// </summary>
-        /// <summary>
-        /// Display Energy Reference Table.
-        /// Shows kinetic energy at different velocities for weapon specs.
-        /// </summary>
         public static void DisplayEnergyReferenceTable()
         {
             Console.Clear();
@@ -218,7 +214,7 @@ namespace Spacegun_Simulator.FireControlTools
             // Velocity ranges (m/s)
             double[] velocities = { 50_000, 75_000, 100_000, 150_000, 200_000, 250_000, 300_000, 350_000 };
 
-            Console.WriteLine("=== KINETIC ENERGY BY MASS AND VELOCITY ===");
+            Console.WriteLine("=== KINETIC ENERGY BY MASS AND VELOCITY (in MJ) ===");
             Console.WriteLine("Mass (kg) │ 50km/s  │ 75km/s  │ 100km/s │ 150km/s │ 200km/s │ 250km/s │ 300km/s │ 350km/s");
             Console.WriteLine("──────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────");
 
@@ -230,7 +226,7 @@ namespace Spacegun_Simulator.FireControlTools
                 foreach (double vel in velocities)
                 {
                     double energy = CalculateKineticEnergyMJ(mass, vel);
-                    string energyStr = energy.ToString("F1").PadLeft(7);
+                    string energyStr = $"{energy:F0} MJ".PadLeft(7);
                     Console.Write($"{energyStr} │");
                 }
 
@@ -242,8 +238,8 @@ namespace Spacegun_Simulator.FireControlTools
             Console.WriteLine("KEY OBSERVATIONS:");
             Console.WriteLine("  • Doubling velocity increases energy by 4× (quadratic relationship)");
             Console.WriteLine("  • Doubling mass increases energy by 2× (linear relationship)");
-            Console.WriteLine("  • 100kg @ 100km/s = 500 MJ (massive destructive power)");
-            Console.WriteLine("  • 10kg @ 100km/s = 50 MJ (still significant for early game)");
+            Console.WriteLine("  • 100kg @ 100km/s = 5,000 MJ (massive destructive power)");
+            Console.WriteLine("  • 10kg @ 100km/s = 500 MJ (still significant for early game)");
             Console.WriteLine("\nUSE THIS TO:");
             Console.WriteLine("  1. Verify your weapon choice meets energy requirement");
             Console.WriteLine("  2. Understand velocity is more important than mass");

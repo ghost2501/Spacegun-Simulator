@@ -5,7 +5,7 @@ namespace Spacegun_Simulator
     // ============================================================================
     // Utilities for calculating kinetic energy and determining if a projectile
     // can destroy an enemy based on fracture energy.
-    
+
     public static class BallisticsHelper
     {
         /// <summary>

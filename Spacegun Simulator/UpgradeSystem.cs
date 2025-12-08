@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace Spacegun_Simulator
+﻿namespace Spacegun_Simulator
 {
     // ====================================================================
     // UPGRADE SYSTEM

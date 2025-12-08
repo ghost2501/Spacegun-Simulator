@@ -1,9 +1,4 @@
-﻿using Spacegun_Simulator;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
-namespace Spacegun_Simulator
+﻿namespace Spacegun_Simulator
 {
     // ============================================================================
     // GAME STATE - 4-TURN SEQUENCE ARCHITECTURE
@@ -21,9 +16,8 @@ namespace Spacegun_Simulator
         public ResourcePool Resources { get; set; }
         public int CurrentWaveNumber { get; set; }
         public List<EnemyWave> CompletedWaves { get; set; }
-        public bool IsGameOver { get; set; }  // Changed from { get; private set; }
-        public int WavesDefeated { get; private set; }
-        public int TotalEnemiesDestroyed { get; private set; }
+        public bool IsGameOver { get; set; }
+        public int WavesDefeated { get; set; }  // CHANGED: Unified - one wave = one enemy
 
         // 4-Turn sequence state
         public enum GamePhase
@@ -42,7 +36,7 @@ namespace Spacegun_Simulator
         // Available time budget for current wave (in WHOLE years only)
         public long AvailableYears { get; private set; }
         public long RemainingYears { get; set; }
-        
+
         // Store the actual seconds available for precise calculation
         private double availableSecondsForGunRange = 0;
 
@@ -61,7 +55,20 @@ namespace Spacegun_Simulator
         /// </summary>
         public EnemyType? CampaignEnemyType { get; set; }
 
-        public GameState(int? seed = null)
+        // ===== NEW: Difficulty Settings =====
+        /// <summary>
+        /// The selected difficulty level for this game session.
+        /// Affects how hit tolerance is calculated in firing phase.
+        /// Set during game initialization, cannot be changed mid-campaign.
+        /// </summary>
+        public GameDifficulty SelectedDifficulty { get; set; } = GameDifficulty.CometsAndAsteroids;
+
+        /// <summary>
+        /// Gets the difficulty configuration for the currently selected difficulty.
+        /// </summary>
+        public DifficultyConfig DifficultyConfig => DifficultyConfig.GetConfig(SelectedDifficulty);
+
+        public GameState(int? seed = null, GameDifficulty difficulty = GameDifficulty.CometsAndAsteroids)
         {
             Gun = new GunConfiguration();
             Detection = new DetectionSystem();
@@ -69,13 +76,13 @@ namespace Spacegun_Simulator
             CurrentWaveNumber = 1;
             CompletedWaves = new();
             IsGameOver = false;
-            WavesDefeated = 0;
-            TotalEnemiesDestroyed = 0;
+            WavesDefeated = 0;  // Unified: represents both waves and enemies destroyed
             CurrentPhase = GamePhase.Detection;
             rng = seed.HasValue ? new Random(seed.Value) : new Random();
+            SelectedDifficulty = difficulty;
 
             InitializeResourceAccumulation();
-            
+
             // NEW: Generate campaign-wide enemy type at game start
             CampaignEnemyType = EnemyType.GenerateForCampaign(rng);
         }
@@ -130,10 +137,10 @@ namespace Spacegun_Simulator
             // This is: (InitialDistance - GunRange) / Velocity
             var tier = GameConstants.GetTierForWave(CurrentWaveNumber);
             double distanceToGunRange = CurrentWave.InitialDistance - tier.MaxEffectiveGunRange;
-            
+
             // Store in BOTH seconds and years for consistency
             availableSecondsForGunRange = distanceToGunRange / CurrentWave.AverageVelocity;
-            
+
             // Round to whole years, minimum 1 year
             AvailableYears = Math.Max(1, (long)Math.Round(availableSecondsForGunRange / GameConstants.SecondsPerYear));
             RemainingYears = AvailableYears;
@@ -319,8 +326,8 @@ namespace Spacegun_Simulator
             {
                 // Pass gun's effective range to constrain engagement
                 firingProblem = solver.GenerateFiringProblem(
-                    CurrentWave, 
-                    (float)(SelectedGunProjectileSpec?.MuzzleVelocityMs ?? 
+                    CurrentWave,
+                    (float)(SelectedGunProjectileSpec?.MuzzleVelocityMs ??
                             BallisticsCalculator.CalculateMuzzleVelocity(Gun, Gun.DefaultProjectile)),
                     (float)tier.MaxEffectiveGunRange,
                     rng);
@@ -470,7 +477,7 @@ namespace Spacegun_Simulator
 
                 var json = System.IO.File.ReadAllText(savePath);
                 var data = System.Text.Json.JsonSerializer.Deserialize<GameStateData>(json);
-                
+
                 if (data is null)
                     return false;
 
@@ -515,6 +522,12 @@ namespace Spacegun_Simulator
             {
                 return "Unknown";
             }
+        }
+
+        // Add public method to increment waves/enemies defeated
+        public void IncrementWavesDefeated()
+        {
+            WavesDefeated++;
         }
     }
 }
