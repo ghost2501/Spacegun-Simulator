@@ -6,7 +6,7 @@
     // SIMPLIFIED: Generates ONLY detection-phase statistics.
     // 
     // Detection Phase generates:
-    // - Velocity (m/s)
+    // - Velocity (m/s) - CONSTRAINED BY TIER BOUNDS
     // - Detection Distance
     // - ETA (Estimated Time to reach gun)
     // - Mass (metric tons)
@@ -45,11 +45,10 @@
         /// </summary>
         public float ApproachAzimuth { get; set; }
 
-        // ===== NEW: Store actual Cartesian position and velocity vectors =====
         /// <summary>
         /// Cached Cartesian position vector (X, Y, Z in meters).
         /// Computed from ApproachElevation, ApproachAzimuth, and engagement distance.
-        /// MUST be persisted to ensure consistency across save/load cycles.
+        /// MUST be persisted to ensure consistency across save/restore cycles.
         /// Uses the custom Vector3 struct from FiringSolution for precision.
         /// </summary>
         public Vector3? CachedEnemyPosition { get; set; }
@@ -57,10 +56,24 @@
         /// <summary>
         /// Cached enemy velocity vector (Vx, Vy, Vz in m/s).
         /// Derived from approach angles and AverageVelocity magnitude.
-        /// MUST be persisted to ensure consistency across save/load cycles.
+        /// MUST be persisted to ensure consistency across save/restore cycles.
         /// Uses the custom Vector3 struct from FiringSolution for precision.
         /// </summary>
         public Vector3? CachedEnemyVelocity { get; set; }
+
+        /// <summary>
+        /// Cached correct firing solution for save/restore.
+        /// </summary>
+        public float CachedCorrectLaunchDelayTime { get; set; }
+        public float CachedCorrectElevation { get; set; }
+        public float CachedCorrectAzimuth { get; set; }
+        public float CachedCorrectVelocity { get; set; }
+
+        /// <summary>
+        /// Flag indicating this wave was restored from a save file (not freshly generated).
+        /// Used to distinguish between new wave generation and restoration of saved waves.
+        /// </summary>
+        public bool IsRestoredFromSave { get; set; } = false;
 
         public int TargetCount => Targets.Count;
         public double TimeToImpact => AverageVelocity > 0 ? CurrentDistance / AverageVelocity : double.PositiveInfinity;
@@ -92,18 +105,21 @@
         /// <summary>
         /// Generate a procedural enemy wave for detection phase.
         /// 
-        /// SIMPLIFIED: No trajectory validation here. Generates only:
-        /// - Velocity (within tier × archetype bounds)
+        /// KEY CHANGE: Velocity is now constrained by tier bounds, not archetype multiplier.
+        /// This ensures enemies stay within solvable ranges for their tier.
+        /// 
+        /// Generates:
+        /// - Velocity (within tier bounds only)
         /// - Detection Distance (within tier bounds)
         /// - ETA (distance / velocity)
         /// - Mass (within archetype bounds)
-        /// - Diameter (calculated from mass assuming standard density)
-        /// - Radar Cross-Section = Diameter (displayed as RCS in detection phase)
+        /// - Diameter (calculated from mass)
+        /// - Radar Cross-Section = Diameter
         /// - Fracture Energy (within archetype bounds)
         /// - Evasiveness (within type bounds)
         /// 
         /// Trajectory data (elevation, azimuth, position) is generated during
-        /// FIRING PHASE when engagement distance (500-600km) is known.
+        /// FIRING PHASE when engagement distance (1000-2000km) is known.
         /// </summary>
         public static EnemyWave GenerateWaveFromArchetype(int waveNumber, EnemyArchetype archetype, Random rng)
         {
@@ -112,8 +128,6 @@
 
             var tier = GameConstants.GetTierForWave(waveNumber);
             int tierIndex = tier.TierIndex;
-
-            Console.WriteLine($"\n[WAVE GEN] Generating Wave {waveNumber} (Tier {tierIndex}) with archetype: {archetype.Name}");
 
             var wave = new EnemyWave(waveNumber);
             wave.Archetype = archetype;
@@ -125,10 +139,13 @@
                 rng.NextDouble() * (tier.DetectionRangeMax - tier.DetectionRangeMin);
             wave.CurrentDistance = wave.InitialDistance;
 
-            // Generate velocity: base tier velocity × archetype multiplier
-            double baseTierVelocity = tier.VelocityMin +
-                rng.NextDouble() * (tier.VelocityMax - tier.VelocityMin);
-            wave.AverageVelocity = baseTierVelocity * archetype.VelocityMultiplier;
+            // ===== TIER-CONSTRAINED VELOCITY (NEW) =====
+            // Get tier-specific velocity bounds - enemies must stay within these
+            var (enemyMinVel, enemyMaxVel, _, _) = GameConstants.GetTierVelocityConstraints(tierIndex);
+            
+            // Generate velocity uniformly within tier constraints
+            // NO archetype multiplier - velocity is determined by tier alone
+            wave.AverageVelocity = enemyMinVel + rng.NextDouble() * (enemyMaxVel - enemyMinVel);
 
             // Generate target with stats
             var target = GenerateTargetFromArchetype(waveNumber, tierIndex, archetype, rng);
@@ -143,31 +160,14 @@
             wave.AverageEvasiveness = target.Evasiveness;
             wave.HasStealthCoating = tierIndex >= 2 && rng.NextDouble() < GameConstants.StealthChanceForLateTiers;
 
-            // ===== TRAJECTORY DATA NOT GENERATED HERE =====
-            // ApproachElevation and ApproachAzimuth remain unset (0.0)
-            // CachedEnemyPosition and CachedEnemyVelocity are generated during FIRING PHASE
-
             // Calculate display information
             double timeToImpactSeconds = wave.InitialDistance / wave.AverageVelocity;
-
-            Console.WriteLine($"  ✓ Wave generated successfully");
-            Console.WriteLine($"    Velocity: {GameConstants.FormatVelocity(wave.AverageVelocity)}");
-            Console.WriteLine($"    Detection Distance: {GameConstants.FormatDistance(wave.InitialDistance)}");
-            Console.WriteLine($"    ETA: {GameConstants.FormatTime(timeToImpactSeconds)}");
-            Console.WriteLine($"    Target Mass: {target.Mass:F0} tons, Diameter: {diameterMeters:F1}m");
-            Console.WriteLine($"    Radar Cross-Section: {diameterMeters:F1} m²");
-            Console.WriteLine($"    Fracture Energy: {target.FractureEnergy:F0} MJ");
 
             return wave;
         }
 
         /// <summary>
         /// Generate a target procedurally within archetype bounds.
-        /// 
-        /// NOTE: CrossSection is set to calculated diameter during wave generation,
-        /// not randomly selected from type ranges. This ensures consistency between
-        /// detection phase (where diameter is displayed as RCS) and firing phase
-        /// (where diameter is used to calculate hit tolerance).
         /// </summary>
         private static EnemyTarget GenerateTargetFromArchetype(int waveNumber, int tierIndex, EnemyArchetype archetype, Random rng)
         {
@@ -192,7 +192,6 @@
             }
 
             // Generate mass and fracture energy WITHIN ARCHETYPE BOUNDS
-            // Add slight variation per wave for progression
             double waveProgression = Math.Min(1.0, waveNumber / 25.0); // 0-1 over campaign
 
             double mass = archetype.MassRange.Min +
@@ -203,8 +202,6 @@
                 (rng.NextDouble() * (archetype.FractureEnergyRange.Max - archetype.FractureEnergyRange.Min)) +
                 (waveProgression * (archetype.FractureEnergyRange.Max - archetype.FractureEnergyRange.Min) * 0.1);
 
-            // CrossSection will be set to calculated diameter during wave generation
-            // This ensures consistency between detection and firing phases
             return new EnemyTarget
             {
                 Name = $"{archetype.Name} ({type}) #{rng.Next(100, 999)}",

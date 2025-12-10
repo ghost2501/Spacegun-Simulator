@@ -84,7 +84,7 @@ namespace Spacegun_Simulator
         // Timestamp
         public string SaveTimestamp { get; set; } = string.Empty;
 
-        // Add to property section:
+        // ===== CAMPAIGN ENEMY TYPE =====
         public string CampaignEnemyTypeId { get; set; } = string.Empty;
         public string CampaignEnemyTypeArchetypeId { get; set; } = string.Empty;
         public string CampaignEnemyTypeCustomName { get; set; } = string.Empty;
@@ -92,23 +92,55 @@ namespace Spacegun_Simulator
         public float EnemyApproachElevation { get; set; }
         public float EnemyApproachAzimuth { get; set; }
 
-        // ===== NEW: Cached Cartesian vectors =====
+        // ===== CACHED CARTESIAN VECTORS (From Wave) =====
         public double CachedEnemyPositionX { get; set; }
         public double CachedEnemyPositionY { get; set; }
         public double CachedEnemyPositionZ { get; set; }
         public double CachedEnemyVelocityX { get; set; }
         public double CachedEnemyVelocityY { get; set; }
         public double CachedEnemyVelocityZ { get; set; }
+        public bool HasCachedVectors { get; set; } = false;
 
-        // Save difficulty setting
+        // ===== FIRING PROBLEM STATE (Critical for preventing regeneration on load) =====
+        public double FiringProblemEnemyPositionX { get; set; }
+        public double FiringProblemEnemyPositionY { get; set; }
+        public double FiringProblemEnemyPositionZ { get; set; }
+        public double FiringProblemEnemyVelocityX { get; set; }
+        public double FiringProblemEnemyVelocityY { get; set; }
+        public double FiringProblemEnemyVelocityZ { get; set; }
+        public float FiringProblemApproachElevation { get; set; }
+        public float FiringProblemApproachAzimuth { get; set; }
+        public float FiringProblemEngagementDistance { get; set; }
+        public float FiringProblemApproachSpeed { get; set; }
+        public double FiringProblemFractureEnergyRequired { get; set; }
+        public float FiringProblemCorrectLaunchDelayTime { get; set; }
+        public float FiringProblemCorrectElevation { get; set; }
+        public float FiringProblemCorrectAzimuth { get; set; }
+        public float FiringProblemCorrectVelocity { get; set; }
+        public bool HasFiringProblem { get; set; } = false;
+
+        // ===== DIFFICULTY SETTING =====
         public string SelectedDifficulty { get; set; } = string.Empty;
+
+        // ===== CACHED CORRECT FIRING SOLUTION (From Wave) =====
+        public float CachedCorrectLaunchDelayTime { get; set; }
+        public float CachedCorrectElevation { get; set; }
+        public float CachedCorrectAzimuth { get; set; }
+        public float CachedCorrectVelocity { get; set; }
 
         public static GameStateData FromGameState(GameState gameState)
         {
+            // ===== Check if we have valid cached vectors to save =====
+            bool shouldSaveVectors = gameState.CurrentWave?.CachedEnemyPosition.HasValue == true &&
+                                     gameState.CurrentWave?.CachedEnemyVelocity.HasValue == true;
+
+            // ===== Check if we have a firing problem to save =====
+            bool shouldSaveFiringProblem = gameState.CurrentFiringProblem != null;
+
             var data = new GameStateData
             {
                 CurrentWaveNumber = gameState.CurrentWaveNumber,
-                WavesDefeated = gameState.WavesDefeated,  // UNIFIED: Single property for waves/enemies
+                WavesDefeated = gameState.WavesDefeated,
                 IsGameOver = gameState.IsGameOver,
                 CurrentPhase = gameState.CurrentPhase.ToString(),
 
@@ -132,7 +164,6 @@ namespace Spacegun_Simulator
                 AmmunitionCount = gameState.Gun.AmmunitionCount,
                 InstalledUpgrades = new List<string>(gameState.Gun.InstalledUpgrades),
 
-                // Save projectile configuration
                 ProjectileMass = gameState.Gun.DefaultProjectile.Mass,
                 ProjectileLength = gameState.Gun.DefaultProjectile.Length,
                 ProjectileType = gameState.Gun.DefaultProjectile.Type.ToString(),
@@ -143,12 +174,10 @@ namespace Spacegun_Simulator
 
                 AccumulatedResources = new Dictionary<string, double>(gameState.AccumulatedResources),
 
-                // Save time budget
                 AvailableYears = gameState.AvailableYears,
                 RemainingYears = gameState.RemainingYears,
                 AvailableSecondsForGunRange = gameState.GetAvailableSecondsForGunRange(),
 
-                // Save current wave state
                 CurrentWaveNumber_Wave = gameState.CurrentWave?.WaveNumber ?? 0,
                 CurrentWaveInitialDistance = gameState.CurrentWave?.InitialDistance ?? 0,
                 CurrentWaveCurrentDistance = gameState.CurrentWave?.CurrentDistance ?? 0,
@@ -169,28 +198,47 @@ namespace Spacegun_Simulator
                 CurrentWaveTargetMass = gameState.CurrentWave?.Targets?[0]?.Mass ?? 0,
                 CurrentWaveTargetFractureEnergy = gameState.CurrentWave?.Targets?[0]?.FractureEnergy ?? 0,
 
-                // Save selected gun/projectile spec
                 SelectedGunProjectileSpecId = gameState.SelectedGunProjectileSpec?.Id ?? string.Empty,
 
-                // Save campaign enemy type
                 CampaignEnemyTypeId = gameState.CampaignEnemyType?.Id ?? string.Empty,
                 CampaignEnemyTypeArchetypeId = gameState.CampaignEnemyType?.Archetype?.Id ?? string.Empty,
                 CampaignEnemyTypeCustomName = gameState.CampaignEnemyType?.CustomName ?? string.Empty,
                 CampaignEnemyTypeDescription = gameState.CampaignEnemyType?.Description ?? string.Empty,
 
-                // Save enemy approach parameters
                 EnemyApproachElevation = gameState.CurrentWave?.ApproachElevation ?? 45f,
                 EnemyApproachAzimuth = gameState.CurrentWave?.ApproachAzimuth ?? 0f,
 
-                // ===== NEW: Save cached Cartesian vectors =====
-                CachedEnemyPositionX = gameState.CurrentWave?.CachedEnemyPosition?.X ?? 0,
-                CachedEnemyPositionY = gameState.CurrentWave?.CachedEnemyPosition?.Y ?? 0,
-                CachedEnemyPositionZ = gameState.CurrentWave?.CachedEnemyPosition?.Z ?? 0,
-                CachedEnemyVelocityX = gameState.CurrentWave?.CachedEnemyVelocity?.X ?? 0,
-                CachedEnemyVelocityY = gameState.CurrentWave?.CachedEnemyVelocity?.Y ?? 0,
-                CachedEnemyVelocityZ = gameState.CurrentWave?.CachedEnemyVelocity?.Z ?? 0,
+                // ===== Save cached wave vectors if they exist =====
+                CachedEnemyPositionX = shouldSaveVectors && gameState.CurrentWave?.CachedEnemyPosition != null ? gameState.CurrentWave.CachedEnemyPosition.Value.X : 0,
+                CachedEnemyPositionY = shouldSaveVectors && gameState.CurrentWave?.CachedEnemyPosition != null ? gameState.CurrentWave.CachedEnemyPosition.Value.Y : 0,
+                CachedEnemyPositionZ = shouldSaveVectors && gameState.CurrentWave?.CachedEnemyPosition != null ? gameState.CurrentWave.CachedEnemyPosition.Value.Z : 0,
+                CachedEnemyVelocityX = shouldSaveVectors && gameState.CurrentWave?.CachedEnemyVelocity != null ? gameState.CurrentWave.CachedEnemyVelocity.Value.X : 0,
+                CachedEnemyVelocityY = shouldSaveVectors && gameState.CurrentWave?.CachedEnemyVelocity != null ? gameState.CurrentWave.CachedEnemyVelocity.Value.Y : 0,
+                CachedEnemyVelocityZ = shouldSaveVectors && gameState.CurrentWave?.CachedEnemyVelocity != null ? gameState.CurrentWave.CachedEnemyVelocity.Value.Z : 0,
+                CachedCorrectLaunchDelayTime = shouldSaveVectors ? gameState.CurrentWave?.CachedCorrectLaunchDelayTime ?? 0f : 0f,
+                CachedCorrectElevation = shouldSaveVectors ? gameState.CurrentWave?.CachedCorrectElevation ?? 0f : 0f,
+                CachedCorrectAzimuth = shouldSaveVectors ? gameState.CurrentWave?.CachedCorrectAzimuth ?? 0f : 0f,
+                CachedCorrectVelocity = shouldSaveVectors ? gameState.CurrentWave?.CachedCorrectVelocity ?? 0f : 0f,
+                HasCachedVectors = shouldSaveVectors,
 
-                // Save difficulty setting
+                // ===== Save firing problem if it exists =====
+                FiringProblemEnemyPositionX = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.EnemyPosition.X : 0,
+                FiringProblemEnemyPositionY = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.EnemyPosition.Y : 0,
+                FiringProblemEnemyPositionZ = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.EnemyPosition.Z : 0,
+                FiringProblemEnemyVelocityX = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.EnemyVelocity.X : 0,
+                FiringProblemEnemyVelocityY = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.EnemyVelocity.Y : 0,
+                FiringProblemEnemyVelocityZ = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.EnemyVelocity.Z : 0,
+                FiringProblemApproachElevation = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.ApproachElevation : 0f,
+                FiringProblemApproachAzimuth = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.ApproachAzimuth : 0f,
+                FiringProblemEngagementDistance = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.EngagementDistance : 0f,
+                FiringProblemApproachSpeed = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.ApproachSpeed : 0f,
+                FiringProblemFractureEnergyRequired = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.FractureEnergyRequired : 0,
+                FiringProblemCorrectLaunchDelayTime = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.CorrectLaunchDelayTime : 0f,
+                FiringProblemCorrectElevation = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.CorrectElevation : 0f,
+                FiringProblemCorrectAzimuth = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.CorrectAzimuth : 0f,
+                FiringProblemCorrectVelocity = shouldSaveFiringProblem ? gameState.CurrentFiringProblem!.CorrectVelocity : 0f,
+                HasFiringProblem = shouldSaveFiringProblem,
+
                 SelectedDifficulty = gameState.SelectedDifficulty.ToString(),
 
                 SaveTimestamp = DateTime.UtcNow.ToString("O")
@@ -202,17 +250,15 @@ namespace Spacegun_Simulator
         public void ApplyToGameState(GameState gameState)
         {
             gameState.CurrentWaveNumber = CurrentWaveNumber;
-            gameState.WavesDefeated = WavesDefeated;  // UNIFIED: Restore single property
+            gameState.WavesDefeated = WavesDefeated;
             gameState.IsGameOver = IsGameOver;
 
-            // Restore resources
             gameState.Resources.Budget = BudgetResources;
             gameState.Resources.Steel = SteelResources;
             gameState.Resources.ExoticMaterials = ExoticResources;
             gameState.Resources.PowerCapacity = PowerCapacity;
             gameState.Resources.ResearchPoints = ResearchPoints;
 
-            // Restore gun state
             gameState.Gun.BarrelLength = BarrelLength;
             gameState.Gun.BarrelMaterial = BarrelMaterial;
             gameState.Gun.BarrelIntegrity = BarrelIntegrity;
@@ -230,7 +276,6 @@ namespace Spacegun_Simulator
             gameState.Gun.InstalledUpgrades.Clear();
             gameState.Gun.InstalledUpgrades.AddRange(InstalledUpgrades);
 
-            // Restore projectile configuration
             gameState.Gun.DefaultProjectile.Mass = ProjectileMass;
             gameState.Gun.DefaultProjectile.Length = ProjectileLength;
             if (Enum.TryParse<ProjectileType>(ProjectileType, out var projType))
@@ -241,29 +286,24 @@ namespace Spacegun_Simulator
             if (Enum.TryParse<ArmorPenetrationType>(ProjectilePenetrationType, out var penType))
                 gameState.Gun.DefaultProjectile.PenetrationType = penType;
 
-            // Restore accumulated resources
             gameState.AccumulatedResources.Clear();
             foreach (var kvp in AccumulatedResources)
             {
                 gameState.AccumulatedResources[kvp.Key] = kvp.Value;
             }
 
-            // Restore time budget
             gameState.SetTimebudget(AvailableYears, RemainingYears, AvailableSecondsForGunRange);
 
             // Restore current wave state
             if (CurrentWaveNumber_Wave > 0)
             {
-                // Find the archetype from the campaign enemy type
                 var archetype = gameState.CampaignEnemyType?.Archetype;
 
-                // If no campaign enemy type, look it up from All by ID
                 if (archetype == null)
                 {
                     archetype = EnemyArchetype.All.FirstOrDefault(a => a.Id == CurrentWaveArchetypeId);
                 }
 
-                // If still null, create a minimal archetype (shouldn't happen but safety net)
                 if (archetype == null)
                 {
                     archetype = new EnemyArchetype(
@@ -271,8 +311,8 @@ namespace Spacegun_Simulator
                         CurrentWaveArchetypeName,
                         CurrentWaveArchetypeDescription,
                         CurrentWaveArchetypeVelocityMultiplier,
-                        (0, 50_000),  // Default mass range
-                        (0, 100_000),  // Default fracture energy range
+                        (0, 50_000),
+                        (0, 100_000),
                         1
                     );
                 }
@@ -288,7 +328,7 @@ namespace Spacegun_Simulator
                     FractureEnergy = CurrentWaveTargetFractureEnergy
                 };
 
-                gameState.RestoreCurrentWave(new EnemyWave(CurrentWaveNumber_Wave)
+                var restoredWave = new EnemyWave(CurrentWaveNumber_Wave)
                 {
                     WaveNumber = CurrentWaveNumber_Wave,
                     InitialDistance = CurrentWaveInitialDistance,
@@ -300,19 +340,43 @@ namespace Spacegun_Simulator
                     Archetype = archetype,
                     ApproachElevation = EnemyApproachElevation,
                     ApproachAzimuth = EnemyApproachAzimuth,
-                    CachedEnemyPosition = new Vector3(CachedEnemyPositionX, CachedEnemyPositionY, CachedEnemyPositionZ),
-                    CachedEnemyVelocity = new Vector3(CachedEnemyVelocityX, CachedEnemyVelocityY, CachedEnemyVelocityZ),
+                    CachedEnemyPosition = HasCachedVectors ? new Vector3(CachedEnemyPositionX, CachedEnemyPositionY, CachedEnemyPositionZ) : null,
+                    CachedEnemyVelocity = HasCachedVectors ? new Vector3(CachedEnemyVelocityX, CachedEnemyVelocityY, CachedEnemyVelocityZ) : null,
+                    CachedCorrectLaunchDelayTime = CachedCorrectLaunchDelayTime,
+                    CachedCorrectElevation = CachedCorrectElevation,
+                    CachedCorrectAzimuth = CachedCorrectAzimuth,
+                    CachedCorrectVelocity = CachedCorrectVelocity,
+                    IsRestoredFromSave = HasCachedVectors,
                     Targets = new List<EnemyTarget> { target }
-                });
+                };
+
+                gameState.RestoreCurrentWave(restoredWave);
             }
 
-            // Restore selected gun/projectile spec
+            // ===== Restore firing problem if it exists =====
+            if (HasFiringProblem)
+            {
+                gameState.CurrentFiringProblem = new FiringProblem
+                {
+                    EnemyPosition = new Vector3(FiringProblemEnemyPositionX, FiringProblemEnemyPositionY, FiringProblemEnemyPositionZ),
+                    EnemyVelocity = new Vector3(FiringProblemEnemyVelocityX, FiringProblemEnemyVelocityY, FiringProblemEnemyVelocityZ),
+                    ApproachElevation = FiringProblemApproachElevation,
+                    ApproachAzimuth = FiringProblemApproachAzimuth,
+                    EngagementDistance = FiringProblemEngagementDistance,
+                    ApproachSpeed = FiringProblemApproachSpeed,
+                    FractureEnergyRequired = FiringProblemFractureEnergyRequired,
+                    CorrectLaunchDelayTime = FiringProblemCorrectLaunchDelayTime,
+                    CorrectElevation = FiringProblemCorrectElevation,
+                    CorrectAzimuth = FiringProblemCorrectAzimuth,
+                    CorrectVelocity = FiringProblemCorrectVelocity
+                };
+            }
+
             if (!string.IsNullOrEmpty(SelectedGunProjectileSpecId))
             {
                 gameState.SelectedGunProjectileSpec = GunProjectileSpec.All.FirstOrDefault(s => s.Id == SelectedGunProjectileSpecId);
             }
 
-            // Restore campaign enemy type
             if (!string.IsNullOrEmpty(CampaignEnemyTypeId))
             {
                 var archetype = EnemyArchetype.All.FirstOrDefault(a => a.Id == CampaignEnemyTypeArchetypeId);
@@ -327,13 +391,11 @@ namespace Spacegun_Simulator
                 }
             }
 
-            // Restore difficulty setting
             if (!string.IsNullOrEmpty(SelectedDifficulty) && Enum.TryParse<GameDifficulty>(SelectedDifficulty, out var difficulty))
             {
                 gameState.SelectedDifficulty = difficulty;
             }
 
-            // Restore phase if not game over
             if (!IsGameOver && Enum.TryParse<GameState.GamePhase>(CurrentPhase, out var phase))
             {
                 gameState.CurrentPhase = phase;

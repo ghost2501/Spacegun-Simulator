@@ -32,41 +32,92 @@ namespace Spacegun_Simulator
 
         public void Run()
         {
-            ShowMainMenu();
-
-            while (!engine.IsGameOver)
+            while (true)
             {
-                switch (engine.CurrentPhase)
+                ShowMainMenu();
+
+                while (!engine.IsGameOver)
                 {
-                    case GameState.GamePhase.Detection:
-                        RunDetectionPhase();
-                        break;
+                    switch (engine.CurrentPhase)
+                    {
+                        case GameState.GamePhase.Detection:
+                            RunDetectionPhase();
+                            break;
 
-                    case GameState.GamePhase.ResourceAllocation:
-                        RunResourceAllocationPhase();
-                        break;
+                        case GameState.GamePhase.ResourceAllocation:
+                            RunResourceAllocationPhase();
+                            break;
 
-                    case GameState.GamePhase.Development:
-                        RunDevelopmentPhase();
-                        break;
+                        case GameState.GamePhase.Development:
+                            RunDevelopmentPhase();
+                            break;
 
-                    case GameState.GamePhase.Firing:
-                        RunFiringPhase();
-                        break;
+                        case GameState.GamePhase.Firing:
+                            RunFiringPhase();
+                            break;
 
-                    case GameState.GamePhase.WaveComplete:
-                        RunWaveCompletePhase();
-                        break;
+                        case GameState.GamePhase.WaveComplete:
+                            RunWaveCompletePhase();
+                            break;
+                    }
                 }
+
+                // Game Over - show end state and return to menu
+                DisplayGameOverScreen();
+            }
+        }
+
+        /// <summary>
+        /// Display the game over screen with final stats, then wait for input to return to menu.
+        /// Deletes the auto-save to prevent resuming completed games.
+        /// </summary>
+        private void DisplayGameOverScreen()
+        {
+            Console.Clear();
+            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+            Console.WriteLine("║                    GAME OVER                              ║");
+            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+
+            if (engine.WavesDefeated >= GameConstants.TotalWaves)
+            {
+                Console.WriteLine("✓ VICTORY! Campaign Complete!\n");
+                Console.WriteLine($"Waves Defeated: {engine.WavesDefeated}/{GameConstants.TotalWaves}");
+            }
+            else
+            {
+                Console.WriteLine("✗ DEFEAT! Mission Failed\n");
+                Console.WriteLine($"Waves Defeated: {engine.WavesDefeated}/{GameConstants.TotalWaves}");
             }
 
-            Console.WriteLine("\n╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║                    GAME OVER                              ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝");
-
-            // DO NOT save game over state - only playable states are saved
-            Console.WriteLine("\nPress any key to exit...");
+            Console.WriteLine("\nPress any key to return to main menu...");
             Console.ReadKey();
+
+            // Delete auto-save - force players to start fresh after game over
+            DeleteAutoSave();
+
+            // Reset game state for next game
+            engine.IsGameOver = false;
+        }
+
+        /// <summary>
+        /// Delete the auto-save file to prevent resuming completed games.
+        /// Called after game over (victory or defeat).
+        /// </summary>
+        private void DeleteAutoSave()
+        {
+            try
+            {
+                string savePath = Path.Combine(SaveDirectory, "AutoSave.json");
+                if (File.Exists(savePath))
+                {
+                    File.Delete(savePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Silently fail - save deletion is not critical to gameplay
+                System.Console.WriteLine($"Note: Could not delete save file: {ex.Message}");
+            }
         }
 
         // ====================================================================
@@ -93,12 +144,12 @@ namespace Spacegun_Simulator
             if (autoSaveExists)
             {
                 Console.WriteLine("[2] Resume Game");
-                Console.WriteLine("[3] Test Mode (Firing Solution Validation)");
+                Console.WriteLine("[3] Test Mode (Debug Tools)");
                 Console.WriteLine("[4] Exit");
             }
             else
             {
-                Console.WriteLine("[2] Test Mode (Firing Solution Validation)");
+                Console.WriteLine("[2] Test Mode (Debug Tools)");
                 Console.WriteLine("[3] Exit");
             }
 
@@ -127,6 +178,16 @@ namespace Spacegun_Simulator
 
                         var diffConfig = DifficultyConfig.GetConfig(selectedDifficulty);
                         Console.WriteLine($"\nDifficulty: {diffConfig.DisplayName}");
+                        
+                        // ===== NEW: PRE-GENERATE ALL CAMPAIGN WAVES =====
+                        Console.WriteLine("\n[INITIALIZATION] Pre-generating campaign waves...");
+                        Console.WriteLine("This may take a few seconds on first run.\n");
+                        
+                        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                        engine.GenerateAllCampaignWaves(GameConstants.TotalWaves);
+                        stopwatch.Stop();
+                        
+                        Console.WriteLine($"\n✓ Campaign initialization complete in {stopwatch.ElapsedMilliseconds}ms");
                         Console.WriteLine("Press any key to begin...\n");
                         Console.ReadKey();
 
@@ -151,26 +212,150 @@ namespace Spacegun_Simulator
                         }
                         else
                         {
-                            Console.WriteLine("Invalid choice. Please try again.\n");
+                            // No auto-save, so option 2 is Test Mode
+                            RunTestModeMenu();
+                            validChoice = true;
+                            ShowMainMenu();
+                            return;
                         }
                         break;
 
                     case "3":
-                        // Test mode - available regardless of save state
-                        RunTestMode();
-                        validChoice = true;
-                        // After test mode, return to main menu
-                        ShowMainMenu();
-                        return;
+                        if (autoSaveExists)
+                        {
+                            // Auto-save exists, so option 3 is Test Mode
+                            RunTestModeMenu();
+                            validChoice = true;
+                            ShowMainMenu();
+                            return;
+                        }
+                        else
+                        {
+                            // No auto-save, so option 3 is Exit
+                            Environment.Exit(0);
+                            break;
+                        }
 
                     case "4":
-                        Environment.Exit(0);
+                        if (autoSaveExists)
+                        {
+                            // Exit with auto-save
+                            Environment.Exit(0);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Invalid choice. Please try again.\n");
+                        }
                         break;
 
                     default:
                         Console.WriteLine("Invalid choice. Please try again.\n");
                         break;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Display test mode menu with debug tools.
+        /// Includes Firing Challenge and automated test harness.
+        /// </summary>
+        private void RunTestModeMenu()
+        {
+            while (true)
+            {
+                Console.Clear();
+                Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+                Console.WriteLine("║              TEST MODE - DEBUG TOOLS                     ║");
+                Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+
+                Console.WriteLine("[1] Firing Challenge (Quick Firing Test)");
+                Console.WriteLine("[2] Test Harness (Automated Validation)");
+                Console.WriteLine("[3] Return to Main Menu");
+
+                Console.Write("\nSelect option: ");
+                string input = Console.ReadLine() ?? "0";
+
+                switch (input)
+                {
+                    case "1":
+                        RunFiringChallenge();
+                        break;
+
+                    case "2":
+                        RunTestMode();
+                        break;
+
+                    case "3":
+                        return;
+
+                    default:
+                        Console.WriteLine("Invalid choice. Please try again.\n");
+                        System.Threading.Thread.Sleep(1000);
+                        break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Run a quick firing challenge mode, skipping resource and development phases.
+        /// Useful for debugging firing solution mechanics without full game setup.
+        /// Uses actual gameplay firing system, not a separate test iteration.
+        /// </summary>
+        private void RunFiringChallenge()
+        {
+            Console.Clear();
+            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+            Console.WriteLine("║            FIRING CHALLENGE MODE (DEBUG)                  ║");
+            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+
+            // Select difficulty
+            GameDifficulty difficulty = ShowDifficultySelection();
+            engine.SelectedDifficulty = difficulty;
+
+            // Initialize engine for new challenge
+            engine.CurrentWaveNumber = 1;
+            engine.IsGameOver = false;
+            engine.WavesDefeated = 0;
+            engine.CurrentPhase = GameState.GamePhase.Detection;
+
+            var diffConfig = DifficultyConfig.GetConfig(difficulty);
+            Console.WriteLine($"\nDifficulty: {diffConfig.DisplayName}");
+
+            // Generate campaign enemy type
+            if (engine.CampaignEnemyType == null)
+            {
+                engine.CampaignEnemyType = EnemyType.GenerateForCampaign(engine.rng ?? new Random());
+            }
+
+            // Pre-generate first wave only (faster for quick testing)
+            Console.WriteLine("\n[INITIALIZATION] Generating firing challenge wave...");
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            try
+            {
+                // Use the standard detection phase to properly initialize wave
+                var detectionResult = engine.ExecuteDetectionPhase();
+
+                if (!detectionResult.WaveDetected)
+                {
+                    Console.WriteLine("\n✗ Wave detection failed. Challenge cancelled.");
+                    System.Threading.Thread.Sleep(2000);
+                    return;
+                }
+
+                stopwatch.Stop();
+                Console.WriteLine($"\n✓ Challenge generated in {stopwatch.ElapsedMilliseconds}ms");
+                Console.WriteLine("\nPress any key to skip directly to firing phase...\n");
+                Console.ReadKey();
+
+                // Skip to firing phase directly (no resource allocation or development)
+                engine.CurrentPhase = GameState.GamePhase.Firing;
+                RunFiringPhase();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"\n✗ Failed to generate firing challenge: {ex.Message}");
+                System.Threading.Thread.Sleep(2000);
             }
         }
 
@@ -525,6 +710,19 @@ namespace Spacegun_Simulator
                 return;
             }
 
+            // ===== CRITICAL: Use the FiringProblem generated by ExecuteFiringPhase() =====
+            // Do NOT call GenerateFiringProblem() again - it will regenerate!
+            if (engine.CurrentFiringProblem == null)
+            {
+                Console.WriteLine("✗ Critical error: Firing problem not initialized!");
+                engine.IsGameOver = true;
+                return;
+            }
+
+            var firingProblem = engine.CurrentFiringProblem;
+            Vector3 enemyPosition = firingProblem.EnemyPosition;
+            Vector3 enemyVelocity = firingProblem.EnemyVelocity;
+
             var tier = GameConstants.GetTierForWave(engine.CurrentWaveNumber);
 
             double muzzleVelocity = engine.SelectedGunProjectileSpec != null
@@ -546,25 +744,6 @@ namespace Spacegun_Simulator
                 (float)target.FractureEnergy,
                 target.Mass);
 
-            FiringProblem firingProblem;
-            try
-            {
-                firingProblem = calculator.GenerateFiringProblem(
-                    engine.CurrentWave,
-                    (float)muzzleVelocity,
-                    (float)tier.MaxEffectiveGunRange,
-                    engine.rng,
-                    (float)firingResult.TargetDistance);  // Pass the actual current distance
-            }
-            catch (InvalidOperationException ex)
-            {
-                Console.WriteLine($"✗ {ex.Message}");
-                engine.IsGameOver = true;
-                return;
-            }
-
-            Vector3 enemyPosition = firingProblem.EnemyPosition;
-            Vector3 enemyVelocity = firingProblem.EnemyVelocity;
             float minVelocity = calculator.CalculateRequiredVelocity();
             double targetRadarCrossSection = target.CrossSection;
 
@@ -669,7 +848,8 @@ namespace Spacegun_Simulator
                             (float)muzzleVelocity,
                             (float)tier.MaxEffectiveGunRange,
                             engine.CurrentWaveNumber,
-                            target.Mass);
+                            target.Mass,
+                            engine.SelectedDifficulty);
 
                         DisplayFiringAnalysis(solution, playerLaunchDelayTime, playerTargetElevation, playerTargetAzimuth,
                             playerLaunchVelocity);
@@ -735,7 +915,8 @@ namespace Spacegun_Simulator
                             (float)muzzleVelocity,
                             (float)tier.MaxEffectiveGunRange,
                             engine.CurrentWaveNumber,
-                            target.Mass);
+                            target.Mass,
+                            engine.SelectedDifficulty);
 
                         DisplayFiringAnalysis(directSolution, directDelayTime, directElevation, directAzimuth, directVelocity);
 
@@ -821,32 +1002,32 @@ namespace Spacegun_Simulator
         private void DisplayFiringAnalysis(FiringSolutionResult solution, float delayTime, float elevation,
             float azimuth, float velocity)
         {
-            Console.WriteLine("=== FIRING SOLUTION ANALYSIS ===");
-            Console.WriteLine($"Your Input Parameters:");
-            Console.WriteLine($"  Launch Delay Time: {delayTime:F2} seconds");
-            Console.WriteLine($"  Target Elevation: {elevation:F1}°");
-            Console.WriteLine($"  Target Azimuth: {azimuth:F1}°");
-            Console.WriteLine($"  Launch Velocity: {velocity:F0} m/s\n");
+            //Console.WriteLine("=== FIRING SOLUTION ANALYSIS ===");
+            //Console.WriteLine($"Your Input Parameters:");
+            //Console.WriteLine($"  Launch Delay Time: {delayTime:F2} seconds");
+            //Console.WriteLine($"  Target Elevation: {elevation:F1}°");
+            //Console.WriteLine($"  Target Azimuth: {azimuth:F1}°");
+            //Console.WriteLine($"  Launch Velocity: {velocity:F0} m/s\n");
 
-            Console.WriteLine($"Ballistic Results:");
-            Console.WriteLine($"  Kinetic Energy: {solution.KineticEnergyMJ:F1} MJ (Need: {solution.FractureEnergyRequired:F0} MJ)");
-            Console.WriteLine($"  Can Destroy: {(solution.CanDestroy ? "✓ Yes" : "✗ No")}");
-            Console.WriteLine($"  Can Intercept: {(solution.CanHit ? "✓ Yes" : "✗ No")}");
-            Console.WriteLine($"  Miss Distance: {solution.InterceptDeviation:F0} meters\n");
+            //Console.WriteLine($"Ballistic Results:");
+            //Console.WriteLine($"  Kinetic Energy: {solution.KineticEnergyMJ:F1} MJ (Need: {solution.FractureEnergyRequired:F0} MJ)");
+            //Console.WriteLine($"  Can Destroy: {(solution.CanDestroy ? "✓ Yes" : "✗ No")}");
+            //Console.WriteLine($"  Can Intercept: {(solution.CanHit ? "✓ Yes" : "✗ No")}");
+            //Console.WriteLine($"  Miss Distance: {solution.InterceptDeviation:F0} meters\n");
 
-            if (solution.CanHit && solution.EnemyInterceptPoint.HasValue)
-            {
-                Console.WriteLine($"Intercept Point: {solution.EnemyInterceptPoint.Value}");
-                Console.WriteLine($"Launch Delay Time: {solution.LaunchDelayTime:F2} seconds\n");
-            }
+            //if (solution.CanHit && solution.EnemyInterceptPoint.HasValue)
+            //{
+            //    Console.WriteLine($"Intercept Point: {solution.EnemyInterceptPoint.Value}");
+            //    Console.WriteLine($"Launch Delay Time: {solution.LaunchDelayTime:F2} seconds\n");
+            //}
 
-            Console.WriteLine($"Solution Status: {solution.Message}\n");
+            //Console.WriteLine($"Solution Status: {solution.Message}\n");
         }
 
         private void DisplayDebugCalculations(FiringSolutionResult solution, double mass, float velocity, double targetRCS)
         {
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║              [DEBUG] FIRING CALCULATION MATH              ║");
+            Console.WriteLine("║              RESULTS                                      ║");
             Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
             Console.WriteLine("=== ENERGY CALCULATION ===");
@@ -862,7 +1043,7 @@ namespace Spacegun_Simulator
             Console.WriteLine($"  = 0.5 × {mass:F1} × {displayVelSq:F0}");
             Console.WriteLine($"  = {displayEnergyMJ:F1} MJ");
             Console.WriteLine($"Required: {solution.FractureEnergyRequired:F0} MJ");
-            Console.WriteLine($"✓ Energy Check: {(solution.CanDestroy ? "PASS" : "FAIL")} ({solution.KineticEnergyMJ:F1} MJ vs {solution.FractureEnergyRequired:F0} MJ threshold)\n");
+            Console.WriteLine($"✓ Energy Check: {(solution.CanDestroy ? "PASS" : "FAIL")} ({displayEnergyMJ:F1} MJ vs {solution.FractureEnergyRequired:F0} MJ threshold)\n");
 
             Console.WriteLine("=== INTERCEPT ACCURACY ===");
             if (solution.EnemyInterceptPoint.HasValue)

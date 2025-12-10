@@ -301,6 +301,65 @@ namespace Spacegun_Simulator
             double au = meters / AU_TO_METERS;
             return Math.Round(au) * AU_TO_METERS;
         }
+
+        // ===== TIER-BASED VELOCITY CONSTRAINTS (NEW) =====
+        /// <summary>
+        /// Minimum enemy velocity for each tier (m/s).
+        /// </summary>
+        public static readonly double[] TierEnemyMinVelocity = new[]
+        {
+            50_000.0,    // Tier 0: 50 km/s min
+            100_000.0,   // Tier 1: 100 km/s min
+            250_000.0    // Tier 2: 250 km/s min
+        };
+
+        /// <summary>
+        /// Maximum enemy velocity for each tier (m/s).
+        /// </summary>
+        public static readonly double[] TierEnemyMaxVelocity = new[]
+        {
+            90_000.0,    // Tier 0: 90 km/s max
+            200_000.0,   // Tier 1: 200 km/s max
+            400_000.0    // Tier 2: 400 km/s max
+        };
+
+        /// <summary>
+        /// Minimum player gun velocity for each tier (m/s).
+        /// Set to enemy max velocity - player can ALWAYS reach the target.
+        /// </summary>
+        public static readonly double[] TierPlayerMinVelocity = new[]
+        {
+            90_000.0,    // Tier 0: 90 km/s min (match enemy max)
+            200_000.0,   // Tier 1: 200 km/s min (match enemy max)
+            400_000.0    // Tier 2: 400 km/s min (match enemy max)
+        };
+
+        /// <summary>
+        /// Maximum player gun velocity for each tier (m/s).
+        /// Set to 200% of tier enemy max for full power.
+        /// </summary>
+        public static readonly double[] TierPlayerMaxVelocity = new[]
+        {
+            180_000.0,   // Tier 0: 200% of 90 km/s max
+            400_000.0,   // Tier 1: 200% of 200 km/s max
+            800_000.0    // Tier 2: 200% of 400 km/s max
+        };
+
+        /// <summary>
+        /// Get velocity constraints for a specific tier.
+        /// </summary>
+        public static (double EnemyMin, double EnemyMax, double PlayerMin, double PlayerMax) GetTierVelocityConstraints(int tierIndex)
+        {
+            if (tierIndex < 0 || tierIndex >= 3)
+                tierIndex = 2;
+            
+            return (
+                TierEnemyMinVelocity[tierIndex],
+                TierEnemyMaxVelocity[tierIndex],
+                TierPlayerMinVelocity[tierIndex],
+                TierPlayerMaxVelocity[tierIndex]
+            );
+        }
     }
 
     // Simple config loader

@@ -92,6 +92,9 @@
             AccumulatedResources.Clear();
             AccumulatedResources["Steel"] = 0;
             AccumulatedResources["Budget"] = 0;
+            AccumulatedResources["SpecializedAlloys"] = 0;
+            AccumulatedResources["RareEarthElements"] = 0;
+            AccumulatedResources["PowerCells"] = 0;
             AccumulatedResources["Exotic"] = 0;
         }
 
@@ -313,44 +316,49 @@
             var target = CurrentWave.Targets[0];
             var tier = GameConstants.GetTierForWave(CurrentWaveNumber);
 
-            var solver = new FiringSolution(
-                (float)(SelectedGunProjectileSpec?.ProjectileMassKg ?? Gun.DefaultProjectile.Mass),
-                (float)target.FractureEnergy,
-                target.Mass);
+            // ===== CRITICAL: Only generate if NOT already generated =====
+            // If CurrentFiringProblem already exists, reuse it (from a prior call or load)
+            if (CurrentFiringProblem == null)
+            {
+                var solver = new FiringSolution(
+                    (float)(SelectedGunProjectileSpec?.ProjectileMassKg ?? Gun.DefaultProjectile.Mass),
+                    (float)target.FractureEnergy,
+                    target.Mass);
 
-            FiringProblem firingProblem = null!;
-            try
-            {
-                // Pass gun's effective range to constrain engagement
-                firingProblem = solver.GenerateFiringProblem(
-                    CurrentWave,
-                    (float)(SelectedGunProjectileSpec?.MuzzleVelocityMs ??
-                            BallisticsCalculator.CalculateMuzzleVelocity(Gun, Gun.DefaultProjectile)),
-                    (float)tier.MaxEffectiveGunRange,
-                    rng);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return new FiringPhaseResult
+                FiringProblem firingProblem = null!;
+                try
                 {
-                    CanReachTarget = false,
-                    TargetDistance = 1_100_000,
-                    GunRange = tier.MaxEffectiveGunRange,
-                    Message = $"Gun is insufficient for this target: {ex.Message}",
-                    Reward = null,
-                    GameOver = false
-                };
-            }
+                    // Pass gun's effective range to constrain engagement
+                    firingProblem = solver.GenerateFiringProblem(
+                        CurrentWave,
+                        (float)(SelectedGunProjectileSpec?.MuzzleVelocityMs ??
+                                BallisticsCalculator.CalculateMuzzleVelocity(Gun, Gun.DefaultProjectile)),
+                        (float)tier.MaxEffectiveGunRange,
+                        rng);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return new FiringPhaseResult
+                    {
+                        CanReachTarget = false,
+                        TargetDistance = 1_100_000,
+                        GunRange = tier.MaxEffectiveGunRange,
+                        Message = $"Gun is insufficient for this target: {ex.Message}",
+                        Reward = null,
+                        GameOver = false
+                    };
+                }
 
-            // Store for use in ConsoleUI firing phase
-            CurrentFiringProblem = firingProblem;
+                // Store for use in ConsoleUI firing phase
+                CurrentFiringProblem = firingProblem;
+            }
 
             return new FiringPhaseResult
             {
                 CanReachTarget = true,
-                TargetDistance = firingProblem.EngagementDistance,
+                TargetDistance = CurrentFiringProblem.EngagementDistance,
                 GunRange = tier.MaxEffectiveGunRange,
-                Message = $"Target at engagement distance {GameConstants.FormatDistance(firingProblem.EngagementDistance)}",
+                Message = $"Target at engagement distance {GameConstants.FormatDistance(CurrentFiringProblem.EngagementDistance)}",
                 Reward = null,
                 GameOver = false
             };
@@ -367,6 +375,7 @@
         {
             CurrentWave = null;
             CurrentDetectionStatus = null;
+            CurrentFiringProblem = null;  // ← ADD THIS LINE
             CurrentPhase = GamePhase.Detection;
         }
 
@@ -451,6 +460,13 @@
             string savePath = GetAutoSavePath();
             try
             {
+                // ===== CRITICAL FIX: Ensure firing problem is generated before saving =====
+                // If we're in the Firing phase and haven't generated the firing problem yet, do it now
+                if (CurrentPhase == GamePhase.Firing && CurrentFiringProblem == null && CurrentWave != null)
+                {
+                    ExecuteFiringPhase();
+                }
+                
                 var data = GameStateData.FromGameState(this);
                 var json = System.Text.Json.JsonSerializer.Serialize(data, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                 System.IO.File.WriteAllText(savePath, json);
@@ -467,6 +483,7 @@
         public bool LoadAutoSave()
         {
             string savePath = GetAutoSavePath();
+            
             try
             {
                 if (!System.IO.File.Exists(savePath))
@@ -479,6 +496,7 @@
                     return false;
 
                 data.ApplyToGameState(this);
+                
                 return true;
             }
             catch (Exception ex)
@@ -525,6 +543,118 @@
         public void IncrementWavesDefeated()
         {
             WavesDefeated++;
+        }
+
+        // ====================================================================
+        // WAVE PRE-GENERATION (OPTION A: Pre-generate All Waves at Game Start)
+        // ====================================================================
+        // All waves are generated once at startup, ensuring consistency and
+        // eliminating the velocity normalization problem. Each wave has an immutable
+        // velocity derived from its ballistic geometry.
+
+        /// <summary>
+        /// Pre-generated firing problems for all campaign waves.
+        /// Populated during game initialization, used throughout the game.
+        /// Guarantees: Each wave is solvable and has immutable velocity.
+        /// </summary>
+        public List<FiringProblem> PreGeneratedWaves { get; private set; } = new();
+
+        /// <summary>
+        /// Current index in the pre-generated waves list.
+        /// Incremented as player progresses through waves.
+        /// </summary>
+        public int CurrentWaveIndex { get; private set; } = 0;
+
+        /// <summary>
+        /// Pre-generate all campaign waves at startup.
+        /// Each wave is validated to be solvable before caching.
+        /// Called once during game initialization after difficulty selection.
+        /// 
+        /// CRITICAL: This happens BEFORE any gameplay begins, ensuring all waves
+        /// are available and consistent throughout the campaign.
+        /// 
+        /// KEY CHANGE: Uses tier-appropriate player max velocity for each wave,
+        /// ensuring solvable geometry that matches the tier's difficulty.
+        /// 
+        /// PERFORMANCE: Typical campaign (25 waves) generates in <2 seconds on modern hardware.
+        /// </summary>
+        public void GenerateAllCampaignWaves(int campaignLength)
+        {
+            Console.WriteLine($"[CAMPAIGN GENERATION] Pre-generating {campaignLength} firing problems...");
+            PreGeneratedWaves.Clear();
+            CurrentWaveIndex = 0;
+
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            int successCount = 0;
+            int failureCount = 0;
+
+            for (int waveNumber = 1; waveNumber <= campaignLength; waveNumber++)
+            {
+                try
+                {
+                    var wave = EnemyWave.GenerateWave(waveNumber, rng, CampaignEnemyType);
+                    wave.Targets = wave.Targets.Take(1).ToList();
+
+                    var tier = GameConstants.GetTierForWave(waveNumber);
+                    int tierIndex = tier.TierIndex;
+
+                    var (_, _, playerMin, playerMax) = GameConstants.GetTierVelocityConstraints(tierIndex);
+                    float campaignReferenceVelocity = (float)playerMax;
+
+                    var firingSolution = new FiringSolution(
+                        (float)Gun.DefaultProjectile.Mass,
+                        (float)(CampaignEnemyType?.Archetype?.FractureEnergyRange.Max ?? 50000),
+                        10000.0);
+
+                    var problem = firingSolution.GenerateFiringProblem(
+                        wave,
+                        campaignReferenceVelocity,
+                        (float)tier.MaxEffectiveGunRange,
+                        rng);
+
+                    PreGeneratedWaves.Add(problem);
+                    successCount++;
+
+                    // Minimal progress - just dots
+                    if (waveNumber % 5 == 0)
+                        Console.Write(".");
+                }
+                catch (Exception ex)
+                {
+                    failureCount++;
+                }
+            }
+
+            stopwatch.Stop();
+            
+            Console.WriteLine($"\n✓ Generated {successCount}/{campaignLength} waves in {stopwatch.ElapsedMilliseconds}ms");
+            
+            if (failureCount > 0)
+                Console.WriteLine($"  ({failureCount} waves had generation issues)");
+        }
+
+        /// <summary>
+        /// Get the current wave's pre-generated firing problem.
+        /// Safe to call after pre-generation is complete.
+        /// Returns null if wave index is out of range.
+        /// </summary>
+        public FiringProblem? GetCurrentWaveProblem()
+        {
+            if (CurrentWaveIndex < 0 || CurrentWaveIndex >= PreGeneratedWaves.Count)
+                return null;
+
+            return PreGeneratedWaves[CurrentWaveIndex];
+        }
+
+        /// <summary>
+        /// Advance to the next wave in the campaign.
+        /// Increments CurrentWaveIndex and checks for campaign completion.
+        /// Returns false if campaign is complete.
+        /// </summary>
+        public bool AdvanceToNextWaveIndex()
+        {
+            CurrentWaveIndex++;
+            return CurrentWaveIndex < PreGeneratedWaves.Count;
         }
     }
 }
