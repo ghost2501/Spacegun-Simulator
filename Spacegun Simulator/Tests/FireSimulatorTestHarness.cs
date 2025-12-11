@@ -617,6 +617,27 @@ namespace Spacegun_Simulator.Tests
         // ====================================================================
 
         /// <summary>
+        /// Get muzzle velocity scaled for a specific wave tier.
+        /// Calculated to achieve 10-20 second intercept time.
+        /// </summary>
+        private float GetScaledMuzzleVelocity(int waveNumber, float baseVelocity)
+        {
+            var tier = GameConstants.GetTierForWave(waveNumber);
+            
+            // Use tier-specific test velocity designed for realistic intercept times
+            return (float)GameConstants.GetTestPlayerVelocityForTier(tier.TierIndex);
+        }
+
+        /// <summary>
+        /// Get gun range for a specific tier's test scenarios.
+        /// </summary>
+        private double GetScaledGunRange(int waveNumber)
+        {
+            var tier = GameConstants.GetTierForWave(waveNumber);
+            return GameConstants.GetTestGunRangeForTier(tier.TierIndex);
+        }
+
+        /// <summary>
         /// Generate detailed debug information for a test result.
         /// </summary>
         private string GenerateDebugInfo(FiringSolutionResult solution)

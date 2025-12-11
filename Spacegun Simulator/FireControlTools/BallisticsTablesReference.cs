@@ -1,18 +1,17 @@
 namespace Spacegun_Simulator.FireControlTools
 {
     /// <summary>
-    /// BALLISTIC TABLES & REFERENCE CHARTS
+    /// BALLISTIC TABLES & REFERENCE CHARTS (TIER & DIFFICULTY-LINKED)
     /// 
-    /// Provides pre-calculated lookup tables for ballistic calculations.
-    /// Simulates physical reference materials (paper charts, tables) that a mid-20th
-    /// century artillery gunner would use with mechanical fire control computers.
+    /// Provides dynamically-generated lookup tables for ballistic calculations.
+    /// Tables adapt to:
+    /// - Tier (0-3): Enemy velocity and gun range adjust table ranges
+    /// - Difficulty: Hit tolerances and RCS multipliers are displayed
     /// 
     /// PURPOSE: Educational tool for players to verify calculations without solving problems.
-    /// - Shows time-of-flight for different velocities and ranges
-    /// - Shows gravity drop over various flight times
-    /// - Allows players to manually look up values and understand relationships
+    /// Values are pulled from GameConstants and DifficultyConfig, ensuring consistency.
     /// 
-    /// DESIGN PRINCIPLE: Never auto-solves. Player uses tables as reference only.
+    /// PRECISION: All formatting delegates to DifficultyConfig (single source of truth).
     /// </summary>
     public static class BallisticsTablesReference
     {
@@ -20,14 +19,8 @@ namespace Spacegun_Simulator.FireControlTools
         private const float GRAVITY = 9.81f;
 
         // ====================================================================
-        // TABLE 1: TIME-OF-FLIGHT REFERENCE
+        // TABLE 1: TIME-OF-FLIGHT REFERENCE (TIER-ADAPTIVE)
         // ====================================================================
-        // Shows how long a projectile takes to reach various ranges at different velocities
-        // and elevation angles. Useful for estimating launch delay time.
-        //
-        // Rows: Velocity (m/s)
-        // Columns: Range (km)
-        // Values: Time of flight in seconds at various elevation angles
 
         /// <summary>
         /// Calculate time-of-flight from velocity, range, and elevation angle.
@@ -52,240 +45,408 @@ namespace Spacegun_Simulator.FireControlTools
         }
 
         /// <summary>
-        /// Display Time-of-Flight Table.
-        /// Shows estimated flight times for typical velocities across range bands.
+        /// Display Time-of-Flight Table with difficulty-appropriate precision.
+        /// Uses DifficultyConfig as single source of truth for precision.
         /// </summary>
-        public static void DisplayTimeOfFlightTable()
+        public static void DisplayTimeOfFlightTable(int? tierIndex = null, GameDifficulty? difficulty = null)
         {
             Console.Clear();
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
             Console.WriteLine("║         TABLE 1: TIME-OF-FLIGHT REFERENCE                 ║");
-            Console.WriteLine("║    (Simplified: horizontal range only, gravity not incl.) ║");
+            Console.WriteLine("║    (Tier-adaptive: velocity & ranges match your tier)     ║");
             Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
-            Console.WriteLine("Use this table to estimate flight times at different velocities and ranges.\n");
+            var tier = tierIndex.HasValue
+                ? GameConstants.WaveTiers[Math.Min(tierIndex.Value, 3)]
+                : GameConstants.WaveTiers[0];
 
-            // Typical velocities in m/s (from weapon specs)
-            float[] velocities = { 50_000f, 100_000f, 150_000f, 200_000f, 250_000f, 300_000f, 350_000f };
+            var diffConfig = difficulty.HasValue
+                ? DifficultyConfig.GetConfig(difficulty.Value)
+                : DifficultyConfig.GetConfig(GameDifficulty.RealSpacegunSimulator);
 
-            // Typical ranges in km
-            int[] rangesKm = { 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000 };
+            double minVel = tier.VelocityMin;
+            double maxVel = tier.VelocityMax;
+            double gunRange = tier.MaxEffectiveGunRange;
 
-            // Elevation angles for reference
-            float[] elevations = { 10f, 20f, 30f, 40f, 50f, 60f, 70f, 80f };
+            Console.WriteLine($"Tier {tier.TierIndex} | Difficulty: {diffConfig.DisplayName}");
+            Console.WriteLine($"Precision: {diffConfig.LaunchDelayPrecision.DecimalPlaces} decimals for time, {diffConfig.ElevationPrecision.DecimalPlaces} for angles");
+            Console.WriteLine($"Enemy Velocity: {GameConstants.FormatVelocity(minVel)}-{GameConstants.FormatVelocity(maxVel)} | Gun Range: {GameConstants.FormatDistance(gunRange)}\n");
 
-            // Display multiple tables for different elevation angles
+            // Generate velocity samples across the tier range
+            int velSamples = 6;
+            var velocities = new List<float>();
+            for (int i = 0; i < velSamples; i++)
+            {
+                double fraction = i / (double)(velSamples - 1);
+                double vel = minVel + (maxVel - minVel) * fraction;
+                velocities.Add((float)vel);
+            }
+
+            // Generate range samples: from 50% to 95% of gun range
+            int rangeSamples = 6;
+            var ranges = new List<int>();
+            for (int i = 0; i < rangeSamples; i++)
+            {
+                double fraction = 0.5 + (0.45 * i / (double)(rangeSamples - 1));  // 50% to 95%
+                int rangeKm = (int)(gunRange / 1000.0 * fraction);
+                ranges.Add(rangeKm);
+            }
+
+            float[] elevations = { 15f, 30f, 45f, 60f };
+
             foreach (float elev in elevations)
             {
-                Console.WriteLine($"=== ELEVATION ANGLE: {elev}° ===");
-                Console.WriteLine("     Range→   200km   400km   600km   800km  1000km  1200km  1400km  1600km  1800km  2000km");
-                Console.WriteLine("Vel ↓");
+                Console.WriteLine($"ELEVATION: {diffConfig.ElevationPrecision.Format(elev)}°");
+                
+                // Build header
+                Console.Write("Velocity  │");
+                foreach (int r in ranges)
+                    Console.Write($" {r:D5}km │");
+                Console.WriteLine();
 
+                Console.Write("──────────┼");
+                for (int i = 0; i < ranges.Count; i++)
+                    Console.Write("────────┼");
+                Console.WriteLine();
+
+                // Display rows
                 foreach (float vel in velocities)
                 {
-                    Console.Write($"{vel / 1000:F0}k m/s ");
-
-                    foreach (int rangeKm in rangesKm)
+                    Console.Write($"{GameConstants.FormatVelocity(vel),9} │");
+                    foreach (int rangeKm in ranges)
                     {
-                        float rangeM = rangeKm * 1000f;
-                        float tof = CalculateTimeOfFlight(vel, rangeM, elev);
-                        Console.Write($"  {tof:F2}s  ");
+                        float tof = CalculateTimeOfFlight(vel, rangeKm * 1000f, elev);
+                        // Use centralized precision from DifficultyConfig
+                        string tofStr = diffConfig.LaunchDelayPrecision.Format(tof).PadRight(6);
+                        Console.Write($" {tofStr}s │");
                     }
-
                     Console.WriteLine();
                 }
 
                 Console.WriteLine();
             }
 
-            Console.WriteLine("\n═══════════════════════════════════════════════════════════\n");
+            Console.WriteLine("═══════════════════════════════════════════════════════════\n");
             Console.WriteLine("INTERPRETATION GUIDE:");
-            Console.WriteLine("  • Lower velocity = longer flight time (projectile is slower)");
-            Console.WriteLine("  • Higher velocity = shorter flight time (projectile is faster)");
-            Console.WriteLine("  • Higher elevation = longer flight time (curved path)");
-            Console.WriteLine("  • Lower elevation = shorter flight time (flatter trajectory)");
-            Console.WriteLine("\nUSE THIS TO:");
-            Console.WriteLine("  1. Estimate how long your projectile will take to reach target");
-            Console.WriteLine("  2. Verify if your launch delay time is reasonable");
-            Console.WriteLine("  3. Compare different velocity options\n");
+            Console.WriteLine("  • This table is customized for Tier " + tier.TierIndex);
+            Console.WriteLine("  • Difficulty: " + diffConfig.DisplayName);
+            Console.WriteLine("  • Precision requirements:\n" + diffConfig.GetPrecisionSummary());
+            Console.WriteLine("  • Velocity ranges: " + GameConstants.FormatVelocity(minVel) + " to " + GameConstants.FormatVelocity(maxVel));
+            Console.WriteLine("  • Engagement ranges: 50-95% of your gun range (" + GameConstants.FormatDistance(gunRange) + ")");
+            Console.WriteLine("  • Lower velocity = longer flight time");
+            Console.WriteLine("  • Higher elevation = longer flight time\n");
         }
 
         // ====================================================================
-        // TABLE 2: GRAVITY DROP REFERENCE
+        // TABLE 2: GRAVITY DROP REFERENCE (CONTEXT-AWARE ACCURACY)
         // ====================================================================
-        // Shows vertical drop due to gravity over various flight times.
-        // Formula: drop = 0.5 × 9.81 × t²
-        //
-        // Critical for understanding elevation angle adjustments.
 
-        /// <summary>
-        /// Calculate vertical drop due to gravity.
-        /// Formula: drop = 0.5 × g × t²
-        /// </summary>
         public static float CalculateGravityDrop(float flightTimeSeconds)
         {
             return 0.5f * GRAVITY * flightTimeSeconds * flightTimeSeconds;
         }
 
         /// <summary>
-        /// Display Gravity Drop Table.
-        /// Shows how much vertical distance projectile loses due to gravity over time.
+        /// Calculate gravity drop as a percentage of a reference engagement range.
+        /// This shows whether gravity is actually significant for the tier.
         /// </summary>
-        public static void DisplayGravityDropTable()
+        public static double CalculateGravityDropPercentage(float flightTimeSeconds, double engagementRangeMeters)
+        {
+            if (engagementRangeMeters <= 0)
+                return 0.0;
+
+            float dropM = CalculateGravityDrop(flightTimeSeconds);
+            return (dropM / engagementRangeMeters) * 100.0;
+        }
+
+        /// <summary>
+        /// Get human-readable significance level for gravity drop percentage.
+        /// </summary>
+        private static string GetSignificanceLevel(double percentage)
+        {
+            return percentage switch
+            {
+                < 0.01 => "NEGLIGIBLE (< 0.01%)",
+                < 0.1 => "MINIMAL (< 0.1%)",
+                < 1.0 => "MINOR",
+                < 5.0 => "MODERATE",
+                < 10.0 => "SIGNIFICANT",
+                _ => "CRITICAL (> 10%)"
+            };
+        }
+
+        /// <summary>
+        /// Display Gravity Drop Table with difficulty-appropriate precision.
+        /// Uses DifficultyConfig as single source of truth for precision.
+        /// </summary>
+        public static void DisplayGravityDropTable(int? tierIndex = null, GameDifficulty? difficulty = null)
         {
             Console.Clear();
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
             Console.WriteLine("║           TABLE 2: GRAVITY DROP REFERENCE                 ║");
-            Console.WriteLine("║      How much altitude is lost due to gravity over time   ║");
+            Console.WriteLine("║      Altitude loss over time with % impact analysis       ║");
             Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
-            Console.WriteLine("Use this table to understand how gravity affects projectile trajectory.\n");
+            var tier = tierIndex.HasValue
+                ? GameConstants.WaveTiers[Math.Min(tierIndex.Value, 3)]
+                : GameConstants.WaveTiers[0];
 
-            Console.WriteLine("=== VERTICAL DROP BY FLIGHT TIME ===");
-            Console.WriteLine("Flight Time (s) │ Drop (meters) │ Drop (km)");
-            Console.WriteLine("────────────────┼───────────────┼───────────");
+            var diffConfig = difficulty.HasValue
+                ? DifficultyConfig.GetConfig(difficulty.Value)
+                : DifficultyConfig.GetConfig(GameDifficulty.RealSpacegunSimulator);
 
-            // Flight times from 1 to 30 seconds in 1-second increments
-            for (float t = 1f; t <= 30f; t += 1f)
+            double engagementRange = tier.MaxEffectiveGunRange * 0.5;  // Reference: 50% of gun range
+            double typicalFlightTime = (engagementRange / tier.VelocityMax) * 1.5;  // Typical engagement scenario
+
+            Console.WriteLine($"Tier {tier.TierIndex} | Difficulty: {diffConfig.DisplayName}");
+            Console.WriteLine($"Reference Engagement Range: {GameConstants.FormatDistance(engagementRange)}");
+            Console.WriteLine($"Typical Flight Time (est.): {diffConfig.FormatLaunchDelay(typicalFlightTime)}\n");
+
+            // Generate appropriate flight time range for tier
+            float minFlightTime = tier.TierIndex switch
             {
+                0 => 0.1f,   // Tier 0: shorter flights possible
+                1 => 0.01f,  // Tier 1: millisecond flights
+                2 => 0.001f, // Tier 2: sub-millisecond flights
+                3 => 0.0001f,// Tier 3: ultra-short flights
+                _ => 0.1f
+            };
+
+            float maxFlightTime = tier.TierIndex switch
+            {
+                0 => 30f,    // Tier 0: up to 30 seconds
+                1 => 10f,    // Tier 1: up to 10 seconds
+                2 => 5f,     // Tier 2: up to 5 seconds
+                3 => 1f,     // Tier 3: up to 1 second
+                _ => 30f
+            };
+
+            Console.WriteLine("=== VERTICAL DROP WITH IMPACT ANALYSIS ===");
+            Console.WriteLine("Flight Time │ Drop (meters) │ Drop (km) │ % of Range │ Significance");
+            Console.WriteLine("─────────────┼───────────────┼───────────┼────────────┼──────────────");
+
+            // Generate samples
+            int samples = 20;
+            for (int i = 0; i <= samples; i++)
+            {
+                double fraction = i / (double)samples;
+                float t = minFlightTime + (maxFlightTime - minFlightTime) * (float)fraction;
+
                 float dropM = CalculateGravityDrop(t);
                 float dropKm = dropM / 1000f;
+                double dropPercent = CalculateGravityDropPercentage(t, engagementRange);
 
-                string timeStr = t.ToString("F1").PadLeft(15);
-                string dropMStr = dropM.ToString("F1").PadLeft(13);
-                string dropKmStr = dropKm.ToString("F3").PadLeft(9);
+                // Determine significance based on percentage
+                string significance = GetSignificanceLevel(dropPercent);
 
-                Console.WriteLine($"{timeStr} │ {dropMStr} │ {dropKmStr}");
+                // Use centralized precision from DifficultyConfig
+                string timeStr = diffConfig.LaunchDelayPrecision.Format(t).PadLeft(11);
+                string dropMStr = diffConfig.DistancePrecision.Format(dropM).PadLeft(13);
+                string dropKmStr = (dropKm).ToString($"F{diffConfig.DistancePrecision.DecimalPlaces + 1}").PadLeft(9);
+                string percentStr = $"{dropPercent.ToString($"F{diffConfig.DistancePrecision.DecimalPlaces + 1}")}%".PadLeft(10);
+
+                Console.WriteLine($"{timeStr} │ {dropMStr} │ {dropKmStr} │ {percentStr} │ {significance}");
             }
 
             Console.WriteLine();
             Console.WriteLine("═══════════════════════════════════════════════════════════\n");
-            Console.WriteLine("CRITICAL INSIGHTS:");
-            Console.WriteLine("  • After 5 seconds:  ~122.6m drop (minor impact)");
-            Console.WriteLine("  • After 10 seconds: ~490.5m drop (MAJOR - requires elevation adjustment!)");
-            Console.WriteLine("  • After 20 seconds: ~1,962m drop (EXTREME - nearly 2km altitude loss!)");
-            Console.WriteLine("  • After 30 seconds: ~4,414m drop (catastrophic - target likely missed)\n");
-            Console.WriteLine("ELEVATION ADJUSTMENT RULES OF THUMB:");
-            Console.WriteLine("  • Short flights (5s): Minimal elevation change needed");
-            Console.WriteLine("  • Medium flights (10-15s): Significant elevation compensation required");
-            Console.WriteLine("  • Long flights (20s+): You MUST aim much higher to compensate for drop\n");
-            Console.WriteLine("PRACTICAL EXAMPLES (at 1000km range):");
-            Console.WriteLine("  • 5s flight: ~0.07° elevation needed");
-            Console.WriteLine("  • 10s flight: ~0.28° elevation needed");
-            Console.WriteLine("  • 20s flight: ~1.12° elevation needed");
-            Console.WriteLine("  • 30s flight: ~2.53° elevation needed\n");
-            Console.WriteLine("USE THIS TO:");
-            Console.WriteLine("  1. Understand why you need to aim HIGHER for longer flights");
-            Console.WriteLine("  2. Calculate approximate elevation compensation needed");
-            Console.WriteLine("  3. Avoid overshooting (aiming too high) or undershooting (too low)\n");
-        }
-        // ====================================================================
-        // TABLE 3: QUICK REFERENCE - ENERGY VS VELOCITY
-        // ====================================================================
-        // Shows kinetic energy at different velocities for typical projectile masses.
+            Console.WriteLine($"ENGAGEMENT CONTEXT (Tier {tier.TierIndex}):");
+            Console.WriteLine($"  Reference range: {GameConstants.FormatDistance(engagementRange)}");
+            Console.WriteLine($"  Typical flight time: {diffConfig.FormatLaunchDelay(typicalFlightTime)}");
+            double typicalGravityDrop = CalculateGravityDrop((float)typicalFlightTime);
+            double typicalPercent = CalculateGravityDropPercentage((float)typicalFlightTime, engagementRange);
+            Console.WriteLine($"  Gravity drop at typical flight: {diffConfig.FormatDistance(typicalGravityDrop)} ({typicalPercent:F2}% of range)\n");
 
-        /// <summary>
-        /// Calculate kinetic energy in megajoules.
-        /// Formula: KE = 0.5 × mass × velocity²
-        /// </summary>
-        public static double CalculateKineticEnergyMJ(double massPounds, double velocityMs)
+            if (tier.TierIndex <= 1)
+            {
+                if (typicalPercent < 0.1)
+                {
+                    Console.WriteLine("⚠️  GRAVITY IS NEGLIGIBLE FOR THIS TIER");
+                    Console.WriteLine("  Your typical engagement flights are too short for gravity to matter.");
+                    Console.WriteLine("  Focus on velocity vectors, not ballistic drop.\n");
+                }
+                else
+                {
+                    Console.WriteLine("⚠️  GRAVITY IS SIGNIFICANT FOR THIS TIER");
+                    Console.WriteLine("  You MUST account for gravity drop with elevation compensation.");
+                    Console.WriteLine("  Use this table to estimate the adjustment needed.\n");
+                }
+            }
+            else
+            {
+                Console.WriteLine("⚠️  GRAVITY IS NEGLIGIBLE FOR THIS TIER");
+                Console.WriteLine("  At relativistic speeds and short flight times, gravity drop is");
+                Console.WriteLine("  effectively zero. Focus your targeting on velocity accuracy.\n");
+            }
+
+            Console.WriteLine("PRECISION REQUIREMENTS:");
+            Console.WriteLine(diffConfig.GetPrecisionSummary());
+        }
+
+        // ====================================================================
+        // TABLE 3: ENERGY VS VELOCITY (TIER & DIFFICULTY-LINKED)
+        // ====================================================================
+
+        public static double CalculateKineticEnergyMJ(double massKg, double velocityMs)
         {
-            double energyJoules = 0.5 * massPounds * velocityMs * velocityMs;
+            double energyJoules = 0.5 * massKg * velocityMs * velocityMs;
             return energyJoules / 1_000_000.0;
         }
 
         /// <summary>
-        /// Display Energy Reference Table.
-        /// Shows kinetic energy at different velocities for weapon specs.
+        /// Display Energy Reference Table adapted to tier and difficulty.
+        /// Uses DifficultyConfig as single source of truth for precision.
         /// </summary>
-        public static void DisplayEnergyReferenceTable()
+        public static void DisplayEnergyReferenceTable(int? tierIndex = null, GameDifficulty? difficulty = null)
         {
             Console.Clear();
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
             Console.WriteLine("║        TABLE 3: KINETIC ENERGY REFERENCE                  ║");
-            Console.WriteLine("║    Energy delivered by different projectile/velocity combos║");
+            Console.WriteLine("║    Energy delivery across tier velocity ranges            ║");
             Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
-            Console.WriteLine("Use this table to estimate weapon capability against different targets.\n");
+            var tier = tierIndex.HasValue
+                ? GameConstants.WaveTiers[Math.Min(tierIndex.Value, 3)]
+                : GameConstants.WaveTiers[0];
 
-            // Projectile masses (kg) from game weapons
-            double[] masses = { 10, 15, 25, 50, 100 };
+            var diffConfig = difficulty.HasValue
+                ? DifficultyConfig.GetConfig(difficulty.Value)
+                : DifficultyConfig.GetConfig(GameDifficulty.RealSpacegunSimulator);
 
-            // Velocity ranges (m/s)
-            double[] velocities = { 50_000, 75_000, 100_000, 150_000, 200_000, 250_000, 300_000, 350_000 };
+            Console.WriteLine($"Tier {tier.TierIndex} | Difficulty: {diffConfig.DisplayName}");
+            Console.WriteLine($"Enemy Velocity Range: {GameConstants.FormatVelocity(tier.VelocityMin)}-{GameConstants.FormatVelocity(tier.VelocityMax)}\n");
+
+            // Generate velocity samples for this tier
+            int velSamples = 5;
+            var velocities = new List<double>();
+            for (int i = 0; i < velSamples; i++)
+            {
+                double fraction = i / (double)(velSamples - 1);
+                double vel = tier.VelocityMin + (tier.VelocityMax - tier.VelocityMin) * fraction;
+                velocities.Add(vel);
+            }
+
+            double[] masses = { 10, 25, 50, 100 };
 
             Console.WriteLine("=== KINETIC ENERGY BY MASS AND VELOCITY (in MJ) ===");
-            Console.WriteLine("Mass (kg) │ 50km/s  │ 75km/s  │ 100km/s │ 150km/s │ 200km/s │ 250km/s │ 300km/s │ 350km/s");
-            Console.WriteLine("──────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────");
+            
+            // Build header
+            Console.Write("Mass (kg) │");
+            foreach (double vel in velocities)
+                Console.Write($" {GameConstants.FormatVelocity(vel),8} │");
+            Console.WriteLine();
 
+            Console.Write("──────────┼");
+            for (int i = 0; i < velocities.Count; i++)
+                Console.Write("──────────┼");
+            Console.WriteLine();
+
+            // Display rows
             foreach (double mass in masses)
             {
-                string massStr = mass.ToString("F0").PadLeft(9);
-                Console.Write($"{massStr} │");
-
+                Console.Write($"{diffConfig.MassPrecision.Format(mass),9} │");
                 foreach (double vel in velocities)
                 {
                     double energy = CalculateKineticEnergyMJ(mass, vel);
-                    string energyStr = $"{energy:F0} MJ".PadLeft(7);
-                    Console.Write($"{energyStr} │");
+                    string energyStr = energy < 1000000
+                        ? $"{diffConfig.EnergyPrecision.Format(energy)} MJ"
+                        : $"{(energy / 1_000_000).ToString($"F{diffConfig.EnergyPrecision.DecimalPlaces}")} PJ";
+                    Console.Write($" {energyStr,9} │");
                 }
-
                 Console.WriteLine();
             }
 
             Console.WriteLine();
             Console.WriteLine("═══════════════════════════════════════════════════════════\n");
+            Console.WriteLine($"DIFFICULTY MODIFIER: Hit Tolerance x{diffConfig.HitToleranceMultiplier}, Target RCS x{diffConfig.TargetRcsMultiplier}\n");
             Console.WriteLine("KEY OBSERVATIONS:");
-            Console.WriteLine("  • Doubling velocity increases energy by 4× (quadratic relationship)");
-            Console.WriteLine("  • Doubling mass increases energy by 2× (linear relationship)");
-            Console.WriteLine("  • 100kg @ 100km/s = 5,000 MJ (massive destructive power)");
-            Console.WriteLine("  • 10kg @ 100km/s = 500 MJ (still significant for early game)");
-            Console.WriteLine("\nUSE THIS TO:");
-            Console.WriteLine("  1. Verify your weapon choice meets energy requirement");
-            Console.WriteLine("  2. Understand velocity is more important than mass");
-            Console.WriteLine("  3. Plan which weapon to select in development phase\n");
+            Console.WriteLine("  • Doubling velocity increases energy by 4× (quadratic)");
+            Console.WriteLine("  • Doubling mass increases energy by 2× (linear)");
+            Console.WriteLine("  • Velocity is MORE important than mass\n");
         }
 
         // ====================================================================
-        // TABLE 4: RANGE REFERENCE - Gun Effective Range by Velocity
+        // TABLE 4: RANGE COVERAGE (TIER-ADAPTIVE)
         // ====================================================================
 
         /// <summary>
-        /// Display Range Coverage Table.
-        /// Shows effective gun range at different velocities and time windows.
+        /// Format a distance value with difficulty-aware precision.
+        /// Delegates to DifficultyConfig for unit-aware formatting.
         /// </summary>
-        public static void DisplayRangeCoverageTable()
+        private static string FormatDistanceWithPrecision(double distanceMeters, DifficultyConfig diffConfig)
+        {
+            return diffConfig.FormatDistance(distanceMeters);
+        }
+
+        /// <summary>
+        /// Display Range Coverage Table with difficulty-appropriate precision.
+        /// Uses DifficultyConfig as single source of truth for precision.
+        /// </summary>
+        public static void DisplayRangeCoverageTable(int? tierIndex = null, GameDifficulty? difficulty = null)
         {
             Console.Clear();
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
             Console.WriteLine("║           TABLE 4: RANGE COVERAGE REFERENCE               ║");
-            Console.WriteLine("║      How far projectiles can travel in different times    ║");
+            Console.WriteLine("║      Distance traveled in typical tier engagement times   ║");
             Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
-            Console.WriteLine("Use this table to estimate if your projectile can reach the target.\n");
+            var tier = tierIndex.HasValue
+                ? GameConstants.WaveTiers[Math.Min(tierIndex.Value, 3)]
+                : GameConstants.WaveTiers[0];
+
+            var diffConfig = difficulty.HasValue
+                ? DifficultyConfig.GetConfig(difficulty.Value)
+                : DifficultyConfig.GetConfig(GameDifficulty.RealSpacegunSimulator);
+
+            double minVel = tier.VelocityMin;
+            double maxVel = tier.VelocityMax;
+            double gunRange = tier.MaxEffectiveGunRange;
+
+            Console.WriteLine($"Tier {tier.TierIndex} | Difficulty: {diffConfig.DisplayName}");
+            Console.WriteLine($"Gun Range: {GameConstants.FormatDistance(gunRange)}\n");
+
+            // Generate velocity samples
+            int velSamples = 5;
+            var velocities = new List<float>();
+            for (int i = 0; i < velSamples; i++)
+            {
+                double fraction = i / (double)(velSamples - 1);
+                double vel = minVel + (maxVel - minVel) * fraction;
+                velocities.Add((float)vel);
+            }
+
+            // Generate time samples appropriate for tier
+            var times = tier.TierIndex switch
+            {
+                0 => new float[] { 1f, 5f, 10f, 15f, 20f, 30f },
+                1 => new float[] { 0.1f, 0.5f, 1f, 2f, 5f, 10f },
+                2 => new float[] { 0.01f, 0.05f, 0.1f, 0.5f, 1f, 5f },
+                3 => new float[] { 0.001f, 0.005f, 0.01f, 0.05f, 0.1f, 1f },
+                _ => new float[] { 1f, 5f, 10f, 15f, 20f, 30f }
+            };
 
             Console.WriteLine("=== DISTANCE COVERED BY VELOCITY OVER TIME ===");
-            Console.WriteLine("Velocity  │ 5s Distance │ 10s Distance │ 15s Distance │ 20s Distance │ 30s Distance");
-            Console.WriteLine("──────────┼─────────────┼──────────────┼──────────────┼──────────────┼──────────────");
+            Console.Write("Velocity  │");
+            foreach (float t in times)
+                Console.Write($"  {diffConfig.LaunchDelayPrecision.Format(t)}s  │");
+            Console.WriteLine();
 
-            // Velocities in m/s (realistic weapons)
-            float[] velocities = { 50_000f, 75_000f, 100_000f, 150_000f, 200_000f, 250_000f, 300_000f, 350_000f };
-
-            // Time intervals (seconds)
-            float[] times = { 5f, 10f, 15f, 20f, 30f };
+            Console.Write("──────────┼");
+            for (int i = 0; i < times.Length; i++)
+                Console.Write("──────────┼");
+            Console.WriteLine();
 
             foreach (float vel in velocities)
             {
-                Console.Write($"{vel / 1000:F0}k m/s │");
+                Console.Write($"{GameConstants.FormatVelocity(vel),9} │");
 
                 foreach (float t in times)
                 {
                     float distance = vel * t;
-                    string distanceStr = distance >= 1_000_000
-                        ? $"{distance / 1_000_000:F2}Mm"
-                        : $"{distance / 1000:F0}km";
+                    // Use centralized precision from DifficultyConfig
+                    string distanceStr = FormatDistanceWithPrecision(distance, diffConfig);
 
-                    Console.Write($" {distanceStr:>10} │");
+                    Console.Write($" {distanceStr,8}  │");
                 }
 
                 Console.WriteLine();
@@ -293,24 +454,22 @@ namespace Spacegun_Simulator.FireControlTools
 
             Console.WriteLine();
             Console.WriteLine("═══════════════════════════════════════════════════════════\n");
-            Console.WriteLine("TYPICAL ENGAGEMENT WINDOW:");
-            Console.WriteLine("  • Gun range: 1,000-1,500 km (1-2 million meters)");
-            Console.WriteLine("  • Flight time: 5-30 seconds");
-            Console.WriteLine("  • Example: 200km/s weapon can reach 1000km in 5 seconds");
-            Console.WriteLine("\nUSE THIS TO:");
-            Console.WriteLine("  1. Estimate if your weapon can reach the target");
-            Console.WriteLine("  2. Verify flight time is reasonable for engagement distance");
-            Console.WriteLine("  3. Plan launch delay to ensure intercept happens in gun range\n");
+            Console.WriteLine($"ENGAGEMENT ENVELOPE:");
+            Console.WriteLine($"  • Gun Range: {GameConstants.FormatDistance(gunRange)}");
+            Console.WriteLine($"  • Target enters gun range at T+0");
+            Console.WriteLine($"  • Must intercept before target exits optimal range\n");
+            Console.WriteLine("PRECISION REQUIREMENTS:");
+            Console.WriteLine(diffConfig.GetPrecisionSummary());
         }
 
         // ====================================================================
-        // MAIN REFERENCE MENU
+        // MAIN REFERENCE MENU (TIER & DIFFICULTY-AWARE)
         // ====================================================================
 
         /// <summary>
-        /// Display reference charts menu and handle navigation.
+        /// Display reference charts menu with tier & difficulty context.
         /// </summary>
-        public static void ShowReferencesMenu()
+        public static void ShowReferencesMenu(int? currentTierIndex = null, GameDifficulty? currentDifficulty = null)
         {
             bool inMenu = true;
 
@@ -319,14 +478,25 @@ namespace Spacegun_Simulator.FireControlTools
                 Console.Clear();
                 Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
                 Console.WriteLine("║           FIRE CONTROL REFERENCE CHARTS                   ║");
-                Console.WriteLine("║   Historical Artillery Fire Control Tables & Data         ║");
+                Console.WriteLine("║      (Tier & Difficulty-Adapted for Your Scenario)        ║");
                 Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
+                var diffConfig = currentDifficulty.HasValue
+                    ? DifficultyConfig.GetConfig(currentDifficulty.Value)
+                    : DifficultyConfig.GetConfig(GameDifficulty.RealSpacegunSimulator);
+
+                if (currentTierIndex.HasValue)
+                    Console.WriteLine($"Current Tier: {currentTierIndex.Value} | Difficulty: {diffConfig.DisplayName}\n");
+
+                Console.WriteLine("PRECISION REQUIREMENTS:");
+                Console.WriteLine(diffConfig.GetPrecisionSummary());
+                Console.WriteLine();
+
                 Console.WriteLine("SELECT A REFERENCE TABLE:\n");
-                Console.WriteLine("[1] Time-of-Flight Table (flight time estimates)");
-                Console.WriteLine("[2] Gravity Drop Table (altitude loss over time)");
-                Console.WriteLine("[3] Kinetic Energy Table (damage calculations)");
-                Console.WriteLine("[4] Range Coverage Table (distance traveled)");
+                Console.WriteLine("[1] Time-of-Flight Table (tier-scaled flight times)");
+                Console.WriteLine("[2] Gravity Drop Table (tier-adjusted altitude loss)");
+                Console.WriteLine("[3] Kinetic Energy Table (difficulty-aware damage)");
+                Console.WriteLine("[4] Range Coverage Table (tier-specific distances)");
                 Console.WriteLine("[5] View All Tables");
                 Console.WriteLine("[0] Return to Firing Solution\n");
 
@@ -336,43 +506,43 @@ namespace Spacegun_Simulator.FireControlTools
                 switch (input)
                 {
                     case "1":
-                        DisplayTimeOfFlightTable();
+                        DisplayTimeOfFlightTable(currentTierIndex, currentDifficulty);
                         Console.WriteLine("\nPress any key to return to menu...");
                         Console.ReadKey();
                         break;
 
                     case "2":
-                        DisplayGravityDropTable();
+                        DisplayGravityDropTable(currentTierIndex, currentDifficulty);
                         Console.WriteLine("\nPress any key to return to menu...");
                         Console.ReadKey();
                         break;
 
                     case "3":
-                        DisplayEnergyReferenceTable();
+                        DisplayEnergyReferenceTable(currentTierIndex, currentDifficulty);
                         Console.WriteLine("\nPress any key to return to menu...");
                         Console.ReadKey();
                         break;
 
                     case "4":
-                        DisplayRangeCoverageTable();
+                        DisplayRangeCoverageTable(currentTierIndex, currentDifficulty);
                         Console.WriteLine("\nPress any key to return to menu...");
                         Console.ReadKey();
                         break;
 
                     case "5":
-                        DisplayTimeOfFlightTable();
+                        DisplayTimeOfFlightTable(currentTierIndex, currentDifficulty);
                         Console.WriteLine("\nPress any key to continue...");
                         Console.ReadKey();
 
-                        DisplayGravityDropTable();
+                        DisplayGravityDropTable(currentTierIndex, currentDifficulty);
                         Console.WriteLine("\nPress any key to continue...");
                         Console.ReadKey();
 
-                        DisplayEnergyReferenceTable();
+                        DisplayEnergyReferenceTable(currentTierIndex, currentDifficulty);
                         Console.WriteLine("\nPress any key to continue...");
                         Console.ReadKey();
 
-                        DisplayRangeCoverageTable();
+                        DisplayRangeCoverageTable(currentTierIndex, currentDifficulty);
                         Console.WriteLine("\nPress any key to return to menu...");
                         Console.ReadKey();
                         break;

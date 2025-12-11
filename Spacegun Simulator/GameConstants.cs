@@ -44,11 +44,8 @@ namespace Spacegun_Simulator
 
         public static readonly WaveTier[] WaveTiers = new WaveTier[]
         {
-            // TIER 0: Early game - ample time, generous engagement window
-            // Detection: 15,000-25,000 AU (Oort Cloud outer zone)
-            // Velocity: 50-80 km/s
-            // Gun range: 1500 km - allows 5-30 second intercepts with visible arc
-            // Time window: 150-400 years (enemy travel time from detection to Earth)
+            // TIER 0: Early game (Waves 1-6)
+            // Slow enemies at medium distance = ample time
             new WaveTier
             {
                 TierIndex = 0,
@@ -56,68 +53,59 @@ namespace Spacegun_Simulator
                 EndWave = 6,
                 DetectionRangeMin = 15_000.0 * AU_TO_METERS,
                 DetectionRangeMax = 25_000.0 * AU_TO_METERS,
-                VelocityMin = 50_000,
-                VelocityMax = 80_000,
-                MaxEffectiveGunRange = 1_500_000.0,              // 1500 km
+                VelocityMin = 50_000,           // 50 km/s
+                VelocityMax = 90_000,           // 90 km/s
+                MaxEffectiveGunRange = 1_500_000.0,
                 TimeToImpactMin = (long)(150.0 * SECONDS_PER_YEAR),
                 TimeToImpactMax = (long)(400.0 * SECONDS_PER_YEAR)
             },
             
-            // TIER 1: Mid-early game - moderate warning, standard engagement window
-            // Detection: 30,000-50,000 AU (Oort Cloud mid zone)
-            // Velocity: 1,500-4,000 km/s
-            // Gun range: 1500 km - consistent with tier 0, but higher velocities tighten challenge
-            // Time window: 40-100 years
+            // TIER 1: Mid-game (Waves 7-12)
+            // Faster enemies but still at distance, game is winnable
             new WaveTier
             {
                 TierIndex = 1,
                 StartWave = 7,
                 EndWave = 12,
-                DetectionRangeMin = 30_000.0 * AU_TO_METERS,
-                DetectionRangeMax = 50_000.0 * AU_TO_METERS,
-                VelocityMin = 1_500_000,
-                VelocityMax = 4_000_000,
-                MaxEffectiveGunRange = 1_500_000.0,              // 1500 km
-                TimeToImpactMin = (long)(40.0 * SECONDS_PER_YEAR),
-                TimeToImpactMax = (long)(100.0 * SECONDS_PER_YEAR)
+                DetectionRangeMin = 60_000.0 * AU_TO_METERS,  // REDUCED from 30k
+                DetectionRangeMax = 100_000.0 * AU_TO_METERS,  // REDUCED from 50k
+                VelocityMin = 200_000,          // 200 km/s (realistic progression)
+                VelocityMax = 500_000,          // 500 km/s (challenging but solvable)
+                MaxEffectiveGunRange = 5_000_000.0,  // 2000 km
+                TimeToImpactMin = (long)(15.0 * SECONDS_PER_YEAR),  // Still winnable
+                TimeToImpactMax = (long)(40.0 * SECONDS_PER_YEAR)
             },
             
-            // TIER 2: Mid-late game - tight timeline, compressed engagement window
-            // Detection: 60,000-90,000 AU (Oort Cloud inner zone)
-            // Velocity: 15,000-28,000 km/s
-            // Gun range: 1200 km - reduced range increases difficulty
-            // Time window: 8-20 years
+            // TIER 2: Late-game (Waves 13-19)
+            // Very fast enemies, compressed timeline
             new WaveTier
             {
                 TierIndex = 2,
                 StartWave = 13,
                 EndWave = 19,
-                DetectionRangeMin = 60_000.0 * AU_TO_METERS,
-                DetectionRangeMax = 90_000.0 * AU_TO_METERS,
-                VelocityMin = 15_000_000,
-                VelocityMax = 28_000_000,
-                MaxEffectiveGunRange = 1_200_000.0,             // 1200 km
-                TimeToImpactMin = (long)(8.0 * SECONDS_PER_YEAR),
-                TimeToImpactMax = (long)(20.0 * SECONDS_PER_YEAR)
+                DetectionRangeMin = 50_000.0 * AU_TO_METERS,  // REDUCED from 60k
+                DetectionRangeMax = 150_000.0 * AU_TO_METERS,  // REDUCED from 90k
+                VelocityMin = 1_000_000,        // 1,000 km/s (ultra-fast)
+                VelocityMax = 3_000_000,        // 3,000 km/s (near-relativistic)
+                MaxEffectiveGunRange = 15_000_000.0,  // 3000 km (scaled up)
+                TimeToImpactMin = (long)(2.0 * SECONDS_PER_YEAR),  // Tight timeline
+                TimeToImpactMax = (long)(8.0 * SECONDS_PER_YEAR)
             },
             
-            // TIER 3: Endgame - minimal warning, minimal engagement window
-            // Detection: 95,000-100,000 AU (Oort Cloud edge)
-            // Velocity: 28,000-29,979 km/s (relativistic speeds)
-            // Gun range: 1000 km - full tactical reach, maximum difficulty
-            // Time window: 1-3 years (extreme pressure)
+            // TIER 3: Endgame (Waves 20-25)
+            // Extreme speeds, final challenge
             new WaveTier
             {
                 TierIndex = 3,
                 StartWave = 20,
                 EndWave = 25,
-                DetectionRangeMin = 95_000.0 * AU_TO_METERS,
-                DetectionRangeMax = 100_000.0 * AU_TO_METERS,
-                VelocityMin = 28_000_000,
-                VelocityMax = 29_979_245,
-                MaxEffectiveGunRange = 1_000_000.0,             // 1000 km
-                TimeToImpactMin = (long)(1.0 * SECONDS_PER_YEAR),
-                TimeToImpactMax = (long)(3.0 * SECONDS_PER_YEAR)
+                DetectionRangeMin = 150_000.0 * AU_TO_METERS,  // REDUCED from 95k
+                DetectionRangeMax = 500_000.0 * AU_TO_METERS,  // REDUCED from 100k
+                VelocityMin = 5_000_000,        // 5,000 km/s (extreme)
+                VelocityMax = 10_000_000,       // 10,000 km/s (near-light)
+                MaxEffectiveGunRange = 45_000_000.0,  // 5000 km (maximum)
+                TimeToImpactMin = (long)(1.0 * SECONDS_PER_YEAR),  // Minimal warning
+                TimeToImpactMax = (long)(2.0 * SECONDS_PER_YEAR)
             }
         };
 
@@ -315,12 +303,26 @@ namespace Spacegun_Simulator
 
         /// <summary>
         /// Maximum enemy velocity for each tier (m/s).
+        /// Scaled for playability and solvability.
         /// </summary>
         public static readonly double[] TierEnemyMaxVelocity = new[]
         {
-            90_000.0,    // Tier 0: 90 km/s max
-            200_000.0,   // Tier 1: 200 km/s max
-            400_000.0    // Tier 2: 400 km/s max
+            90_000.0,        // Tier 0: 90 km/s max
+            500_000.0,       // Tier 1: 500 km/s max (updated)
+            3_000_000.0,     // Tier 2: 3,000 km/s max (updated)
+            10_000_000.0     // Tier 3: 10,000 km/s max (updated)
+        };
+
+        /// <summary>
+        /// Maximum player gun velocity for each tier (m/s).
+        /// Set to 150% of tier enemy max for skill-based difficulty.
+        /// </summary>
+        public static readonly double[] TierPlayerMaxVelocity = new[]
+        {
+            135_000.0,       // Tier 0: 150% of 90 km/s
+            750_000.0,       // Tier 1: 150% of 500 km/s
+            4_500_000.0,     // Tier 2: 150% of 3,000 km/s
+            15_000_000.0     // Tier 3: 150% of 10,000 km/s
         };
 
         /// <summary>
@@ -332,17 +334,6 @@ namespace Spacegun_Simulator
             90_000.0,    // Tier 0: 90 km/s min (match enemy max)
             200_000.0,   // Tier 1: 200 km/s min (match enemy max)
             400_000.0    // Tier 2: 400 km/s min (match enemy max)
-        };
-
-        /// <summary>
-        /// Maximum player gun velocity for each tier (m/s).
-        /// Set to 200% of tier enemy max for full power.
-        /// </summary>
-        public static readonly double[] TierPlayerMaxVelocity = new[]
-        {
-            180_000.0,   // Tier 0: 200% of 90 km/s max
-            400_000.0,   // Tier 1: 200% of 200 km/s max
-            800_000.0    // Tier 2: 200% of 400 km/s max
         };
 
         /// <summary>
@@ -359,6 +350,123 @@ namespace Spacegun_Simulator
                 TierPlayerMinVelocity[tierIndex],
                 TierPlayerMaxVelocity[tierIndex]
             );
+        }
+
+        /// <summary>
+        /// Get player test velocity for a specific tier.
+        /// Calculated to achieve 10-20 second intercept time in engagement scenarios.
+        /// This simulates an appropriately upgraded player weapon per tier.
+        /// </summary>
+        public static double GetTestPlayerVelocityForTier(int tierIndex)
+        {
+            // For engagement scenarios with ~500-1000km distance:
+            // Intercept time = Distance / (Enemy Velocity + Player Velocity)
+            // Solving for Player Velocity to get 10-20s intercept:
+            
+            return tierIndex switch
+            {
+                // TIER 0: Enemy 50-90 km/s, Gun Range 1500 km
+                // Engagement distance: ~1000 km
+                // Need: 1,000,000m / (90,000 + V_player) = 10-20s
+                // V_player = 1,000,000/10 - 90,000 = 10,000 m/s min
+                // V_player = 1,000,000/20 - 90,000 = -50,000 m/s (clamped to 0, use 100 km/s)
+                0 => 150_000.0,  // 150 km/s (target: 1M / (90k + 150k) = 4.5s closing, add flight time)
+                
+                // TIER 1: Enemy 1,500-4,000 km/s, Gun Range 1500 km
+                // Engagement distance: ~1000 km
+                // Need: 1,000,000m / (4,000,000 + V_player) = 10-20s
+                // V_player = 1,000,000/10 - 4,000,000 = -3,000,000 m/s (player slower, use 5 Mm/s)
+                1 => 5_000_000.0,  // 5 Mm/s (5000 km/s)
+                
+                // TIER 2: Enemy 15,000-28,000 km/s, Gun Range 3000 km
+                // Engagement distance: ~2000 km
+                // Need: 2,000,000m / (28,000,000 + V_player) = 10-20s
+                // V_player = 2,000,000/10 - 28,000,000 = -200,000,000 m/s (far exceeds player, use 50 Mm/s)
+                2 => 50_000_000.0,  // 50 Mm/s (50,000 km/s)
+                
+                // TIER 3: Enemy 28,000-100,000 km/s, Gun Range 5000 km
+                3 => 100_000_000.0,  // 100 Mm/s (100,000 km/s)
+                
+                _ => 150_000.0
+            };
+        }
+
+        /// <summary>
+        /// Get test gun range for a specific tier.
+        /// Scaled to maintain consistent intercept time (~3.33s) across all tiers.
+        /// Formula: (Enemy Max Velocity + Player Velocity) × BaseInterceptTime
+        /// 
+        /// Tier 0 baseline: 1,000km / (90k m/s + 150k m/s) = 3.33s
+        /// Other tiers: Scale gun range to maintain same intercept time
+        /// </summary>
+        public static double GetTestGunRangeForTier(int tierIndex)
+        {
+            // Tier 0 baseline intercept time: 1,000,000m / (90k + 150k)m/s = 3.33s
+            // To maintain this intercept time for other tiers, scale engagement distance
+            
+            return tierIndex switch
+            {
+                // TIER 0: Baseline
+                // Engagement: 1,000km, Enemy: 90km/s, Player: 150km/s
+                // Intercept: 1,000,000 / (90k + 150k) = 3.33s
+                0 => 1_000_000.0,
+                
+                // TIER 1: Scale to maintain 3.33s intercept
+                // Enemy: 4,000km/s, Player: 5,000km/s
+                // Required distance: (4,000,000 + 5,000,000) × 3.333 = 30,000km
+                1 => 30_000_000.0,
+                
+                // TIER 2: Scale to maintain 3.33s intercept
+                // Enemy: 28,000km/s, Player: 50,000km/s
+                // Required distance: (28,000,000 + 50,000,000) × 3.333 = 260,000km
+                2 => 260_000_000.0,
+                
+                // TIER 3: Scale to maintain 3.33s intercept
+                // Enemy: Variable up to 30,000km/s (approx), Player: 100,000km/s
+                // Required distance: Scales very large, capped at practical limit
+                // Using enemy velocity of 29,000km/s (near relativistic)
+                // (29,000,000 + 100,000,000) × 3.333 = 430,000km
+                3 => 430_000_000.0,
+                
+                _ => 1_000_000.0
+            };
+        }
+
+        /// <summary>
+        /// Get test engagement distance for a specific tier.
+        /// This is the typical distance at which firing occurs (gun range to target position).
+        /// Used to calculate expected intercept time in tests.
+        /// </summary>
+        public static double GetTestEngagementDistanceForTier(int tierIndex)
+        {
+            return tierIndex switch
+            {
+                0 => 1_000_000.0,   // 1000 km engagement
+                1 => 1_000_000.0,   // 1000 km engagement
+                2 => 2_000_000.0,   // 2000 km engagement (larger due to higher velocities)
+                3 => 3_000_000.0,   // 3000 km engagement (extreme distances)
+                _ => 1_000_000.0
+            };
+        }
+
+        /// <summary>
+        /// Calculate expected intercept time for a test scenario.
+        /// Formula: Distance / (Enemy Velocity + Player Velocity)
+        /// Plus travel time for projectile to reach engagement point.
+        /// </summary>
+        public static double CalculateExpectedInterceptTime(
+            double engagementDistance,
+            double enemyVelocity,
+            double playerVelocity)
+        {
+            if (enemyVelocity + playerVelocity <= 0)
+                return double.PositiveInfinity;
+
+            // Closing velocity approach
+            double closingVelocity = enemyVelocity + playerVelocity;
+            double timeToIntercept = engagementDistance / closingVelocity;
+            
+            return timeToIntercept;
         }
     }
 

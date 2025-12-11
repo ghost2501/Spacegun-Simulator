@@ -4,18 +4,9 @@ namespace Spacegun_Simulator.FireControlTools
     /// TRAJECTORY PLOTTER - BALLISTIC COMPUTER
     /// 
     /// Mechanical fire control aid simulating mid-20th century ballistic prediction systems.
-    /// Allows players to test projectile trajectories based on launch parameters without
-    /// automated targeting or validation.
+    /// Allows players to test projectile trajectories based on launch parameters.
     /// 
-    /// PURPOSE: Exploratory trajectory calculation tool, not a solution provider.
-    /// - Accepts launch velocity, elevation angle, azimuth bearing, and flight time
-    /// - Calculates where projectile will be at specified flight time using ballistic physics
-    /// - Shows position in Cartesian coordinates, range, and gravitational drop
-    /// - Provides NO evaluation of whether trajectory is "good" or "bad"
-    /// - Players use results to inform their own firing solution decisions
-    /// 
-    /// DESIGN PRINCIPLE: Never auto-solves. Player queries the tool as many times
-    /// as desired to explore different launch parameters and flight time windows.
+    /// PRECISION: All formatting delegates to DifficultyConfig (single source of truth).
     /// </summary>
     public static class TrajectoryPlotter
     {
@@ -34,11 +25,11 @@ namespace Spacegun_Simulator.FireControlTools
 
         /// <summary>
         /// Launch the Trajectory Plotter interactive tool.
-        /// Player can test multiple launch parameter combinations in a loop.
-        /// Supports modifying and re-running the previous test.
+        /// Uses DifficultyConfig for all precision formatting.
         /// </summary>
-        public static void ShowTrajectoryPlotterTool()
+        public static void ShowTrajectoryPlotterTool(GameDifficulty difficulty = GameDifficulty.RealSpacegunSimulator)
         {
+            var diffConfig = DifficultyConfig.GetConfig(difficulty);
             bool inTool = true;
 
             while (inTool)
@@ -49,15 +40,20 @@ namespace Spacegun_Simulator.FireControlTools
                 Console.WriteLine("║     Calculate projectile position at flight time (T)      ║");
                 Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
+                Console.WriteLine($"Difficulty: {diffConfig.DisplayName}");
+                Console.WriteLine("PRECISION REQUIREMENTS:");
+                Console.WriteLine(diffConfig.GetPrecisionSummary());
+                Console.WriteLine();
+
                 Console.WriteLine("=== LAUNCH PARAMETERS ===");
                 Console.WriteLine("Enter projectile launch parameters:\n");
 
-                float launchVelocity = GetPlayerVelocityInput("Launch velocity (m/s)", lastLaunchVelocity);
-                float elevationDegrees = GetPlayerElevationInput("Elevation angle (-90 to 90 degrees)", lastElevationDegrees);
-                float azimuthDegrees = GetPlayerAzimuthInput("Azimuth bearing (0-360 degrees, 0=North)", lastAzimuthDegrees);
+                float launchVelocity = GetPlayerVelocityInput("Launch velocity (m/s)", lastLaunchVelocity, diffConfig);
+                float elevationDegrees = GetPlayerElevationInput("Elevation angle (-90 to 90 degrees)", lastElevationDegrees, diffConfig);
+                float azimuthDegrees = GetPlayerAzimuthInput("Azimuth bearing (0-360 degrees, 0=North)", lastAzimuthDegrees, diffConfig);
 
                 Console.WriteLine();
-                float flightTime = GetPlayerFlightTimeInput("Flight time to check (seconds)", lastFlightTime);
+                float flightTime = GetPlayerFlightTimeInput("Flight time to check (seconds)", lastFlightTime, diffConfig);
 
                 // Store for later modification
                 lastLaunchVelocity = launchVelocity;
@@ -71,7 +67,7 @@ namespace Spacegun_Simulator.FireControlTools
 
                 // Display results
                 Console.WriteLine();
-                DisplayTrajectoryResult(result);
+                DisplayTrajectoryResult(result, diffConfig);
 
                 // Menu options
                 Console.WriteLine("\nOptions:");
@@ -90,10 +86,8 @@ namespace Spacegun_Simulator.FireControlTools
                 }
                 else if (choice.Equals("M", StringComparison.OrdinalIgnoreCase) && hasLastTest)
                 {
-                    // Continue to next iteration with stored values prepopulated
                     continue;
                 }
-                // Any other input (including Enter) continues with fresh prompts
             }
         }
 
@@ -101,9 +95,6 @@ namespace Spacegun_Simulator.FireControlTools
         // CALCULATION ENGINE
         // ====================================================================
 
-        /// <summary>
-        /// Represents the result of a trajectory calculation.
-        /// </summary>
         public class TrajectoryResult
         {
             public float LaunchVelocity { get; set; }
@@ -118,65 +109,30 @@ namespace Spacegun_Simulator.FireControlTools
             public float HorizontalDistance { get; set; }
         }
 
-        /// <summary>
-        /// Calculate projectile position at a given flight time using ballistic equations.
-        /// 
-        /// Physics formulas:
-        /// - Elevation component (vertical): z(t) = v₀·sin(θ)·t - 0.5·g·t²
-        /// - Horizontal component (magnitude): r(t) = v₀·cos(θ)·t
-        /// - Azimuth decomposition: x(t) = r(t)·sin(φ), y(t) = r(t)·cos(φ)
-        /// 
-        /// Where:
-        /// - v₀ = initial velocity (m/s)
-        /// - θ = elevation angle (radians)
-        /// - φ = azimuth angle from North, clockwise (radians)
-        /// - g = 9.81 m/s² (gravity)
-        /// - t = flight time (seconds)
-        /// 
-        /// COORDINATE SYSTEM:
-        /// - X-axis: East (positive) / West (negative)
-        /// - Y-axis: North (positive) / South (negative)
-        /// - Z-axis: Up (positive) / Down (negative)
-        /// - Azimuth: 0° = North (+Y), 90° = East (+X), 180° = South (-Y), 270° = West (-X)
-        /// </summary>
         public static TrajectoryResult CalculateTrajectory(
             float launchVelocity,
             float elevationDegrees,
             float azimuthDegrees,
             float flightTime)
         {
-            // Convert angles to radians
             float elevationRad = elevationDegrees * (float)Math.PI / 180f;
             float azimuthRad = azimuthDegrees * (float)Math.PI / 180f;
 
-            // ===== VERTICAL COMPONENT (Z) =====
-            // z(t) = v₀·sin(θ)·t - 0.5·g·t²
             float verticalVelocity = launchVelocity * (float)Math.Sin(elevationRad);
             float zPosition = verticalVelocity * flightTime - 0.5f * GRAVITY * flightTime * flightTime;
             float gravitationalDrop = 0.5f * GRAVITY * flightTime * flightTime;
 
-            // ===== HORIZONTAL COMPONENT =====
-            // Horizontal range: r(t) = v₀·cos(θ)·t
             float horizontalVelocity = launchVelocity * (float)Math.Cos(elevationRad);
             float horizontalRange = horizontalVelocity * flightTime;
 
-            // ===== CARTESIAN DECOMPOSITION =====
-            // Azimuth is measured clockwise from North (+Y axis)
-            // x(t) = r(t)·sin(φ)  where φ is azimuth from North
-            // y(t) = r(t)·cos(φ)
-            // This converts compass bearing to Cartesian coordinates
             float xPosition = horizontalRange * (float)Math.Sin(azimuthRad);
             float yPosition = horizontalRange * (float)Math.Cos(azimuthRad);
 
-            // ===== RANGE FROM ORIGIN =====
-            // Total 3D distance from gun
             float rangeFromOrigin = (float)Math.Sqrt(xPosition * xPosition + yPosition * yPosition + zPosition * zPosition);
 
-            // ===== MAXIMUM ALTITUDE CALCULATION =====
-            // Max altitude occurs at t = v₀·sin(θ) / g
             float timeToMaxAltitude = Math.Max(0, verticalVelocity / GRAVITY);
             float maxAltitude = verticalVelocity * timeToMaxAltitude - 0.5f * GRAVITY * timeToMaxAltitude * timeToMaxAltitude;
-            maxAltitude = Math.Max(0, maxAltitude);  // Clamp to 0 if projectile is descending
+            maxAltitude = Math.Max(0, maxAltitude);
 
             return new TrajectoryResult
             {
@@ -198,37 +154,47 @@ namespace Spacegun_Simulator.FireControlTools
         // ====================================================================
 
         /// <summary>
-        /// Display trajectory calculation results in detail.
+        /// Format a distance value with difficulty-aware precision.
+        /// Delegates to DifficultyConfig for unit-aware formatting.
         /// </summary>
-        private static void DisplayTrajectoryResult(TrajectoryResult result)
+        private static string FormatDistanceWithPrecision(double distanceMeters, DifficultyConfig diffConfig)
+        {
+            return diffConfig.FormatDistance(distanceMeters);
+        }
+
+        /// <summary>
+        /// Display trajectory calculation results in detail.
+        /// Uses DifficultyConfig for all precision formatting.
+        /// </summary>
+        private static void DisplayTrajectoryResult(TrajectoryResult result, DifficultyConfig diffConfig)
         {
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
             Console.WriteLine("║          TRAJECTORY PLOTTER CALCULATION RESULTS            ║");
             Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
             Console.WriteLine($"=== INPUT PARAMETERS ===");
-            Console.WriteLine($"Launch Velocity: {result.LaunchVelocity:F0} m/s");
-            Console.WriteLine($"Elevation Angle: {result.ElevationAngle:F1}°");
-            Console.WriteLine($"Azimuth Bearing: {result.AzimuthAngle:F1}°");
-            Console.WriteLine($"Flight Time: {result.FlightTime:F2} seconds\n");
+            Console.WriteLine($"Launch Velocity: {diffConfig.FormatVelocity(result.LaunchVelocity)}");
+            Console.WriteLine($"Elevation Angle: {diffConfig.FormatElevation(result.ElevationAngle)}");
+            Console.WriteLine($"Azimuth Bearing: {diffConfig.FormatAzimuth(result.AzimuthAngle)}");
+            Console.WriteLine($"Flight Time: {diffConfig.FormatLaunchDelay(result.FlightTime)}\n");
 
-            Console.WriteLine($"=== PROJECTILE POSITION AT T+{result.FlightTime:F2}s ===\n");
+            Console.WriteLine($"=== PROJECTILE POSITION AT T+{diffConfig.LaunchDelayPrecision.Format(result.FlightTime)}s ===\n");
 
             Console.WriteLine("Cartesian Coordinates:");
-            Console.WriteLine($"  X: {result.ProjectilePosition.X:F1} meters");
-            Console.WriteLine($"  Y: {result.ProjectilePosition.Y:F1} meters");
-            Console.WriteLine($"  Z: {result.ProjectilePosition.Z:F1} meters");
-            Console.WriteLine($"  Full position: {result.ProjectilePosition}\n");
+            Console.WriteLine($"  X: {diffConfig.DistancePrecision.Format(result.ProjectilePosition.X)} meters");
+            Console.WriteLine($"  Y: {diffConfig.DistancePrecision.Format(result.ProjectilePosition.Y)} meters");
+            Console.WriteLine($"  Z: {diffConfig.DistancePrecision.Format(result.ProjectilePosition.Z)} meters");
+            Console.WriteLine($"  Full position: {diffConfig.FormatVector3(result.ProjectilePosition)}\n");
 
             Console.WriteLine("Distance Metrics:");
-            Console.WriteLine($"  Range from origin (3D): {GameConstants.FormatDistance(result.RangeFromOrigin)}");
-            Console.WriteLine($"  Horizontal distance: {GameConstants.FormatDistance(result.HorizontalDistance)}");
-            Console.WriteLine($"  Current altitude: {GameConstants.FormatDistance(result.ProjectilePosition.Z)}");
-            Console.WriteLine($"  Gravitational drop: {GameConstants.FormatDistance(result.GravitationalDrop)}\n");
+            Console.WriteLine($"  Range from origin (3D): {FormatDistanceWithPrecision(result.RangeFromOrigin, diffConfig)}");
+            Console.WriteLine($"  Horizontal distance: {FormatDistanceWithPrecision(result.HorizontalDistance, diffConfig)}");
+            Console.WriteLine($"  Current altitude: {FormatDistanceWithPrecision(result.ProjectilePosition.Z, diffConfig)}");
+            Console.WriteLine($"  Gravitational drop: {FormatDistanceWithPrecision(result.GravitationalDrop, diffConfig)}\n");
 
             Console.WriteLine("Flight Characteristics:");
-            Console.WriteLine($"  Maximum altitude: {GameConstants.FormatDistance(result.MaxAltitudeReached)}");
-            Console.WriteLine($"  Time to max altitude: {result.TimeToMaxAltitude:F2} seconds");
+            Console.WriteLine($"  Maximum altitude: {FormatDistanceWithPrecision(result.MaxAltitudeReached, diffConfig)}");
+            Console.WriteLine($"  Time to max altitude: {diffConfig.FormatLaunchDelay(result.TimeToMaxAltitude)}");
 
             if (result.ProjectilePosition.Z < 0)
             {
@@ -245,114 +211,75 @@ namespace Spacegun_Simulator.FireControlTools
             Console.WriteLine("  • Explore different launch angles for same velocity");
             Console.WriteLine("  • Predict projectile position at various flight times");
             Console.WriteLine("  • Estimate intercept timing with target motion data");
-            Console.WriteLine("  • Compare multiple trajectory options");
         }
 
         // ====================================================================
-        // INPUT HELPERS
+        // INPUT HELPERS (with precision-aware defaults)
         // ====================================================================
 
-        /// <summary>
-        /// Get player input for launch velocity in m/s.
-        /// Prepopulates with last used value, allowing player to press Enter to keep it.
-        /// </summary>
-        private static float GetPlayerVelocityInput(string prompt, float defaultValue)
+        private static float GetPlayerVelocityInput(string prompt, float defaultValue, DifficultyConfig diffConfig)
         {
             while (true)
             {
-                Console.Write($"{prompt} [{defaultValue:F0} m/s]: ");
+                Console.Write($"{prompt} [{diffConfig.VelocityPrecision.Format(defaultValue)} m/s]: ");
                 string input = Console.ReadLine() ?? "";
 
-                // If empty, use default
                 if (string.IsNullOrWhiteSpace(input))
-                {
                     return defaultValue;
-                }
 
                 if (float.TryParse(input, out float velocity) && velocity > 0)
-                {
                     return velocity;
-                }
 
                 Console.WriteLine("Invalid input. Please enter a positive velocity value in m/s.\n");
             }
         }
 
-        /// <summary>
-        /// Get player input for elevation angle (-90 to 90 degrees).
-        /// Prepopulates with last used value, allowing player to press Enter to keep it.
-        /// Negative angles represent firing downward (at descending targets).
-        /// </summary>
-        private static float GetPlayerElevationInput(string prompt, float defaultValue)
+        private static float GetPlayerElevationInput(string prompt, float defaultValue, DifficultyConfig diffConfig)
         {
             while (true)
             {
-                Console.Write($"{prompt} [{defaultValue:F1}°]: ");
+                Console.Write($"{prompt} [{diffConfig.ElevationPrecision.Format(defaultValue)}°]: ");
                 string input = Console.ReadLine() ?? "";
 
-                // If empty, use default
                 if (string.IsNullOrWhiteSpace(input))
-                {
                     return defaultValue;
-                }
 
                 if (float.TryParse(input, out float angle) && angle >= -90 && angle <= 90)
-                {
                     return angle;
-                }
 
                 Console.WriteLine("Invalid input. Please enter an angle between -90 and 90 degrees.\n");
             }
         }
 
-        /// <summary>
-        /// Get player input for azimuth bearing (0-360 degrees).
-        /// Prepopulates with last used value, allowing player to press Enter to keep it.
-        /// 0° = North (+Y direction), 90° = East (+X direction)
-        /// </summary>
-        private static float GetPlayerAzimuthInput(string prompt, float defaultValue)
+        private static float GetPlayerAzimuthInput(string prompt, float defaultValue, DifficultyConfig diffConfig)
         {
             while (true)
             {
-                Console.Write($"{prompt} [{defaultValue:F1}°]: ");
+                Console.Write($"{prompt} [{diffConfig.AzimuthPrecision.Format(defaultValue)}°]: ");
                 string input = Console.ReadLine() ?? "";
 
-                // If empty, use default
                 if (string.IsNullOrWhiteSpace(input))
-                {
                     return defaultValue;
-                }
 
                 if (float.TryParse(input, out float bearing) && bearing >= 0 && bearing < 360)
-                {
                     return bearing;
-                }
 
                 Console.WriteLine("Invalid input. Please enter a bearing between 0 and 360 degrees.\n");
             }
         }
 
-        /// <summary>
-        /// Get player input for flight time in seconds.
-        /// Prepopulates with last used value, allowing player to press Enter to keep it.
-        /// </summary>
-        private static float GetPlayerFlightTimeInput(string prompt, float defaultValue)
+        private static float GetPlayerFlightTimeInput(string prompt, float defaultValue, DifficultyConfig diffConfig)
         {
             while (true)
             {
-                Console.Write($"{prompt} [{defaultValue:F2}s]: ");
+                Console.Write($"{prompt} [{diffConfig.LaunchDelayPrecision.Format(defaultValue)}s]: ");
                 string input = Console.ReadLine() ?? "";
 
-                // If empty, use default
                 if (string.IsNullOrWhiteSpace(input))
-                {
                     return defaultValue;
-                }
 
                 if (float.TryParse(input, out float time) && time >= 0)
-                {
                     return time;
-                }
 
                 Console.WriteLine("Invalid input. Please enter a non-negative time value in seconds.\n");
             }

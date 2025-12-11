@@ -58,6 +58,21 @@ namespace Spacegun_Simulator
         }
 
         /// <summary>
+        /// Predefined archetype: BEACHBALL (Tutorial Mode)
+        /// Very slow, very light, minimal energy needed.
+        /// Used exclusively in "Potato Cannons and Beachballs" tutorial mode.
+        /// </summary>
+        public static readonly EnemyArchetype Beachball = new(
+            id: "beachball",
+            name: "Beachball",
+            description: "A 2-meter inflatable beachball. Perfect for target practice!",
+            velocityMultiplier: 0.1,  // Very slow
+            massRange: (0.0005, 0.001),  // 0.5-1 kg in metric tons
+            fractureEnergyRange: (0.00005, 0.0001),  // 50-100 Joules in MJ
+            baseDifficultyRating: 1
+        );
+
+        /// <summary>
         /// Predefined archetype: SCOUT
         /// Fast but fragile. High velocity, low mass, low fracture energy.
         /// Strategy: Precision over power.
@@ -118,7 +133,7 @@ namespace Spacegun_Simulator
         );
 
         /// <summary>
-        /// All predefined archetypes.
+        /// All predefined archetypes (excluding Beachball which is tutorial-only).
         /// </summary>
         public static readonly EnemyArchetype[] All =
         {

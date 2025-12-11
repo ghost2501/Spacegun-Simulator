@@ -181,17 +181,6 @@ namespace Spacegun_Simulator
         }
 
         /// <summary>
-        /// Calculate target diameter from mass using spherical geometry and uniform density.
-        /// </summary>
-        private float CalculateTargetDiameter()
-        {
-            double massKg = enemyMass * METRIC_TONS_TO_KG;
-            double volumeM3 = massKg / STANDARD_SHIP_DENSITY_KG_M3;
-            double radiusM = Math.Pow(3.0 * volumeM3 / (4.0 * Math.PI), 1.0 / 3.0);
-            return (float)(radiusM * 2.0);
-        }
-
-        /// <summary>
         /// Calculate hit tolerance as 0.5 × target diameter, modified by difficulty settings.
         /// 
         /// DIFFICULTY MODIFIERS:
@@ -201,11 +190,8 @@ namespace Spacegun_Simulator
         /// </summary>
         private float CalculateHitTolerance(double rcsMultiplier = 1.0, double toleranceMultiplier = 1.0)
         {
-            // Calculate base diameter
-            double massKg = enemyMass * METRIC_TONS_TO_KG;
-            double volumeM3 = massKg / STANDARD_SHIP_DENSITY_KG_M3;
-            double radiusM = Math.Pow(3.0 * volumeM3 / (4.0 * Math.PI), 1.0 / 3.0);
-            double diameterM = radiusM * 2.0;
+            // FIX: Use consolidated BallisticsCalculator method instead of local duplicate
+            double diameterM = BallisticsCalculator.CalculateDiameterFromMass(enemyMass);
 
             // Apply RCS multiplier (affects apparent size)
             // RCS = π * (diameter/2)² for a sphere
@@ -256,9 +242,19 @@ namespace Spacegun_Simulator
 
         /// <summary>
         /// Generate a complete firing problem for the player.
-        /// NOW WITH DETECTION ZONE: All enemies spawn within a constrained region of sky.
-        /// NARRATIVE: "All enemies detected from the same patch of deep space"
-        /// DRAMATIC ARCS: Intercept points still vary 30°+ in elevation, 90-120° in azimuth
+        /// 
+        /// NEW DESIGN: T+0 is defined as the moment the enemy ENTERS gun range.
+        /// This eliminates arbitrary detection distances from the firing calculation.
+        /// 
+        /// ENGAGEMENT MODEL:
+        /// - T+0: Enemy at exactly gun_range distance, approaching at known velocity
+        /// - T+0 to T+X: Player has X seconds to calculate and fire
+        /// - Player specifies: LaunchDelayTime, Elevation, Azimuth, Velocity
+        /// - At T+LaunchDelayTime: Gun fires
+        /// - At T+LaunchDelayTime+FlightTime: Projectile intercepts (if solution is valid)
+        /// 
+        /// NARRATIVE: Enemy detected years ago in Oort Cloud, tracked to gun range boundary.
+        /// Now player must intercept before it reaches critical distance (e.g., 500km altitude).
         /// </summary>
         public FiringProblem GenerateFiringProblem(
             EnemyWave wave,
@@ -299,38 +295,18 @@ namespace Spacegun_Simulator
                 };
             }
 
-            // ===== FRESH WAVE: Generate trajectory within detection zone =====
-            // STEP 1: Pick intercept time (5-30 seconds)
-            float interceptTime = 5f + (float)(rng.NextDouble() * 25f);
-
-            // STEP 2: Generate T+0s position WITHIN DETECTION ZONE
-            Vector3 enemyAtT0;
-            float approachElev;
-            float approachAzim;
-            float approachDistance;
-
-            if (detectionZone.HasValue)
-            {
-                // Constrained to detection zone
-                enemyAtT0 = detectionZone.Value.GenerateRandomPosition(rng);
-                var (elev, azim) = CartesianToAngles(enemyAtT0);
-                approachElev = (float)elev;
-                approachAzim = (float)azim;
-                approachDistance = (float)enemyAtT0.Magnitude;
-            }
-            else
-            {
-                // Legacy: unconstrained (for backward compat)
-                approachElev = 20f + (float)(rng.NextDouble() * 50f);
-                approachAzim = (float)(rng.NextDouble() * 360f);
-                approachDistance = initialEngagementDistance > 0f
-                    ? initialEngagementDistance
-                    : 1_500_000 + (float)(rng.NextDouble() * 500_000);
-                
-                enemyAtT0 = AnglesToCartesian(approachElev, approachAzim, approachDistance);
-            }
-
-            // STEP 3: Generate intercept with dramatic arc
+            // ===== FRESH WAVE: Generate trajectory with T+0 = gun range entry =====
+            
+            // STEP 1: Generate approach angles (where is enemy coming from?)
+            float approachElev = 20f + (float)(rng.NextDouble() * 50f);
+            float approachAzim = (float)(rng.NextDouble() * 360f);
+            
+            // STEP 2: Set T+0 position AT gun range boundary
+            // Enemy is exactly at gun range, approaching along its velocity vector
+            Vector3 enemyAtT0 = AnglesToCartesian(approachElev, approachAzim, gunEffectiveRange);
+            
+            // STEP 3: Generate intercept geometry (dramatic arc)
+            // Enemy will be intercepted at a different angle/altitude after some time
             float interceptElev = 5f + (float)(rng.NextDouble() * 80f);
             while (Math.Abs(interceptElev - approachElev) < 30f)
             {
@@ -343,13 +319,16 @@ namespace Spacegun_Simulator
             if (interceptAzim < 0) interceptAzim += 360f;
             if (interceptAzim >= 360f) interceptAzim -= 360f;
 
+            // Intercept distance: somewhere CLOSER than gun range (enemy continues approaching)
             float distReduction = 0.2f + (float)(rng.NextDouble() * 0.3f);
-            float interceptDistance = approachDistance * (1f - distReduction);
-            interceptDistance = Math.Max(1_000_000f, Math.Min(2_000_000f, interceptDistance));
+            float interceptDistance = gunEffectiveRange * (1f - distReduction);
+            interceptDistance = Math.Max(gunEffectiveRange * 0.5f, Math.Min(gunEffectiveRange * 0.95f, interceptDistance));
 
             Vector3 interceptPoint = AnglesToCartesian(interceptElev, interceptAzim, interceptDistance);
 
-            // STEP 4: Calculate velocity
+            // STEP 4: Calculate velocity vector from T+0 position to intercept point
+            // How long should this take? 5-30 seconds (player has time to react)
+            float interceptTime = 5f + (float)(rng.NextDouble() * 25f);
             Vector3 displacement = interceptPoint - enemyAtT0;
             Vector3 enemyVelocity = (displacement * (1.0 / interceptTime));
 
@@ -361,11 +340,6 @@ namespace Spacegun_Simulator
             wave.IsRestoredFromSave = false;
 
             // STEP 5: Generate cached firing solution (fast heuristic)
-            float correctLaunchDelay = 1f;
-            float correctElevation = 45f;
-            float correctAzimuth = 0f;
-            float correctVelocity = playerGunMaxVelocity * 0.9f;
-            
             if (!GenerateCachedSolution(
                 enemyAtT0,
                 enemyVelocity,
@@ -378,24 +352,19 @@ namespace Spacegun_Simulator
                     $"FATAL: Could not generate even a heuristic solution for valid geometry.");
             }
 
-            correctLaunchDelay = cachedSolution.LaunchDelayTime;
-            correctElevation = cachedSolution.Elevation;
-            correctAzimuth = cachedSolution.Azimuth;
-            correctVelocity = cachedSolution.Velocity;
-
             return new FiringProblem
             {
                 EnemyPosition = enemyAtT0,
                 EnemyVelocity = enemyVelocity,
                 ApproachElevation = approachElev,
                 ApproachAzimuth = approachAzim,
-                EngagementDistance = approachDistance,
+                EngagementDistance = gunEffectiveRange,  // T+0 is defined as gun range entry
                 ApproachSpeed = (float)wave.AverageVelocity,
                 FractureEnergyRequired = target.FractureEnergy,
-                CorrectLaunchDelayTime = correctLaunchDelay,
-                CorrectElevation = correctElevation,
-                CorrectAzimuth = correctAzimuth,
-                CorrectVelocity = correctVelocity
+                CorrectLaunchDelayTime = cachedSolution.LaunchDelayTime,
+                CorrectElevation = cachedSolution.Elevation,
+                CorrectAzimuth = cachedSolution.Azimuth,
+                CorrectVelocity = cachedSolution.Velocity
             };
         }
 

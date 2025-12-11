@@ -5,6 +5,7 @@ namespace Spacegun_Simulator
     // ============================================================================
     // This class is designed for JSON serialization via System.Text.Json
     // Used for save/load functionality.
+    // NOW INCLUDES: Tech Tree state and Random Event state
 
     [Serializable]
     public class GameStateData
@@ -122,6 +123,16 @@ namespace Spacegun_Simulator
         // ===== DIFFICULTY SETTING =====
         public string SelectedDifficulty { get; set; } = string.Empty;
 
+        // ===== TECH TREE STATE (NEW) =====
+        public Dictionary<string, int> TechTreeLevels { get; set; } = new();
+
+        // ===== CURRENT WAVE EVENT (NEW) =====
+        public bool HasCurrentWaveEvent { get; set; } = false;
+        public string CurrentWaveEventTitle { get; set; } = string.Empty;
+        public string CurrentWaveEventDescription { get; set; } = string.Empty;
+        public string CurrentWaveEventType { get; set; } = string.Empty;
+        public double CurrentWaveEventProductionMultiplier { get; set; } = 1.0;
+
         // ===== CACHED CORRECT FIRING SOLUTION (From Wave) =====
         public float CachedCorrectLaunchDelayTime { get; set; }
         public float CachedCorrectElevation { get; set; }
@@ -136,6 +147,19 @@ namespace Spacegun_Simulator
 
             // ===== Check if we have a firing problem to save =====
             bool shouldSaveFiringProblem = gameState.CurrentFiringProblem != null;
+
+            // ===== Build tech tree levels dictionary =====
+            var techTreeLevels = new Dictionary<string, int>();
+            foreach (TechTree.TechType tech in System.Enum.GetValues(typeof(TechTree.TechType)))
+            {
+                if (gameState.TechTree?.CurrentLevel.ContainsKey(tech) == true)
+                {
+                    techTreeLevels[tech.ToString()] = gameState.TechTree.CurrentLevel[tech];
+                }
+            }
+
+            // ===== Prepare random event data =====
+            bool hasEvent = gameState.CurrentWaveEvent != null;
 
             var data = new GameStateData
             {
@@ -241,6 +265,16 @@ namespace Spacegun_Simulator
 
                 SelectedDifficulty = gameState.SelectedDifficulty.ToString(),
 
+                // ===== Save tech tree levels =====
+                TechTreeLevels = techTreeLevels,
+
+                // ===== Save random event state =====
+                HasCurrentWaveEvent = hasEvent,
+                CurrentWaveEventTitle = hasEvent ? gameState.CurrentWaveEvent!.Title : string.Empty,
+                CurrentWaveEventDescription = hasEvent ? gameState.CurrentWaveEvent!.Description : string.Empty,
+                CurrentWaveEventType = hasEvent ? gameState.CurrentWaveEvent!.Type.ToString() : string.Empty,
+                CurrentWaveEventProductionMultiplier = hasEvent ? gameState.CurrentWaveEvent!.ProductionMultiplier : 1.0,
+
                 SaveTimestamp = DateTime.UtcNow.ToString("O")
             };
 
@@ -293,6 +327,38 @@ namespace Spacegun_Simulator
             }
 
             gameState.SetTimebudget(AvailableYears, RemainingYears, AvailableSecondsForGunRange);
+
+            // ===== Restore tech tree levels =====
+            if (gameState.TechTree != null && TechTreeLevels.Count > 0)
+            {
+                gameState.TechTree.CurrentLevel.Clear();
+                foreach (var kvp in TechTreeLevels)
+                {
+                    if (Enum.TryParse<TechTree.TechType>(kvp.Key, out var techType))
+                    {
+                        gameState.TechTree.CurrentLevel[techType] = kvp.Value;
+                    }
+                }
+            }
+
+            // ===== Restore random event state =====
+            if (HasCurrentWaveEvent)
+            {
+                if (Enum.TryParse<RandomEvent.EventType>(CurrentWaveEventType, out var eventType))
+                {
+                    gameState.CurrentWaveEvent = new RandomEvent
+                    {
+                        Title = CurrentWaveEventTitle,
+                        Description = CurrentWaveEventDescription,
+                        Type = eventType,
+                        ProductionMultiplier = CurrentWaveEventProductionMultiplier
+                    };
+                }
+            }
+            else
+            {
+                gameState.CurrentWaveEvent = null;
+            }
 
             // Restore current wave state
             if (CurrentWaveNumber_Wave > 0)

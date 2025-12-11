@@ -59,6 +59,16 @@ namespace Spacegun_Simulator
         /// </summary>
         public static readonly GunProjectileSpec[] All =
         {
+            // SPEC 0: Potato Cannon - Tutorial mode only
+            new(
+                id: "potato",
+                name: "Potato Cannon",
+                description: "0.3kg potato @ 50 m/s. Tutorial mode - learn the basics!",
+                projectileMassKg: 0.3,
+                muzzleVelocityMs: 50,
+                cost: ResourceCost.None  // Free for tutorial
+            ),
+
             // SPEC 1: Needle Strike - Early game, light and fast
             new(
                 id: "needle",
@@ -109,6 +119,11 @@ namespace Spacegun_Simulator
                 cost: new ResourceCost(budget: 500, steel: 600, exotic: 150)
             )
         };
+
+        /// <summary>
+        /// Get the Potato Cannon spec for tutorial mode.
+        /// </summary>
+        public static GunProjectileSpec PotatoCannon => All[0];
 
         /// <summary>
         /// Get all specs that are affordable with given resources.

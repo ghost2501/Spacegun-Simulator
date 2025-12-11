@@ -383,6 +383,8 @@ namespace Spacegun_Simulator
             Console.WriteLine($"║           Wave {engine.CurrentWaveNumber} of {GameConstants.TotalWaves}".PadRight(57) + "║");
             Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
+            var diffConfig = DifficultyConfig.GetConfig(engine.SelectedDifficulty);
+
             var detectionResult = engine.ExecuteDetectionPhase();
 
             Console.WriteLine("=== DETECTION PHASE ===\n");
@@ -414,7 +416,6 @@ namespace Spacegun_Simulator
             Console.WriteLine($"Detection Distance: {GameConstants.FormatDistance(detectionResult.Wave.CurrentDistance)}");
             Console.WriteLine($"Velocity: {GameConstants.FormatVelocity(detectionResult.Wave.AverageVelocity)}");
             Console.WriteLine($"Radar Cross-Section: {detectionResult.Wave.AverageRadarCrossSection:F1} m²");
-            Console.WriteLine($"Evasiveness: {detectionResult.Wave.AverageEvasiveness * 100:F0}%");
 
             Console.WriteLine($"\n=== TIME BUDGET ===");
             Console.WriteLine($"Years Available: {(long)detectionResult.AvailableYears} years");
@@ -424,8 +425,24 @@ namespace Spacegun_Simulator
             Console.WriteLine($"Steel: {engine.Resources.Steel:F0} tons");
             Console.WriteLine($"Exotic Materials: {engine.Resources.ExoticMaterials:F1} units");
 
-            Console.WriteLine("\nPress any key to proceed to Resource Allocation phase...");
-            Console.ReadKey();
+            // ===== TUTORIAL MODE: Skip resource phases =====
+            if (diffConfig.SkipResourcePhases)
+            {
+                Console.WriteLine("\n────────────────────────────────────────────────────────────");
+                Console.WriteLine("📚 TUTORIAL MODE: Skipping resource and development phases.");
+                Console.WriteLine("   Proceeding directly to firing solution...");
+                Console.WriteLine("────────────────────────────────────────────────────────────");
+                Console.WriteLine("\nPress any key to proceed to Firing Solution phase...");
+                Console.ReadKey();
+
+                // Skip directly to firing phase
+                engine.CurrentPhase = GameState.GamePhase.Firing;
+            }
+            else
+            {
+                Console.WriteLine("\nPress any key to proceed to Resource Allocation phase...");
+                Console.ReadKey();
+            }
 
             // Auto-save after detection phase
             engine.AutoSaveGame();
@@ -435,35 +452,151 @@ namespace Spacegun_Simulator
         {
             Console.Clear();
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║           RESOURCE ALLOCATION PHASE                       ║");
+            Console.WriteLine("║         PREPARATION PHASE - RESOURCES & RESEARCH           ║");
             Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+
+            // ===== NEW: Display wave event if present =====
+            engine.GenerateWaveEvent();
+            if (engine.CurrentWaveEvent != null)
+            {
+                Console.WriteLine("=== RANDOM EVENT ===");
+                Console.WriteLine($"⚡ {engine.CurrentWaveEvent.Title}");
+                Console.WriteLine($"   {engine.CurrentWaveEvent.Description}");
+                if (engine.CurrentWaveEvent.ProductionMultiplier != 1.0)
+                {
+                    string modifier = engine.CurrentWaveEvent.ProductionMultiplier > 1.0 ? "+" : "";
+                    Console.WriteLine($"   Production: {modifier}{(engine.CurrentWaveEvent.ProductionMultiplier - 1) * 100:F0}%\n");
+                }
+                Console.WriteLine();
+            }
 
             Console.WriteLine($"Total Available Time: {(long)engine.AvailableYears} years\n");
 
-            // Display resources in a cleaner format
-            Console.WriteLine("=== RESOURCE PRODUCTION RATES (per year) ===");
-            Console.WriteLine("Base Materials:");
-            Console.WriteLine($"  Steel:                  {GameConstants.SteelProductionPerYear:F0} tons/year");
-            Console.WriteLine($"  Budget:                 {GameConstants.BudgetProductionPerYear:F0} currency/year");
-            Console.WriteLine("\nSpecialized Resources:");
-            Console.WriteLine($"  Specialized Alloys:     {GameConstants.SpecializedAlloysProductionPerYear:F0} tons/year");
-            Console.WriteLine($"  Rare Earth Elements:    {GameConstants.RareEarthElementsProductionPerYear:F0} units/year");
-            Console.WriteLine("\nAdvanced Systems:");
-            Console.WriteLine($"  Power Cells:            {GameConstants.PowerCellsProductionPerYear:F0} units/year");
-            Console.WriteLine($"  Exotic Materials:       {GameConstants.ExoticProductionPerYear:F0} units/year\n");
+            // ===== NEW: Calculate effective production rates with tech & difficulty scaling =====
+            Console.WriteLine("=== RESOURCE PRODUCTION RATES (per year, with tech & difficulty) ===");
+            
+            double eventMultiplier = engine.CurrentWaveEvent?.ProductionMultiplier ?? 1.0;
+            
+            Dictionary<ResourceType, double> effectiveRates = new();
+            foreach (ResourceType resource in System.Enum.GetValues(typeof(ResourceType)))
+            {
+                double rate = ResourceGathering.GetEffectiveProductionRate(
+                    resource, 
+                    engine.TechTree, 
+                    engine.SelectedDifficulty,
+                    eventMultiplier);
+                
+                if (rate > 0)
+                {
+                    effectiveRates[resource] = rate;
+                }
+            }
 
+            Console.WriteLine("Base Materials:");
+            if (effectiveRates.ContainsKey(ResourceType.Steel))
+                Console.WriteLine($"  Steel:                  {effectiveRates[ResourceType.Steel]:F0} tons/year");
+            if (effectiveRates.ContainsKey(ResourceType.Budget))
+                Console.WriteLine($"  Budget:                 {effectiveRates[ResourceType.Budget]:F0} currency/year");
+
+            Console.WriteLine("\nTier 2 Resources (Mining II+):");
+            if (effectiveRates.ContainsKey(ResourceType.SpecializedAlloys))
+                Console.WriteLine($"  Specialized Alloys:     {effectiveRates[ResourceType.SpecializedAlloys]:F0} tons/year");
+            if (effectiveRates.ContainsKey(ResourceType.RareEarthElements))
+                Console.WriteLine($"  Rare Earth Elements:    {effectiveRates[ResourceType.RareEarthElements]:F0} units/year");
+
+            Console.WriteLine("\nTier 3 Resources (Mining III+):");
+            if (effectiveRates.ContainsKey(ResourceType.AdvancedOre))
+                Console.WriteLine($"  Advanced Ore:           {effectiveRates[ResourceType.AdvancedOre]:F0} units/year");
+            if (effectiveRates.ContainsKey(ResourceType.ExoticMaterials))
+                Console.WriteLine($"  Exotic Materials:       {effectiveRates[ResourceType.ExoticMaterials]:F0} units/year");
+
+            Console.WriteLine("\nOther Systems:");
+            if (effectiveRates.ContainsKey(ResourceType.PowerCells))
+                Console.WriteLine($"  Power Cells:            {effectiveRates[ResourceType.PowerCells]:F0} units/year");
+
+            // ===== FLEXIBLE WORKFLOW: Loop until player is ready for development =====
+            bool readyForDevelopment = false;
+
+            while (!readyForDevelopment)
+            {
+                Console.WriteLine("\n=== PREPARATION OPTIONS ===");
+                Console.WriteLine("[R] Allocate Resources for Gathering");
+                Console.WriteLine("[T] Research New Technology");
+                Console.WriteLine("[S] Show Current Status");
+                Console.WriteLine("[D] Done - Proceed to Development\n");
+
+                Console.Write("Select action (R/T/S/D): ");
+                string action = Console.ReadLine()?.ToUpper() ?? "D";
+
+                switch (action)
+                {
+                    case "R":
+                        AllocateResourcesInteractive(effectiveRates);
+                        break;
+
+                    case "T":
+                        ResearchTechInteractive();
+                        break;
+
+                    case "S":
+                        DisplayPreparationStatus(effectiveRates);
+                        break;
+
+                    case "D":
+                        readyForDevelopment = true;
+                        break;
+
+                    default:
+                        Console.WriteLine("Invalid action.\n");
+                        break;
+                }
+            }
+
+            // Final summary
+            Console.Clear();
+            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+            Console.WriteLine("║           PREPARATION COMPLETE - SUMMARY                  ║");
+            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+
+            Console.WriteLine("Accumulated Resources:");
+            Console.WriteLine("  Base Materials:");
+            Console.WriteLine($"    Steel:                {engine.AccumulatedResources["Steel"]:F0} tons");
+            Console.WriteLine($"    Budget:               {engine.AccumulatedResources["Budget"]:F0} currency");
+            Console.WriteLine("  Specialized Resources:");
+            Console.WriteLine($"    Specialized Alloys:   {engine.AccumulatedResources["SpecializedAlloys"]:F0} tons");
+            Console.WriteLine($"    Rare Earth Elements:  {engine.AccumulatedResources["RareEarthElements"]:F0} units");
+            Console.WriteLine("  Advanced Systems:");
+            Console.WriteLine($"    Power Cells:          {engine.AccumulatedResources["PowerCells"]:F0} units");
+            Console.WriteLine($"    Exotic Materials:     {engine.AccumulatedResources["Exotic"]:F1} units");
+
+            Console.WriteLine($"\n  Time Remaining: {(long)engine.RemainingYears} years");
+
+            Console.WriteLine("\nPress any key to proceed to Development phase...");
+            Console.ReadKey();
+
+            engine.CurrentPhase = GameState.GamePhase.Development;
+            engine.AutoSaveGame();
+        }
+
+        private void AllocateResourcesInteractive(Dictionary<ResourceType, double> effectiveRates)
+        {
+            Console.Clear();
+            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+            Console.WriteLine("║              RESOURCE ALLOCATION MENU                     ║");
+            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+
+            Console.WriteLine($"Time Remaining: {engine.RemainingYears} years\n");
             Console.WriteLine("Enter years for each resource. Type 'u' to undo the last input.\n");
 
-            // Track allocation for this phase - 6 resources now
             long[] yearsAllocated = new long[6];
             string[] resourceNames = { "Steel", "Budget", "Specialized Alloys", "Rare Earth Elements", "Power Cells", "Exotic Materials" };
             double[] productionRates = {
-                GameConstants.SteelProductionPerYear,
-                GameConstants.BudgetProductionPerYear,
-                GameConstants.SpecializedAlloysProductionPerYear,
-                GameConstants.RareEarthElementsProductionPerYear,
-                GameConstants.PowerCellsProductionPerYear,
-                GameConstants.ExoticProductionPerYear
+                effectiveRates.ContainsKey(ResourceType.Steel) ? effectiveRates[ResourceType.Steel] : 0,
+                effectiveRates.ContainsKey(ResourceType.Budget) ? effectiveRates[ResourceType.Budget] : 0,
+                effectiveRates.ContainsKey(ResourceType.SpecializedAlloys) ? effectiveRates[ResourceType.SpecializedAlloys] : 0,
+                effectiveRates.ContainsKey(ResourceType.RareEarthElements) ? effectiveRates[ResourceType.RareEarthElements] : 0,
+                effectiveRates.ContainsKey(ResourceType.PowerCells) ? effectiveRates[ResourceType.PowerCells] : 0,
+                effectiveRates.ContainsKey(ResourceType.ExoticMaterials) ? effectiveRates[ResourceType.ExoticMaterials] : 0
             };
 
             int currentStep = 0;
@@ -472,6 +605,13 @@ namespace Spacegun_Simulator
             {
                 string resourceName = resourceNames[currentStep];
                 double productionRate = productionRates[currentStep];
+
+                if (productionRate == 0)
+                {
+                    Console.WriteLine($"{currentStep + 1}/6 - {resourceName:,-25} (LOCKED - Tech not researched)\n");
+                    currentStep++;
+                    continue;
+                }
 
                 Console.Write($"{currentStep + 1}/6 - Years for {resourceName:,-25} (remaining: {engine.RemainingYears}): ");
                 string input = Console.ReadLine() ?? "0";
@@ -516,38 +656,74 @@ namespace Spacegun_Simulator
             }
 
             // Update accumulated resources with final totals
-            engine.AccumulatedResources["Steel"] += yearsAllocated[0] * GameConstants.SteelProductionPerYear;
-            engine.AccumulatedResources["Budget"] += yearsAllocated[1] * GameConstants.BudgetProductionPerYear;
-            engine.AccumulatedResources["SpecializedAlloys"] += yearsAllocated[2] * GameConstants.SpecializedAlloysProductionPerYear;
-            engine.AccumulatedResources["RareEarthElements"] += yearsAllocated[3] * GameConstants.RareEarthElementsProductionPerYear;
-            engine.AccumulatedResources["PowerCells"] += yearsAllocated[4] * GameConstants.PowerCellsProductionPerYear;
-            engine.AccumulatedResources["Exotic"] += yearsAllocated[5] * GameConstants.ExoticProductionPerYear;
+            engine.AccumulatedResources["Steel"] += yearsAllocated[0] * productionRates[0];
+            engine.AccumulatedResources["Budget"] += yearsAllocated[1] * productionRates[1];
+            engine.AccumulatedResources["SpecializedAlloys"] += yearsAllocated[2] * productionRates[2];
+            engine.AccumulatedResources["RareEarthElements"] += yearsAllocated[3] * productionRates[3];
+            engine.AccumulatedResources["PowerCells"] += yearsAllocated[4] * productionRates[4];
+            engine.AccumulatedResources["Exotic"] += yearsAllocated[5] * productionRates[5];
 
-            // Display final allocation summary
+            Console.WriteLine("✓ Resource allocation complete.\n");
+            System.Threading.Thread.Sleep(1000);
+        }
+
+        private void ResearchTechInteractive()
+        {
+            Console.Clear();
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║              ALLOCATION COMPLETE                          ║");
+            Console.WriteLine("║               TECHNOLOGY RESEARCH MENU                    ║");
             Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
-            Console.WriteLine("Accumulated Resources (this wave):");
-            Console.WriteLine("  Base Materials:");
-            Console.WriteLine($"    Steel:                {engine.AccumulatedResources["Steel"]:F0} tons");
-            Console.WriteLine($"    Budget:               {engine.AccumulatedResources["Budget"]:F0} currency");
-            Console.WriteLine("  Specialized Resources:");
-            Console.WriteLine($"    Specialized Alloys:   {engine.AccumulatedResources["SpecializedAlloys"]:F0} tons");
-            Console.WriteLine($"    Rare Earth Elements:  {engine.AccumulatedResources["RareEarthElements"]:F0} units");
-            Console.WriteLine("  Advanced Systems:");
-            Console.WriteLine($"    Power Cells:          {engine.AccumulatedResources["PowerCells"]:F0} units");
-            Console.WriteLine($"    Exotic Materials:     {engine.AccumulatedResources["Exotic"]:F1} units");
-            Console.WriteLine($"\n  Time Remaining: {(long)engine.RemainingYears} years");
+            TechUnlock.DisplayAvailableTechs(engine.TechTree, engine.AccumulatedResources);
 
-            Console.WriteLine("\nPress any key to proceed to Development phase...");
+            Console.Write("Research tech number (or 0 to skip): ");
+            if (int.TryParse(Console.ReadLine() ?? "0", out int techChoice) && techChoice > 0)
+            {
+                var availableTechs = TechUnlock.GetAvailableUnlocks(engine.TechTree);
+                if (techChoice <= availableTechs.Count)
+                {
+                    var selectedTech = availableTechs[techChoice - 1];
+                    if (engine.ResearchTech(selectedTech))
+                    {
+                        Console.WriteLine($"\n✓ Tech research complete: {selectedTech.TechType} → Level {selectedTech.ToLevel}\n");
+                        System.Threading.Thread.Sleep(1500);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"\n✗ Cannot afford this research.\n");
+                        System.Threading.Thread.Sleep(1000);
+                    }
+                }
+            }
+        }
+
+        private void DisplayPreparationStatus(Dictionary<ResourceType, double> effectiveRates)
+        {
+            Console.Clear();
+            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+            Console.WriteLine("║               PREPARATION PHASE STATUS                    ║");
+            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+
+            Console.WriteLine("=== ACCUMULATED RESOURCES ===");
+            Console.WriteLine($"Steel:                {engine.AccumulatedResources["Steel"]:F0} tons");
+            Console.WriteLine($"Budget:               {engine.AccumulatedResources["Budget"]:F0} currency");
+            Console.WriteLine($"Specialized Alloys:   {engine.AccumulatedResources["SpecializedAlloys"]:F0} tons");
+            Console.WriteLine($"Rare Earth Elements:  {engine.AccumulatedResources["RareEarthElements"]:F0} units");
+            Console.WriteLine($"Power Cells:          {engine.AccumulatedResources["PowerCells"]:F0} units");
+            Console.WriteLine($"Exotic Materials:     {engine.AccumulatedResources["Exotic"]:F1} units");
+
+            Console.WriteLine($"\n=== TIME ===");
+            Console.WriteLine($"Years Remaining: {engine.RemainingYears} / {engine.AvailableYears}");
+
+            Console.WriteLine($"\n=== TECH TREE ===");
+            Console.WriteLine($"Radar:       Level {engine.TechTree.CurrentLevel[TechTree.TechType.Radar]}");
+            Console.WriteLine($"Mining:      Level {engine.TechTree.CurrentLevel[TechTree.TechType.Mining]}");
+            Console.WriteLine($"Production:  Level {engine.TechTree.CurrentLevel[TechTree.TechType.Production]}");
+            Console.WriteLine($"Weapons:     Level {engine.TechTree.CurrentLevel[TechTree.TechType.Weapons]}");
+            Console.WriteLine($"Projectiles: Level {engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles]}");
+
+            Console.WriteLine("\nPress any key to return to Preparation menu...");
             Console.ReadKey();
-
-            // CRITICAL: Set phase to Development before saving
-            engine.CurrentPhase = GameState.GamePhase.Development;
-
-            // Auto-save after allocation phase
-            engine.AutoSaveGame();
         }
 
         private void RunDevelopmentPhase()
@@ -733,12 +909,7 @@ namespace Spacegun_Simulator
                 ? engine.SelectedGunProjectileSpec.ProjectileMassKg
                 : engine.Gun.DefaultProjectile.Mass;
 
-            Console.WriteLine($"=== YOUR WEAPON ===");
-            Console.WriteLine($"Projectile Mass: {projectileMass:F1} kg");
-            Console.WriteLine($"Max Muzzle Velocity: {muzzleVelocity:F0} m/s");
-            Console.WriteLine($"Has Guidance System: {(engine.Gun.DefaultProjectile.HasGuidance ? "Yes" : "No")}");
-            Console.WriteLine($"Gun Effective Range: {GameConstants.FormatDistance(firingResult.GunRange)}\n");
-
+            // ===== DECLARE MISSING VARIABLES =====
             var calculator = new FiringSolution(
                 (float)projectileMass,
                 (float)target.FractureEnergy,
@@ -747,17 +918,24 @@ namespace Spacegun_Simulator
             float minVelocity = calculator.CalculateRequiredVelocity();
             double targetRadarCrossSection = target.CrossSection;
 
+            Console.WriteLine($"=== YOUR WEAPON ===");
+            Console.WriteLine($"Projectile Mass: {FiringPhaseFormatter.FormatMass(projectileMass, engine.SelectedDifficulty)} kg");
+            Console.WriteLine($"Max Muzzle Velocity: {FiringPhaseFormatter.FormatVelocity(muzzleVelocity, engine.SelectedDifficulty)} m/s");
+            Console.WriteLine($"Has Guidance System: {(engine.Gun.DefaultProjectile.HasGuidance ? "Yes" : "No")}");
+            Console.WriteLine($"Gun Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(engine.CurrentWaveNumber).MaxEffectiveGunRange)}\n");
+
+            // ===== TARGET DATA FOR CALCULATIONS =====
             Console.WriteLine("=== TARGET DATA FOR CALCULATIONS ===");
             Console.WriteLine($"Designation: {engine.CurrentWave?.Targets[0].Name ?? "Unknown"}");
             Console.WriteLine($"Enemy Approach Vector:");
-            Console.WriteLine($"  Elevation: {firingProblem.ApproachElevation:F1}° (in sky)");
-            Console.WriteLine($"  Azimuth: {firingProblem.ApproachAzimuth:F1}° (bearing)");
+            Console.WriteLine($"  Elevation: {FiringPhaseFormatter.FormatAngle(firingProblem.ApproachElevation, engine.SelectedDifficulty)}° (in sky)");
+            Console.WriteLine($"  Azimuth: {FiringPhaseFormatter.FormatAngle(firingProblem.ApproachAzimuth, engine.SelectedDifficulty)}° (bearing)");
             Console.WriteLine($"  Distance: {GameConstants.FormatDistance((double)firingProblem.EngagementDistance)}");
-            Console.WriteLine($"  Cartesian Position: {enemyPosition}");
-            Console.WriteLine($"Enemy Velocity Vector: ({enemyVelocity.X:F1}, {enemyVelocity.Y:F1}, {enemyVelocity.Z:F1}) m/s");
-            Console.WriteLine($"Approach Speed: {firingProblem.ApproachSpeed:F0} m/s");
-            Console.WriteLine($"Fracture Energy Required: {firingProblem.FractureEnergyRequired:F0} MJ");
-            Console.WriteLine($"Target Radar Cross-Section: {targetRadarCrossSection:F1} m²\n");
+            Console.WriteLine($"  Cartesian Position: {FiringPhaseFormatter.FormatVector3(enemyPosition, engine.SelectedDifficulty)}");
+            Console.WriteLine($"Enemy Velocity Vector: ({FiringPhaseFormatter.FormatVelocity(enemyVelocity.X, engine.SelectedDifficulty)}, {FiringPhaseFormatter.FormatVelocity(enemyVelocity.Y, engine.SelectedDifficulty)}, {FiringPhaseFormatter.FormatVelocity(enemyVelocity.Z, engine.SelectedDifficulty)}) m/s");
+            Console.WriteLine($"Approach Speed: {FiringPhaseFormatter.FormatVelocity(firingProblem.ApproachSpeed, engine.SelectedDifficulty)} m/s");
+            Console.WriteLine($"Fracture Energy Required: {FiringPhaseFormatter.FormatEnergy(firingProblem.FractureEnergyRequired, engine.SelectedDifficulty)}");
+            Console.WriteLine($"Target Radar Cross-Section: {FiringPhaseFormatter.FormatRadarCrossSection(targetRadarCrossSection, engine.SelectedDifficulty)} m²\n");
 
             bool workflowComplete = false;
 
@@ -781,7 +959,7 @@ namespace Spacegun_Simulator
                         Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
                         Console.WriteLine("║     STEP 1: PREDICT TARGET POSITION                       ║");
                         Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
-                        TargetMotionComputer.ShowMotionComputerTool(enemyPosition, enemyVelocity);
+                        TargetMotionComputer.ShowMotionComputerTool(enemyPosition, enemyVelocity, engine.SelectedDifficulty);
                         Console.WriteLine("\n✓ Step 1 complete.\n");
                         System.Threading.Thread.Sleep(1000);
                         DisplayWorkflowContext(firingProblem, target, minVelocity, muzzleVelocity, targetRadarCrossSection, enemyPosition, enemyVelocity);
@@ -792,7 +970,7 @@ namespace Spacegun_Simulator
                         Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
                         Console.WriteLine("║     STEP 2: CALCULATE REQUIREMENTS                       ║");
                         Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
-                        BallisticsTablesReference.ShowReferencesMenu();
+                        BallisticsTablesReference.ShowReferencesMenu(currentTierIndex: engine.CurrentWaveNumber > 0 ? GameConstants.GetTierForWave(engine.CurrentWaveNumber).TierIndex : 0, currentDifficulty: engine.SelectedDifficulty);
                         Console.WriteLine("\n✓ Step 2 complete.\n");
                         System.Threading.Thread.Sleep(1000);
                         DisplayWorkflowContext(firingProblem, target, minVelocity, muzzleVelocity, targetRadarCrossSection, enemyPosition, enemyVelocity);
@@ -803,7 +981,7 @@ namespace Spacegun_Simulator
                         Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
                         Console.WriteLine("║     STEP 3: PLAN TRAJECTORY                              ║");
                         Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
-                        TrajectoryPlotter.ShowTrajectoryPlotterTool();
+                        TrajectoryPlotter.ShowTrajectoryPlotterTool(engine.SelectedDifficulty);
                         Console.WriteLine("\n✓ Step 3 complete.\n");
                         System.Threading.Thread.Sleep(1000);
                         DisplayWorkflowContext(firingProblem, target, minVelocity, muzzleVelocity, targetRadarCrossSection, enemyPosition, enemyVelocity);
@@ -818,7 +996,8 @@ namespace Spacegun_Simulator
                             enemyPosition,
                             enemyVelocity,
                             (float)projectileMass,
-                            (float)muzzleVelocity);
+                            (float)muzzleVelocity,
+                            engine.SelectedDifficulty);  // Pass difficulty
                         Console.WriteLine("\n✓ Step 4 complete.\n");
                         System.Threading.Thread.Sleep(1000);
                         DisplayWorkflowContext(firingProblem, target, minVelocity, muzzleVelocity, targetRadarCrossSection, enemyPosition, enemyVelocity);
@@ -879,6 +1058,8 @@ namespace Spacegun_Simulator
                             }
                             else
                             {
+                                engine.WavesDefeated++;
+                                engine.CurrentPhase = GameState.GamePhase.WaveComplete;
                                 engine.AutoSaveGame();
                             }
                         }
@@ -945,6 +1126,8 @@ namespace Spacegun_Simulator
                             }
                             else
                             {
+                                engine.WavesDefeated++;
+                                engine.CurrentPhase = GameState.GamePhase.WaveComplete;
                                 engine.AutoSaveGame();
                             }
                         }
@@ -982,46 +1165,27 @@ namespace Spacegun_Simulator
 
             Console.WriteLine("=== YOUR WEAPON ===");
             Console.WriteLine($"Projectile Mass: {(engine.SelectedGunProjectileSpec?.ProjectileMassKg ?? engine.Gun.DefaultProjectile.Mass):F1} kg");
-            Console.WriteLine($"Max Muzzle Velocity: {muzzleVelocity:F0} m/s");
+            Console.WriteLine($"Max Muzzle Velocity: {FiringPhaseFormatter.FormatVelocity(muzzleVelocity, engine.SelectedDifficulty)} m/s");
             Console.WriteLine($"Has Guidance System: {(engine.Gun.DefaultProjectile.HasGuidance ? "Yes" : "No")}");
             Console.WriteLine($"Gun Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(engine.CurrentWaveNumber).MaxEffectiveGunRange)}\n");
 
             Console.WriteLine("=== TARGET DATA FOR CALCULATIONS ===");
             Console.WriteLine($"Designation: {target.Name}");
             Console.WriteLine($"Enemy Approach Vector:");
-            Console.WriteLine($"  Elevation: {firingProblem.ApproachElevation:F1}° (in sky)");
-            Console.WriteLine($"  Azimuth: {firingProblem.ApproachAzimuth:F1}° (bearing)");
+            Console.WriteLine($"  Elevation: {FiringPhaseFormatter.FormatAngle(firingProblem.ApproachElevation, engine.SelectedDifficulty)}° (in sky)");
+            Console.WriteLine($"  Azimuth: {FiringPhaseFormatter.FormatAngle(firingProblem.ApproachAzimuth, engine.SelectedDifficulty)}° (bearing)");
             Console.WriteLine($"  Distance: {GameConstants.FormatDistance((double)firingProblem.EngagementDistance)}");
-            Console.WriteLine($"  Cartesian Position: {enemyPosition}");
-            Console.WriteLine($"Enemy Velocity Vector: ({enemyVelocity.X:F1}, {enemyVelocity.Y:F1}, {enemyVelocity.Z:F1}) m/s");
-            Console.WriteLine($"Approach Speed: {firingProblem.ApproachSpeed:F0} m/s");
-            Console.WriteLine($"Fracture Energy Required: {firingProblem.FractureEnergyRequired:F0} MJ");
-            Console.WriteLine($"Target Radar Cross-Section: {targetRadarCrossSection:F1} m²\n");
+            Console.WriteLine($"  Cartesian Position: {FiringPhaseFormatter.FormatVector3(enemyPosition, engine.SelectedDifficulty)}");
+            Console.WriteLine($"Enemy Velocity Vector: ({FiringPhaseFormatter.FormatVelocity(enemyVelocity.X, engine.SelectedDifficulty)}, {FiringPhaseFormatter.FormatVelocity(enemyVelocity.Y, engine.SelectedDifficulty)}, {FiringPhaseFormatter.FormatVelocity(enemyVelocity.Z, engine.SelectedDifficulty)}) m/s");
+            Console.WriteLine($"Approach Speed: {FiringPhaseFormatter.FormatVelocity(firingProblem.ApproachSpeed, engine.SelectedDifficulty)} m/s");
+            Console.WriteLine($"Fracture Energy Required: {FiringPhaseFormatter.FormatEnergy(firingProblem.FractureEnergyRequired, engine.SelectedDifficulty)}");
+            Console.WriteLine($"Target Radar Cross-Section: {FiringPhaseFormatter.FormatRadarCrossSection(targetRadarCrossSection, engine.SelectedDifficulty)} m²\n");
         }
 
         private void DisplayFiringAnalysis(FiringSolutionResult solution, float delayTime, float elevation,
             float azimuth, float velocity)
         {
-            //Console.WriteLine("=== FIRING SOLUTION ANALYSIS ===");
-            //Console.WriteLine($"Your Input Parameters:");
-            //Console.WriteLine($"  Launch Delay Time: {delayTime:F2} seconds");
-            //Console.WriteLine($"  Target Elevation: {elevation:F1}°");
-            //Console.WriteLine($"  Target Azimuth: {azimuth:F1}°");
-            //Console.WriteLine($"  Launch Velocity: {velocity:F0} m/s\n");
-
-            //Console.WriteLine($"Ballistic Results:");
-            //Console.WriteLine($"  Kinetic Energy: {solution.KineticEnergyMJ:F1} MJ (Need: {solution.FractureEnergyRequired:F0} MJ)");
-            //Console.WriteLine($"  Can Destroy: {(solution.CanDestroy ? "✓ Yes" : "✗ No")}");
-            //Console.WriteLine($"  Can Intercept: {(solution.CanHit ? "✓ Yes" : "✗ No")}");
-            //Console.WriteLine($"  Miss Distance: {solution.InterceptDeviation:F0} meters\n");
-
-            //if (solution.CanHit && solution.EnemyInterceptPoint.HasValue)
-            //{
-            //    Console.WriteLine($"Intercept Point: {solution.EnemyInterceptPoint.Value}");
-            //    Console.WriteLine($"Launch Delay Time: {solution.LaunchDelayTime:F2} seconds\n");
-            //}
-
-            //Console.WriteLine($"Solution Status: {solution.Message}\n");
+            // Analysis display (can be expanded if needed)
         }
 
         private void DisplayDebugCalculations(FiringSolutionResult solution, double mass, float velocity, double targetRCS)
@@ -1067,9 +1231,6 @@ namespace Spacegun_Simulator
             Console.WriteLine($"Result: {(solution.CanDestroy && solution.CanHit ? "✓ HIT" : "✗ MISS")}\n");
         }
 
-        /// <summary>
-        /// Get player input for launch delay time in seconds.
-        /// </summary>
         private float GetPlayerTimeInput(string prompt)
         {
             while (true)
@@ -1086,10 +1247,6 @@ namespace Spacegun_Simulator
             }
         }
 
-        /// <summary>
-        /// Get player input for launch elevation angle (-90 to 90 degrees).
-        /// Negative angles represent aiming below the horizon (at descending targets).
-        /// </summary>
         private float GetPlayerElevationInput(string prompt)
         {
             while (true)
@@ -1106,9 +1263,6 @@ namespace Spacegun_Simulator
             }
         }
 
-        /// <summary>
-        /// Get player input for target azimuth bearing (0-360 degrees).
-        /// </summary>
         private float GetPlayerAzimuthInput(string prompt)
         {
             while (true)
@@ -1125,9 +1279,6 @@ namespace Spacegun_Simulator
             }
         }
 
-        /// <summary>
-        /// Get player input for projectile launch velocity in m/s.
-        /// </summary>
         private float GetPlayerVelocityInput(string prompt)
         {
             while (true)
@@ -1144,12 +1295,13 @@ namespace Spacegun_Simulator
             }
         }
 
+        // ADD THIS METHOD before the closing brace of the class:
+
         private void RunWaveCompletePhase()
         {
             if (engine.IsGameOver)
                 return;
 
-            engine.WavesDefeated = 0;  // Resets both waves and enemies counter
             engine.AdvanceToNextWave();
         }
 
@@ -1178,13 +1330,13 @@ namespace Spacegun_Simulator
                 }
 
                 Console.WriteLine("\n[Q] Quit\n");
-                Console.Write("Select scenario (1-3 or Q): ");
+                Console.Write($"Select scenario (1-{configs.Count} or Q): ");
 
                 string input = Console.ReadLine()?.Trim() ?? "";
 
                 if (input.Equals("Q", StringComparison.OrdinalIgnoreCase))
                 {
-                    return GameDifficulty.RealSpacegunSimulator;  // Default, or exit game
+                    return GameDifficulty.RealSpacegunSimulator;
                 }
 
                 if (int.TryParse(input, out int choice) && choice >= 1 && choice <= configs.Count)

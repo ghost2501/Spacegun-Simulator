@@ -6,26 +6,18 @@ namespace Spacegun_Simulator.FireControlTools
     /// Allows players to test firing solutions without consequences or automation.
     /// Players can iterate on parameters and see raw ballistic data for each test.
     /// 
-    /// PURPOSE: Safe testing environment for exploring solutions.
-    /// - Accept launch parameters (delay, elevation, azimuth, velocity)
-    /// - Simulate projectile and target trajectories over time
-    /// - Display both trajectories separately (player judges intercept)
-    /// - Allow unlimited testing iterations
-    /// - No feedback, hints, or validation
-    /// - Clear "TEST MODE" vs "FIRE FOR REAL" distinction
-    /// 
-    /// DESIGN PRINCIPLE: Show raw data only. Player interprets results.
-    /// No auto-calculation of hits, misses, or suitability.
+    /// PRECISION: All formatting delegates to DifficultyConfig (single source of truth).
     /// </summary>
     public static class FireSimulator
     {
         private const float GRAVITY = 9.81f;
 
         // Store last test parameters for "modify and retry" feature
+        // NOTE: These are initialized to -1 to indicate "not set" - will use gun's max velocity on first use
         private static double lastTestDelayTime = 5.0;
         private static double lastTestElevation = 30.0;
         private static double lastTestAzimuth = 0.0;
-        private static double lastTestVelocity = 200_000.0;
+        private static double lastTestVelocity = -1.0;  // -1 means "use max available"
         private static bool hasLastTest = false;
 
         // ====================================================================
@@ -33,7 +25,7 @@ namespace Spacegun_Simulator.FireControlTools
         // ====================================================================
 
         /// <summary>
-        /// Launch the Fire Simulator.
+        /// Launch the Fire Simulator with difficulty-aware precision.
         /// Players can test multiple firing solutions in TEST MODE before committing.
         /// Supports modifying and re-running the previous test.
         /// </summary>
@@ -41,10 +33,18 @@ namespace Spacegun_Simulator.FireControlTools
             Vector3 enemyPosition,
             Vector3 enemyVelocity,
             float projectileMass,
-            float muzzleVelocity)
+            float muzzleVelocity,
+            GameDifficulty difficulty = GameDifficulty.RealSpacegunSimulator)
         {
+            var diffConfig = DifficultyConfig.GetConfig(difficulty);
             bool inSimulator = true;
             bool readyToCommit = false;
+
+            // Initialize lastTestVelocity to max available if not set
+            if (lastTestVelocity < 0 || lastTestVelocity > muzzleVelocity)
+            {
+                lastTestVelocity = muzzleVelocity;
+            }
 
             while (inSimulator && !readyToCommit)
             {
@@ -54,13 +54,18 @@ namespace Spacegun_Simulator.FireControlTools
                 Console.WriteLine("║    (Test firing solutions without consequences)            ║");
                 Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
+                Console.WriteLine($"Difficulty: {diffConfig.DisplayName}");
+                Console.WriteLine("PRECISION REQUIREMENTS:");
+                Console.WriteLine(diffConfig.GetPrecisionSummary());
+                Console.WriteLine();
+
                 Console.WriteLine("=== ENTERING TEST PARAMETERS ===");
                 Console.WriteLine("(No firing will occur - TEST MODE ONLY)\n");
 
-                double testDelayTime = GetPlayerTimeInput("Launch delay time (seconds)", lastTestDelayTime);
-                double testElevation = GetPlayerElevationInput("Elevation angle (-90 to 90 degrees)", lastTestElevation);
-                double testAzimuth = GetPlayerAzimuthInput("Azimuth bearing (0-360 degrees, 0=North)", lastTestAzimuth);
-                double testVelocity = GetPlayerVelocityInput($"Launch velocity (0-{muzzleVelocity:F0} m/s)", lastTestVelocity, muzzleVelocity);
+                double testDelayTime = GetPlayerTimeInput("Launch delay time (seconds)", lastTestDelayTime, diffConfig);
+                double testElevation = GetPlayerElevationInput("Elevation angle (-90 to 90 degrees)", lastTestElevation, diffConfig);
+                double testAzimuth = GetPlayerAzimuthInput("Azimuth bearing (0-360 degrees, 0=North)", lastTestAzimuth, diffConfig);
+                double testVelocity = GetPlayerVelocityInput($"Launch velocity (0-{diffConfig.VelocityPrecision.Format(muzzleVelocity)} m/s)", lastTestVelocity, muzzleVelocity, diffConfig);
 
                 // Store for later modification
                 lastTestDelayTime = testDelayTime;
@@ -81,7 +86,8 @@ namespace Spacegun_Simulator.FireControlTools
                     testAzimuth,
                     testVelocity,
                     projectileMass,
-                    maxFlightTime);
+                    maxFlightTime,
+                    diffConfig);
 
                 // Loop options
                 Console.WriteLine("\n=== TEST COMPLETE ===\n");
@@ -98,14 +104,12 @@ namespace Spacegun_Simulator.FireControlTools
                 switch (choice.ToUpper())
                 {
                     case "T":
-                        // Loop back to test again with fresh prompts
                         inSimulator = true;
                         break;
 
                     case "M":
                         if (hasLastTest)
                         {
-                            // Continue to next iteration with stored values prepopulated
                             inSimulator = true;
                         }
                         else
@@ -116,13 +120,11 @@ namespace Spacegun_Simulator.FireControlTools
                         break;
 
                     case "C":
-                        // Player wants to use these parameters
                         inSimulator = false;
                         readyToCommit = true;
                         break;
 
                     case "Q":
-                        // Return to menu without committing
                         inSimulator = false;
                         readyToCommit = false;
                         break;
@@ -141,44 +143,19 @@ namespace Spacegun_Simulator.FireControlTools
         // SIMULATION ENGINE
         // ====================================================================
 
-        /// <summary>
-        /// Calculate maximum flight time before projectile descends to ground level.
-        /// </summary>
         private static double CalculateMaxFlightTime(double elevationDegrees, double velocity)
         {
             double elevationRad = elevationDegrees * Math.PI / 180.0;
             double verticalVelocity = velocity * Math.Sin(elevationRad);
 
-            // Time to return to z=0: t = 2*v*sin(θ) / g
             if (verticalVelocity > 0)
                 return 2.0 * verticalVelocity / 9.81;
             else if (verticalVelocity < 0)
                 return -verticalVelocity / 9.81;
             else
-                return 30.0;  // Arbitrary max for flat trajectory
+                return 30.0;
         }
 
-        /// <summary>
-        /// Calculate projectile position using ballistic equations.
-        /// 
-        /// PRECISION: Using double for all time calculations to maintain sub-meter accuracy.
-        /// 
-        /// COORDINATE SYSTEM (Right-Handed Standard):
-        /// X-axis: East (positive) / West (negative)
-        /// Y-axis: North (positive) / South (negative)
-        /// Z-axis: Up (positive) / Down (negative)
-        /// 
-        /// AZIMUTH (bearing from North, clockwise - Standard Compass Convention):
-        /// 0° = North (+Y)
-        /// 90° = East (+X)
-        /// 180° = South (-Y)
-        /// 270° = West (-X)
-        /// 
-        /// AZIMUTH DECOMPOSITION (Cartesian):
-        /// x(t) = r(t)·sin(φ)  where φ is azimuth from North clockwise
-        /// y(t) = r(t)·cos(φ)
-        /// This converts compass bearing to Cartesian coordinates correctly.
-        /// </summary>
         private static Vector3 CalculateProjectilePosition(
             double launchVelocity,
             double elevationDegrees,
@@ -194,9 +171,6 @@ namespace Spacegun_Simulator.FireControlTools
             double horizontalVelocity = launchVelocity * Math.Cos(elevationRad);
             double horizontalDistance = horizontalVelocity * flightTime;
 
-            // Azimuth is measured clockwise from North (+Y axis)
-            // x = r·sin(φ) points East when φ = 90°
-            // y = r·cos(φ) points North when φ = 0°
             double x = horizontalDistance * Math.Sin(azimuthRad);
             double y = horizontalDistance * Math.Cos(azimuthRad);
 
@@ -205,7 +179,7 @@ namespace Spacegun_Simulator.FireControlTools
 
         /// <summary>
         /// Display side-by-side trajectory simulation comparing projectile and target.
-        /// PRECISION: Fine time resolution (1ms) for accurate trajectory comparison.
+        /// Uses DifficultyConfig for all precision formatting.
         /// </summary>
         private static void DisplaySimulationResults(
             Vector3 enemyPosition,
@@ -215,7 +189,8 @@ namespace Spacegun_Simulator.FireControlTools
             double azimuthDegrees,
             double launchVelocity,
             float projectileMass,
-            double maxFlightTime)
+            double maxFlightTime,
+            DifficultyConfig diffConfig)
         {
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
             Console.WriteLine("║              SIMULATION RESULTS                           ║");
@@ -223,30 +198,27 @@ namespace Spacegun_Simulator.FireControlTools
             Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
             Console.WriteLine($"=== TEST PARAMETERS ===");
-            Console.WriteLine($"Launch Delay: {launchDelayTime:F5}s | Elevation: {elevationDegrees:F1}° | Azimuth: {azimuthDegrees:F1}°");
-            Console.WriteLine($"Velocity: {launchVelocity:F0} m/s | Projectile Mass: {projectileMass:F1} kg");
-            Console.WriteLine($"Max Flight Time: {maxFlightTime:F5} seconds\n");
+            Console.WriteLine($"Launch Delay: {diffConfig.FormatLaunchDelay(launchDelayTime)} | Elevation: {diffConfig.FormatElevation(elevationDegrees)} | Azimuth: {diffConfig.FormatAzimuth(azimuthDegrees)}");
+            Console.WriteLine($"Velocity: {diffConfig.FormatVelocity(launchVelocity)} | Projectile Mass: {diffConfig.MassPrecision.Format(projectileMass)} kg");
+            Console.WriteLine($"Max Flight Time: {diffConfig.FormatLaunchDelay(maxFlightTime)}\n");
 
-            // Calculate trajectory data for key time intervals
             Console.WriteLine("=== TIME INTERVAL ANALYSIS ===");
             Console.WriteLine("Time │ Projectile Position        │ Projectile Range │ Target Position           │ Target Range");
             Console.WriteLine("─────┼────────────────────────────┼──────────────────┼───────────────────────────┼──────────────");
 
-            // PRECISION: Use FINE time resolution (0.001 second = 1ms)
-            double fineTimeStep = 0.001;  // 1ms resolution for accuracy
-            double displayInterval = 2.0;  // Display every 2 seconds for readability
+            double fineTimeStep = 0.001;
+            double displayInterval = 2.0;
 
             for (double t = 0; t <= maxFlightTime + launchDelayTime + 5.0; t += fineTimeStep)
             {
-                // Projectile position (starts at T = launchDelayTime)
                 double projectileTime = t - launchDelayTime;
                 Vector3 projectilePos;
-                double projectileRange;  // CHANGED: float to double
+                double projectileRange;
 
                 if (projectileTime >= 0)
                 {
                     projectilePos = CalculateProjectilePosition(launchVelocity, elevationDegrees, azimuthDegrees, projectileTime);
-                    projectileRange = projectilePos.Magnitude;  // Now double
+                    projectileRange = projectilePos.Magnitude;
                 }
                 else
                 {
@@ -254,24 +226,20 @@ namespace Spacegun_Simulator.FireControlTools
                     projectileRange = 0;
                 }
 
-                // Target position at time T (from launch delay onset)
                 Vector3 targetPos = enemyPosition + (enemyVelocity * t);
-                double targetRange = targetPos.Magnitude;  // CHANGED: float to double
+                double targetRange = targetPos.Magnitude;
 
-                // Only display every displayInterval seconds to avoid clutter
                 if (Math.Abs(t % displayInterval - fineTimeStep) < fineTimeStep || t < fineTimeStep)
                 {
-                    // Format output
                     string projectilePosStr = projectileTime >= 0
-                        ? $"({projectilePos.X:F0}, {projectilePos.Y:F0}, {projectilePos.Z:F0})"
+                        ? diffConfig.FormatVector3(projectilePos)
                         : "(not fired yet)";
 
-                    string targetPosStr = $"({targetPos.X:F0}, {targetPos.Y:F0}, {targetPos.Z:F0})";
+                    string targetPosStr = diffConfig.FormatVector3(targetPos);
 
-                    Console.Write($"{t:F5}s │ {projectilePosStr:,-26} │ {GameConstants.FormatDistance(projectileRange):>15} │ {targetPosStr:,-25} │ {GameConstants.FormatDistance(targetRange):>12}\n");
+                    Console.Write($"{diffConfig.LaunchDelayPrecision.Format(t)}s │ {projectilePosStr,-26} │ {diffConfig.FormatDistance(projectileRange),15} │ {targetPosStr,-25} │ {diffConfig.FormatDistance(targetRange),12}\n");
                 }
 
-                // Early exit if projectile has clearly passed or is beyond reasonable range
                 if (projectileTime > 30.0 || projectileRange > 3_000_000)
                     break;
             }
@@ -286,111 +254,74 @@ namespace Spacegun_Simulator.FireControlTools
         }
 
         // ====================================================================
-        // INPUT HELPERS
+        // INPUT HELPERS (with difficulty-aware precision)
         // ====================================================================
 
-        /// <summary>
-        /// Get player input for launch delay time.
-        /// Prepopulates with last used value, allowing player to press Enter to keep it.
-        /// </summary>
-        private static double GetPlayerTimeInput(string prompt, double defaultValue)
+        private static double GetPlayerTimeInput(string prompt, double defaultValue, DifficultyConfig diffConfig)
         {
             while (true)
             {
-                Console.Write($"{prompt} [{defaultValue:F5}s]: ");
+                Console.Write($"{prompt} [{diffConfig.FormatLaunchDelay(defaultValue)}]: ");
                 string input = Console.ReadLine() ?? "";
 
-                // If empty, use default
                 if (string.IsNullOrWhiteSpace(input))
-                {
                     return defaultValue;
-                }
 
                 if (double.TryParse(input, out double time) && time >= 0)
-                {
                     return time;
-                }
 
                 Console.WriteLine("Invalid input. Please enter a non-negative time value in seconds.\n");
             }
         }
 
-        /// <summary>
-        /// Get player input for elevation angle.
-        /// Prepopulates with last used value, allowing player to press Enter to keep it.
-        /// </summary>
-        private static double GetPlayerElevationInput(string prompt, double defaultValue)
+        private static double GetPlayerElevationInput(string prompt, double defaultValue, DifficultyConfig diffConfig)
         {
             while (true)
             {
-                Console.Write($"{prompt} [{defaultValue:F1}°]: ");
+                Console.Write($"{prompt} [{diffConfig.FormatElevation(defaultValue)}]: ");
                 string input = Console.ReadLine() ?? "";
 
-                // If empty, use default
                 if (string.IsNullOrWhiteSpace(input))
-                {
                     return defaultValue;
-                }
 
                 if (double.TryParse(input, out double angle) && angle >= -90 && angle <= 90)
-                {
                     return angle;
-                }
 
                 Console.WriteLine("Invalid input. Please enter an angle between -90 and 90 degrees.\n");
             }
         }
 
-        /// <summary>
-        /// Get player input for azimuth bearing.
-        /// Prepopulates with last used value, allowing player to press Enter to keep it.
-        /// 0° = North (+Y direction), 90° = East (+X direction)
-        /// </summary>
-        private static double GetPlayerAzimuthInput(string prompt, double defaultValue)
+        private static double GetPlayerAzimuthInput(string prompt, double defaultValue, DifficultyConfig diffConfig)
         {
             while (true)
             {
-                Console.Write($"{prompt} [{defaultValue:F1}°]: ");
+                Console.Write($"{prompt} [{diffConfig.FormatAzimuth(defaultValue)}]: ");
                 string input = Console.ReadLine() ?? "";
 
-                // If empty, use default
                 if (string.IsNullOrWhiteSpace(input))
-                {
                     return defaultValue;
-                }
 
                 if (double.TryParse(input, out double bearing) && bearing >= 0 && bearing < 360)
-                {
                     return bearing;
-                }
 
                 Console.WriteLine("Invalid input. Please enter a bearing between 0 and 360 degrees.\n");
             }
         }
 
-        /// <summary>
-        /// Get player input for launch velocity.
-        /// Prepopulates with last used value, allowing player to press Enter to keep it.
-        /// </summary>
-        private static double GetPlayerVelocityInput(string prompt, double defaultValue, float muzzleVelocity)
+        private static double GetPlayerVelocityInput(string prompt, double defaultValue, float muzzleVelocity, DifficultyConfig diffConfig)
         {
             while (true)
             {
-                Console.Write($"{prompt} [{defaultValue:F0} m/s]: ");
+                Console.Write($"{prompt} [{diffConfig.VelocityPrecision.Format(defaultValue)} m/s]: ");
                 string input = Console.ReadLine() ?? "";
 
-                // If empty, use default
                 if (string.IsNullOrWhiteSpace(input))
-                {
                     return defaultValue;
-                }
 
                 if (double.TryParse(input, out double velocity) && velocity >= 0 && velocity <= muzzleVelocity)
-                {
                     return velocity;
-                }
 
-                Console.WriteLine($"Invalid input. Please enter a velocity between 0 and {muzzleVelocity:F0} m/s.\n");
+                Console.WriteLine($"Invalid input. Please enter a velocity between 0 and {diffConfig.VelocityPrecision.Format(muzzleVelocity)} m/s.\n");
             }
         }
     }

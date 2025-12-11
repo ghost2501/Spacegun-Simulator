@@ -164,5 +164,13 @@
             5 => "★★★★★ Extreme",
             _ => "Unknown"
         };
+
+        public static double CalculateDiameterFromMass(double massTons, double densityKgM3 = 500.0)
+        {
+            double massKg = massTons * 1000.0;
+            double volumeM3 = massKg / densityKgM3;
+            double radiusM = Math.Pow(3.0 * volumeM3 / (4.0 * Math.PI), 1.0 / 3.0);
+            return radiusM * 2.0;
+        }
     }
 }

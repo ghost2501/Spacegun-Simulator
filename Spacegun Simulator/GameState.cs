@@ -68,6 +68,10 @@
         /// </summary>
         public DifficultyConfig DifficultyConfig => DifficultyConfig.GetConfig(SelectedDifficulty);
 
+        // ===== NEW: Tech Tree System =====
+        public TechTree TechTree { get; set; }
+        public RandomEvent? CurrentWaveEvent { get; set; }
+
         public GameState(int? seed = null, GameDifficulty difficulty = GameDifficulty.CometsAndAsteroids)
         {
             Gun = new GunConfiguration();
@@ -80,6 +84,7 @@
             CurrentPhase = GamePhase.Detection;
             rng = seed.HasValue ? new Random(seed.Value) : new Random();
             SelectedDifficulty = difficulty;
+            TechTree = new TechTree();  // Initialize at level 1 in all trees
 
             InitializeResourceAccumulation();
 
@@ -114,10 +119,75 @@
         public DetectionPhaseResult ExecuteDetectionPhase()
         {
             var result = new DetectionPhaseResult();
+            var diffConfig = DifficultyConfig.GetConfig(SelectedDifficulty);
 
-            // Generate wave with single target using campaign enemy type
-            CurrentWave = EnemyWave.GenerateWave(CurrentWaveNumber, rng, CampaignEnemyType);
-            CurrentWave.Targets = CurrentWave.Targets.Take(1).ToList();
+            // ===== TUTORIAL MODE: Use simplified beachball waves =====
+            if (diffConfig.IsTutorialMode)
+            {
+                CurrentWave = EnemyWave.GenerateTutorialWave(CurrentWaveNumber, rng);
+                result.Wave = CurrentWave;
+
+                // Tutorial waves are always detected - use existing Detection system
+                CurrentDetectionStatus = Detection.GetDetectionStatus(CurrentWave);
+                // Override to ensure detection for tutorial
+                if (!CurrentDetectionStatus.IsDetected)
+                {
+                    // Force detection for tutorial mode
+                    CurrentDetectionStatus = new DetectionStatus { IsDetected = true };
+                }
+                result.DetectionStatus = CurrentDetectionStatus;
+
+                // Tutorial uses simple time (seconds, not years)
+                AvailableYears = 1;  // Minimal - tutorial skips resource phase anyway
+                RemainingYears = AvailableYears;
+                InitializeResourceAccumulation();
+
+                result.WaveDetected = true;
+                result.AvailableYears = AvailableYears;
+                result.Message = $"🎯 Tutorial Wave {CurrentWaveNumber}: {CurrentWave.Archetype.Name}\n" +
+                                 $"Target at {CurrentWave.InitialDistance:F0} meters, approaching at {CurrentWave.AverageVelocity:F0} m/s";
+
+                // Tutorial skips resource phases - go directly to firing
+                CurrentPhase = diffConfig.SkipResourcePhases ? GamePhase.Firing : GamePhase.ResourceAllocation;
+
+                // Pre-generate the firing problem for tutorial
+                if (CurrentFiringProblem == null)
+                {
+                    CurrentFiringProblem = GenerateTutorialFiringProblem(CurrentWave);
+                }
+
+                return result;
+            }
+
+            // ===== STANDARD MODE: Use pre-generated wave if available =====
+            if (PreGeneratedWaves.Count > 0 && CurrentWaveIndex < PreGeneratedWaves.Count)
+            {
+                // Retrieve the pre-generated firing problem for this wave
+                var preGenProblem = PreGeneratedWaves[CurrentWaveIndex];
+                
+                // Generate wave data for display (detection stats), but use cached trajectory
+                CurrentWave = EnemyWave.GenerateWave(CurrentWaveNumber, rng, CampaignEnemyType);
+                CurrentWave.Targets = CurrentWave.Targets.Take(1).ToList();
+                
+                // Apply pre-generated trajectory data to ensure consistency
+                CurrentWave.CachedEnemyPosition = preGenProblem.EnemyPosition;
+                CurrentWave.CachedEnemyVelocity = preGenProblem.EnemyVelocity;
+                CurrentWave.ApproachElevation = preGenProblem.ApproachElevation;
+                CurrentWave.ApproachAzimuth = preGenProblem.ApproachAzimuth;
+                CurrentWave.CachedCorrectLaunchDelayTime = preGenProblem.CorrectLaunchDelayTime;
+                CurrentWave.CachedCorrectElevation = preGenProblem.CorrectElevation;
+                CurrentWave.CachedCorrectAzimuth = preGenProblem.CorrectAzimuth;
+                CurrentWave.CachedCorrectVelocity = preGenProblem.CorrectVelocity;
+                
+                // Store the pre-generated firing problem for use in firing phase
+                CurrentFiringProblem = preGenProblem;
+            }
+            else
+            {
+                // Fallback: Generate wave fresh (for testing or if pre-generation was skipped)
+                CurrentWave = EnemyWave.GenerateWave(CurrentWaveNumber, rng, CampaignEnemyType);
+                CurrentWave.Targets = CurrentWave.Targets.Take(1).ToList();
+            }
 
             result.Wave = CurrentWave;
 
@@ -139,7 +209,7 @@
             double distanceToGunRange = CurrentWave.InitialDistance - tier.MaxEffectiveGunRange;
 
             // Store in BOTH seconds and years for consistency
-            availableSecondsForGunRange = distanceToGunRange / CurrentWave.AverageVelocity;
+            double availableSecondsForGunRange = distanceToGunRange / CurrentWave.AverageVelocity;
 
             // Round to whole years, minimum 1 year
             AvailableYears = Math.Max(1, (long)Math.Round(availableSecondsForGunRange / GameConstants.SecondsPerYear));
@@ -152,6 +222,114 @@
 
             CurrentPhase = GamePhase.ResourceAllocation;
             return result;
+        }
+
+        /// <summary>
+        /// Generate a firing problem for tutorial mode.
+        /// Uses the pre-calculated vectors from the tutorial wave.
+        /// </summary>
+        private FiringProblem GenerateTutorialFiringProblem(EnemyWave wave)
+        {
+            var target = wave.Targets[0];
+
+            // Use cached vectors from tutorial wave generation (Vector3 uses double internally)
+            Vector3 enemyPosition = wave.CachedEnemyPosition ?? new Vector3(wave.InitialDistance, 0.0, 0.0);
+            Vector3 enemyVelocity = wave.CachedEnemyVelocity ?? Vector3.Zero;
+
+            // Calculate correct solution for tutorial
+            // Simple case: fire directly at where the target will be
+            double muzzleVelocity = DifficultyConfig.TutorialPotatoCannon.MuzzleVelocityMs;
+            double flightTimeDouble = wave.InitialDistance / muzzleVelocity;
+
+            // For stationary targets, aim directly at them
+            // For moving targets, lead the target
+            Vector3 interceptPoint = enemyPosition + (enemyVelocity * flightTimeDouble);
+
+            // Calculate angles to intercept point
+            double interceptDistance = interceptPoint.Magnitude;
+            
+            // Handle edge case where intercept distance is zero (stationary target at origin)
+            float elevation = 0f;
+            float azimuth = 0f;
+            if (interceptDistance > 0.001)
+            {
+                elevation = (float)(Math.Asin(interceptPoint.Z / interceptDistance) * 180.0 / Math.PI);
+                azimuth = (float)(Math.Atan2(interceptPoint.X, interceptPoint.Y) * 180.0 / Math.PI);
+                if (azimuth < 0f) azimuth += 360f;
+            }
+
+            return new FiringProblem
+            {
+                EnemyPosition = enemyPosition,
+                EnemyVelocity = enemyVelocity,
+                ApproachElevation = wave.ApproachElevation,
+                ApproachAzimuth = wave.ApproachAzimuth,
+                ApproachSpeed = (float)wave.AverageVelocity,
+                EngagementDistance = (float)wave.InitialDistance,
+                FractureEnergyRequired = (float)target.FractureEnergy,
+                CorrectLaunchDelayTime = 0f,  // Fire immediately in tutorial
+                CorrectElevation = elevation,
+                CorrectAzimuth = azimuth,
+                CorrectVelocity = (float)muzzleVelocity
+            };
+        }
+
+        /// <summary>
+        /// Check for random events at the start of resource allocation.
+        /// Events occur every 3rd wave and affect production rates.
+        /// </summary>
+        public void GenerateWaveEvent()
+        {
+            if (RandomEvent.ShouldHaveEvent(CurrentWaveNumber))
+            {
+                CurrentWaveEvent = RandomEvent.GenerateEvent(CurrentWaveNumber, rng);
+            }
+            else
+            {
+                CurrentWaveEvent = null;
+            }
+        }
+
+        /// <summary>
+        /// Research a tech using accumulated resources.
+        /// Returns true if research was successful.
+        /// </summary>
+        public bool ResearchTech(TechUnlock tech)
+        {
+            if (tech == null)
+                return false;
+
+            // Create resource cost from accumulated resources
+            var availableResources = new Dictionary<string, double>(AccumulatedResources);
+
+            // Try to research using TechUnlock helper
+            if (!TechUnlock.ResearchTech(tech, TechTree, AccumulatedResources))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Get all available tech researches for the current state.
+        /// Filters by what can be researched (< level 3) and what player can afford.
+        /// </summary>
+        public List<TechUnlock> GetAvailableTechs()
+        {
+            var available = TechUnlock.GetAvailableUnlocks(TechTree);
+            
+            // Filter by affordability
+            return available.Where(tech => 
+            {
+                double budget = AccumulatedResources.ContainsKey("Budget") ? AccumulatedResources["Budget"] : 0;
+                double steel = AccumulatedResources.ContainsKey("Steel") ? AccumulatedResources["Steel"] : 0;
+                double exotic = AccumulatedResources.ContainsKey("Exotic") ? AccumulatedResources["Exotic"] : 0;
+
+                return budget >= tech.ResearchCost.Budget &&
+                       steel >= tech.ResearchCost.Steel &&
+                       exotic >= tech.ResearchCost.ExoticMaterials;
+            }).ToList();
         }
 
         // ====================================================================
@@ -186,10 +364,14 @@
             if (totalYears > RemainingYears)
                 throw new InvalidOperationException($"Cannot allocate {totalYears} years, only {RemainingYears} available.");
 
+            // Get event multiplier (applies to ALL resources uniformly)
+            double eventMultiplier = CurrentWaveEvent?.ProductionMultiplier ?? 1.0;
+
             // Convert years to resources (1 year = 1 production token)
-            double steelGathered = steelYearsWhole * GameConstants.SteelProductionPerYear;
-            double exoticGathered = exoticYearsWhole * GameConstants.ExoticProductionPerYear;
-            double budgetGathered = budgetYearsWhole * GameConstants.BudgetProductionPerYear;
+            // Apply event multiplier to all gathered resources
+            double steelGathered = steelYearsWhole * GameConstants.SteelProductionPerYear * eventMultiplier;
+            double exoticGathered = exoticYearsWhole * GameConstants.ExoticProductionPerYear * eventMultiplier;
+            double budgetGathered = budgetYearsWhole * GameConstants.BudgetProductionPerYear * eventMultiplier;
 
             // Add to accumulated
             AccumulatedResources["Steel"] += steelGathered;
@@ -315,50 +497,73 @@
 
             var target = CurrentWave.Targets[0];
             var tier = GameConstants.GetTierForWave(CurrentWaveNumber);
+            var diffConfig = DifficultyConfig.GetConfig(SelectedDifficulty);
+
+            // ===== TUTORIAL MODE: Use potato cannon specs =====
+            if (diffConfig.IsTutorialMode && SelectedGunProjectileSpec == null)
+            {
+                SelectedGunProjectileSpec = GunProjectileSpec.PotatoCannon;
+            }
 
             // ===== CRITICAL: Only generate if NOT already generated =====
             // If CurrentFiringProblem already exists, reuse it (from a prior call or load)
             if (CurrentFiringProblem == null)
             {
-                var solver = new FiringSolution(
-                    (float)(SelectedGunProjectileSpec?.ProjectileMassKg ?? Gun.DefaultProjectile.Mass),
-                    (float)target.FractureEnergy,
-                    target.Mass);
-
-                FiringProblem firingProblem = null!;
-                try
+                // For tutorial mode, use the tutorial firing problem generator
+                if (diffConfig.IsTutorialMode)
                 {
-                    // Pass gun's effective range to constrain engagement
-                    firingProblem = solver.GenerateFiringProblem(
-                        CurrentWave,
-                        (float)(SelectedGunProjectileSpec?.MuzzleVelocityMs ??
-                                BallisticsCalculator.CalculateMuzzleVelocity(Gun, Gun.DefaultProjectile)),
-                        (float)tier.MaxEffectiveGunRange,
-                        rng);
+                    CurrentFiringProblem = GenerateTutorialFiringProblem(CurrentWave);
                 }
-                catch (InvalidOperationException ex)
+                else
                 {
-                    return new FiringPhaseResult
+                    var solver = new FiringSolution(
+                        (float)(SelectedGunProjectileSpec?.ProjectileMassKg ?? Gun.DefaultProjectile.Mass),
+                        (float)target.FractureEnergy,
+                        target.Mass);
+
+                    FiringProblem firingProblem = null!;
+                    try
                     {
-                        CanReachTarget = false,
-                        TargetDistance = 1_100_000,
-                        GunRange = tier.MaxEffectiveGunRange,
-                        Message = $"Gun is insufficient for this target: {ex.Message}",
-                        Reward = null,
-                        GameOver = false
-                    };
-                }
+                        // Pass gun's effective range to constrain engagement
+                        firingProblem = solver.GenerateFiringProblem(
+                            CurrentWave,
+                            (float)(SelectedGunProjectileSpec?.MuzzleVelocityMs ??
+                                    BallisticsCalculator.CalculateMuzzleVelocity(Gun, Gun.DefaultProjectile)),
+                            (float)tier.MaxEffectiveGunRange,
+                            rng);
+                    }
+                    catch (InvalidOperationException exception)
+                    {
+                        System.Console.WriteLine($"Warning: Failed to generate firing problem: {exception.Message}");
+                        return new FiringPhaseResult
+                        {
+                            CanReachTarget = false,
+                            TargetDistance = 1_100_000,
+                            GunRange = tier.MaxEffectiveGunRange,
+                            Message = $"Gun is insufficient for this target: {exception.Message}",
+                            Reward = null,
+                            GameOver = false
+                        };
+                    }
 
-                // Store for use in ConsoleUI firing phase
-                CurrentFiringProblem = firingProblem;
+                    // Store for use in ConsoleUI firing phase
+                    CurrentFiringProblem = firingProblem;
+                }
             }
+
+            // For tutorial, use tutorial effective range
+            double effectiveRange = diffConfig.IsTutorialMode 
+                ? DifficultyConfig.TutorialPotatoCannon.EffectiveRangeMeters 
+                : tier.MaxEffectiveGunRange;
 
             return new FiringPhaseResult
             {
                 CanReachTarget = true,
                 TargetDistance = CurrentFiringProblem.EngagementDistance,
-                GunRange = tier.MaxEffectiveGunRange,
-                Message = $"Target at engagement distance {GameConstants.FormatDistance(CurrentFiringProblem.EngagementDistance)}",
+                GunRange = effectiveRange,
+                Message = diffConfig.IsTutorialMode
+                    ? $"🎯 Beachball at {CurrentFiringProblem.EngagementDistance:F0} meters - Ready to fire!"
+                    : $"Target at engagement distance {GameConstants.FormatDistance(CurrentFiringProblem.EngagementDistance)}",
                 Reward = null,
                 GameOver = false
             };
@@ -375,7 +580,8 @@
         {
             CurrentWave = null;
             CurrentDetectionStatus = null;
-            CurrentFiringProblem = null;  // ← ADD THIS LINE
+            CurrentFiringProblem = null;
+            CurrentWaveNumber++;  // ADD THIS LINE
             CurrentPhase = GamePhase.Detection;
         }
 
@@ -567,19 +773,39 @@
 
         /// <summary>
         /// Pre-generate all campaign waves at startup.
-        /// Each wave is validated to be solvable before caching.
-        /// Called once during game initialization after difficulty selection.
-        /// 
-        /// CRITICAL: This happens BEFORE any gameplay begins, ensuring all waves
-        /// are available and consistent throughout the campaign.
-        /// 
-        /// KEY CHANGE: Uses tier-appropriate player max velocity for each wave,
-        /// ensuring solvable geometry that matches the tier's difficulty.
-        /// 
-        /// PERFORMANCE: Typical campaign (25 waves) generates in <2 seconds on modern hardware.
+        /// For tutorial mode, generates simplified beachball scenarios.
+        /// For standard mode, generates full ballistic challenges.
         /// </summary>
         public void GenerateAllCampaignWaves(int campaignLength)
         {
+            var diffConfig = DifficultyConfig.GetConfig(SelectedDifficulty);
+
+            // ===== TUTORIAL MODE: Generate simple beachball scenarios =====
+            if (diffConfig.IsTutorialMode)
+            {
+                Console.WriteLine($"[TUTORIAL] Generating {campaignLength} beachball scenarios...");
+                PreGeneratedWaves.Clear();
+                CurrentWaveIndex = 0;
+
+                for (int waveNumber = 1; waveNumber <= campaignLength; waveNumber++)
+                {
+                    try
+                    {
+                        var wave = EnemyWave.GenerateTutorialWave(waveNumber, rng);
+                        var problem = GenerateTutorialFiringProblem(wave);
+                        PreGeneratedWaves.Add(problem);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"  Error generating tutorial wave {waveNumber}: {ex.Message}");
+                    }
+                }
+
+                Console.WriteLine($"✓ Tutorial scenarios ready!");
+                return;
+            }
+
+            // ===== STANDARD MODE: Pre-generate complex firing problems =====
             Console.WriteLine($"[CAMPAIGN GENERATION] Pre-generating {campaignLength} firing problems...");
             PreGeneratedWaves.Clear();
             CurrentWaveIndex = 0;
@@ -601,10 +827,12 @@
                     var (_, _, playerMin, playerMax) = GameConstants.GetTierVelocityConstraints(tierIndex);
                     float campaignReferenceVelocity = (float)playerMax;
 
+                    // FIX: Use actual target data from generated wave instead of hardcoded values
+                    var target = wave.Targets[0];
                     var firingSolution = new FiringSolution(
                         (float)Gun.DefaultProjectile.Mass,
-                        (float)(CampaignEnemyType?.Archetype?.FractureEnergyRange.Max ?? 50000),
-                        10000.0);
+                        (float)target.FractureEnergy,
+                        target.Mass);
 
                     var problem = firingSolution.GenerateFiringProblem(
                         wave,
@@ -621,6 +849,7 @@
                 }
                 catch (Exception ex)
                 {
+                    Console.WriteLine($"  Error generating wave {waveNumber}: {ex.Message}");
                     failureCount++;
                 }
             }
