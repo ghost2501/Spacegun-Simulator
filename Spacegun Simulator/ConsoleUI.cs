@@ -935,7 +935,18 @@ namespace Spacegun_Simulator
             Console.WriteLine($"Enemy Velocity Vector: ({FiringPhaseFormatter.FormatVelocity(enemyVelocity.X, engine.SelectedDifficulty)}, {FiringPhaseFormatter.FormatVelocity(enemyVelocity.Y, engine.SelectedDifficulty)}, {FiringPhaseFormatter.FormatVelocity(enemyVelocity.Z, engine.SelectedDifficulty)}) m/s");
             Console.WriteLine($"Approach Speed: {FiringPhaseFormatter.FormatVelocity(firingProblem.ApproachSpeed, engine.SelectedDifficulty)} m/s");
             Console.WriteLine($"Fracture Energy Required: {FiringPhaseFormatter.FormatEnergy(firingProblem.FractureEnergyRequired, engine.SelectedDifficulty)}");
-            Console.WriteLine($"Target Radar Cross-Section: {FiringPhaseFormatter.FormatRadarCrossSection(targetRadarCrossSection, engine.SelectedDifficulty)} m²\n");
+            
+            // Display hit tolerance instead of RCS for tutorial mode
+            var diffConfig = DifficultyConfig.GetConfig(engine.SelectedDifficulty);
+            if (diffConfig.IsTutorialMode)
+            {
+                double hitTolerance = DifficultyConfig.TutorialBeachball.RadiusMeters;
+                Console.WriteLine($"Hit Tolerance: {hitTolerance:F1} m (beachball radius)\n");
+            }
+            else
+            {
+                Console.WriteLine($"Target Radar Cross-Section: {FiringPhaseFormatter.FormatRadarCrossSection(targetRadarCrossSection, engine.SelectedDifficulty)} m²\n");
+            }
 
             bool workflowComplete = false;
 
@@ -1214,9 +1225,26 @@ namespace Spacegun_Simulator
             {
                 Vector3 enemyAtT = solution.EnemyInterceptPoint.Value;
                 Console.WriteLine($"Enemy at intercept: {enemyAtT}");
-                Console.WriteLine($"  Position deviation: {solution.InterceptDeviation:F0} meters");
-                Console.WriteLine($"  Target radar cross-section: {targetRCS:F1} m²");
-                Console.WriteLine($"✓ Accuracy Check: {(solution.CanHit ? "PASS" : "FAIL")} ({solution.InterceptDeviation:F0}m deviation vs {targetRCS:F1}m² target)\n");
+                Console.WriteLine($"  Position deviation: {solution.InterceptDeviation:F1} meters");
+                
+                // Calculate and display actual hit tolerance used
+                var diffConfig = DifficultyConfig.GetConfig(engine.SelectedDifficulty);
+                double hitTolerance;
+                if (diffConfig.IsTutorialMode)
+                {
+                    hitTolerance = DifficultyConfig.TutorialBeachball.RadiusMeters;  // 1.0m
+                    Console.WriteLine($"  Hit tolerance: {hitTolerance:F1} m (beachball radius)");
+                }
+                else
+                {
+                    // For non-tutorial modes, estimate hit tolerance from RCS
+                    // This is approximate - the real calculation is in FiringSolution
+                    double diameterFromRCS = 2.0 * Math.Sqrt(targetRCS / Math.PI);
+                    hitTolerance = diameterFromRCS * 0.5 * diffConfig.HitToleranceMultiplier;
+                    Console.WriteLine($"  Hit tolerance: {hitTolerance:F1} m (from {targetRCS:F1} m² RCS)");
+                }
+                
+                Console.WriteLine($"✓ Accuracy Check: {(solution.CanHit ? "PASS" : "FAIL")} ({solution.InterceptDeviation:F1}m deviation vs {hitTolerance:F1}m tolerance)");
             }
             else
             {
@@ -1224,7 +1252,7 @@ namespace Spacegun_Simulator
                 Console.WriteLine($"✗ Accuracy Check: FAIL\n");
             }
 
-            Console.WriteLine("=== OVERALL SOLUTION VALIDITY ===");
+            Console.WriteLine("\n=== OVERALL SOLUTION VALIDITY ===");
             Console.WriteLine($"Energy sufficient: {(solution.CanDestroy ? "✓ Yes" : "✗ No")}");
             Console.WriteLine($"Accuracy valid: {(solution.CanHit ? "✓ Yes" : "✗ No")}");
             Console.WriteLine($"Solution valid: {(solution.SolutionValid ? "✓ Yes" : "✗ No")}");

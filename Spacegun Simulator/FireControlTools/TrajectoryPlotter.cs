@@ -13,6 +13,7 @@ namespace Spacegun_Simulator.FireControlTools
         private const float GRAVITY = 9.81f;
 
         // Store last test parameters for "modify and retry" feature
+        // NOTE: These are reset to appropriate values based on difficulty when tool starts
         private static float lastLaunchVelocity = 200_000f;
         private static float lastElevationDegrees = 45f;
         private static float lastAzimuthDegrees = 0f;
@@ -31,6 +32,27 @@ namespace Spacegun_Simulator.FireControlTools
         {
             var diffConfig = DifficultyConfig.GetConfig(difficulty);
             bool inTool = true;
+
+            // Initialize defaults based on difficulty mode
+            if (!hasLastTest)
+            {
+                if (diffConfig.IsTutorialMode)
+                {
+                    // Tutorial: Use potato cannon specs
+                    lastLaunchVelocity = (float)DifficultyConfig.TutorialPotatoCannon.MuzzleVelocityMs;  // 50 m/s
+                    lastElevationDegrees = 45f;
+                    lastAzimuthDegrees = 0f;
+                    lastFlightTime = 2f;  // Shorter flight time for tutorial ranges
+                }
+                else
+                {
+                    // Standard game: Use high-velocity defaults
+                    lastLaunchVelocity = 200_000f;
+                    lastElevationDegrees = 45f;
+                    lastAzimuthDegrees = 0f;
+                    lastFlightTime = 10f;
+                }
+            }
 
             while (inTool)
             {

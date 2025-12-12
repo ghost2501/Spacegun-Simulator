@@ -166,6 +166,9 @@ namespace Spacegun_Simulator
             // - Target: 2m diameter beachball at 100m, moving in a gentle arc
             // - Weapon: Potato cannon (~50 m/s muzzle velocity)
             // - All numbers are small, round, and easy to work with
+            //
+            // PRECISION: 1 decimal place - teaches that precision matters
+            // while keeping numbers manageable for mental math.
             // ================================================================
             GameDifficulty.PotatoCannonsAndBeachballs => new DifficultyConfig
             {
@@ -175,7 +178,7 @@ namespace Spacegun_Simulator
                     "Learn the basics of ballistic interception!\n" +
                     "A 2-meter beachball is floating toward you in a gentle arc.\n" +
                     "Your weapon: a trusty potato cannon.\n\n" +
-                    "• Simple, round numbers\n" +
+                    "• Simple numbers with 1 decimal place\n" +
                     "• No resource management\n" +
                     "• Generous hit tolerance (1 meter)\n" +
                     "• Perfect for learning the workflow",
@@ -184,16 +187,16 @@ namespace Spacegun_Simulator
                 SkipResourcePhases = true,
                 IsTutorialMode = true,
 
-                // TUTORIAL: Whole numbers only - easiest possible precision
+                // TUTORIAL: 1 decimal place - simple but teaches precision concept
                 // At 100m range with 50 m/s projectile:
-                // 1s error = 50m miss, 1° error = 1.7m miss
-                // With 1m tolerance, need to be within ~0.02s and ~30° (very forgiving)
-                LaunchDelayPrecision = new PrecisionConfig { DecimalPlaces = 0, Increment = 1.0 },
-                ElevationPrecision = new PrecisionConfig { DecimalPlaces = 0, Increment = 1.0 },
-                AzimuthPrecision = new PrecisionConfig { DecimalPlaces = 0, Increment = 1.0 },
-                VelocityPrecision = new PrecisionConfig { DecimalPlaces = 0, Increment = 1.0 },
-                DistancePrecision = new PrecisionConfig { DecimalPlaces = 0, Increment = 1.0 },
-                EnergyPrecision = new PrecisionConfig { DecimalPlaces = 0, Increment = 1.0 },
+                // 0.1s error ≈ 5m miss, 0.1° error ≈ 0.17m miss
+                // With 1m tolerance, need reasonable precision but still forgiving
+                LaunchDelayPrecision = new PrecisionConfig { DecimalPlaces = 1, Increment = 0.1 },
+                ElevationPrecision = new PrecisionConfig { DecimalPlaces = 1, Increment = 0.1 },
+                AzimuthPrecision = new PrecisionConfig { DecimalPlaces = 1, Increment = 0.1 },
+                VelocityPrecision = new PrecisionConfig { DecimalPlaces = 1, Increment = 0.1 },  // FIXED: Was 0 decimal places
+                DistancePrecision = new PrecisionConfig { DecimalPlaces = 1, Increment = 0.1 },
+                EnergyPrecision = new PrecisionConfig { DecimalPlaces = 1, Increment = 0.1 },
                 MassPrecision = new PrecisionConfig { DecimalPlaces = 1, Increment = 0.1 }
             },
 

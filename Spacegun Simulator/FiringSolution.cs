@@ -184,18 +184,25 @@ namespace Spacegun_Simulator
         /// Calculate hit tolerance as 0.5 × target diameter, modified by difficulty settings.
         /// 
         /// DIFFICULTY MODIFIERS:
+        /// - PotatoCannonsAndBeachballs: Fixed 1m tolerance (beachball radius)
         /// - NuclearOption: 100x tolerance (warhead blast radius)
         /// - CometsAndAsteroids: Target RCS already 10x larger (asteroid size)
         /// - RealSpacegunSimulator: No modifiers (pure ballistics)
         /// </summary>
-        private float CalculateHitTolerance(double rcsMultiplier = 1.0, double toleranceMultiplier = 1.0)
+        private float CalculateHitTolerance(double rcsMultiplier = 1.0, double toleranceMultiplier = 1.0, GameDifficulty difficulty = GameDifficulty.RealSpacegunSimulator)
         {
-            // FIX: Use consolidated BallisticsCalculator method instead of local duplicate
+            // TUTORIAL MODE: Fixed 1m tolerance (beachball radius)
+            // The mass-based diameter calculation doesn't work for lightweight objects
+            var diffConfig = DifficultyConfig.GetConfig(difficulty);
+            if (diffConfig.IsTutorialMode)
+            {
+                return (float)DifficultyConfig.TutorialBeachball.RadiusMeters;  // 1.0m
+            }
+
+            // STANDARD MODE: Calculate diameter from mass using ship density formula
             double diameterM = BallisticsCalculator.CalculateDiameterFromMass(enemyMass);
 
             // Apply RCS multiplier (affects apparent size)
-            // RCS = π * (diameter/2)² for a sphere
-            // If RCS is 10x larger, effective diameter increases by sqrt(10) ≈ 3.16x
             if (rcsMultiplier > 1.0)
             {
                 double rcsLinear = Math.Sqrt(rcsMultiplier);
@@ -654,11 +661,12 @@ namespace Spacegun_Simulator
             // Calculate hit tolerance WITH difficulty modifiers
             float hitTolerance = CalculateHitTolerance(
                 diffConfig.TargetRcsMultiplier,
-                diffConfig.HitToleranceMultiplier);
+                diffConfig.HitToleranceMultiplier,
+                difficulty);  // Pass difficulty for tutorial mode check
 
             //Console.WriteLine($"  Hit tolerance: {hitTolerance:F1} m, Actual deviation: {bestDeviation:F1} m");
 
-            bool canHit = bestDeviation < hitTolerance;
+            bool canHit = bestDeviation <= hitTolerance;  // Changed from < to <=
 
             // In Easy mode (Nuclear Option), warhead guarantees destruction - no velocity check needed
             bool hasEnergy = difficulty == GameDifficulty.NuclearOption
