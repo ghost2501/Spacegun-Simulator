@@ -303,15 +303,15 @@ namespace Spacegun_Simulator
             }
 
             // ===== FRESH WAVE: Generate trajectory with T+0 = gun range entry =====
-            
+
             // STEP 1: Generate approach angles (where is enemy coming from?)
             float approachElev = 20f + (float)(rng.NextDouble() * 50f);
             float approachAzim = (float)(rng.NextDouble() * 360f);
-            
+
             // STEP 2: Set T+0 position AT gun range boundary
             // Enemy is exactly at gun range, approaching along its velocity vector
             Vector3 enemyAtT0 = AnglesToCartesian(approachElev, approachAzim, gunEffectiveRange);
-            
+
             // STEP 3: Generate intercept geometry (dramatic arc)
             // Enemy will be intercepted at a different angle/altitude after some time
             float interceptElev = 5f + (float)(rng.NextDouble() * 80f);
@@ -404,18 +404,18 @@ namespace Spacegun_Simulator
 
             // IMPROVED PASS 1: GEOMETRY-GUIDED SEARCH
             //Console.WriteLine($"      [PASS 1] Geometry-guided search...");
-            
+
             var candidates = new List<(float delay, float elev, float azim, float vel, double deviation)>();
 
             // Estimate where enemy will be in the engagement window
             float estimatedEngagementTime = maxSearchTime * 0.5f;  // Mid-point estimate
             Vector3 estimatedEnemyPosition = CalculateEnemyPosition(estimatedEngagementTime, enemyInitialPosition, enemyVelocity);
             var (estimatedElev, estimatedAzim) = CartesianToAngles(estimatedEnemyPosition);
-            
+
             // Search elevation: ±30° around estimated
             float elevMin = Math.Max(5f, (float)estimatedElev - 30f);
             float elevMax = Math.Min(85f, (float)estimatedElev + 30f);
-            
+
             // Search azimuth: ±45° around estimated
             float azimMin = (float)estimatedAzim - 45f;
             float azimMax = (float)estimatedAzim + 45f;
@@ -436,21 +436,21 @@ namespace Spacegun_Simulator
                         // Estimate velocity needed to reach this engagement point
                         Vector3 direction = enemyAtT;  // From gun to enemy at time T
                         double distanceToEnemy = direction.Magnitude;
-                        
+
                         for (float flightTime = 1f; flightTime <= Math.Min(30f, engagementTime); flightTime += 0.5f)  // FINER flight times
                         {
                             // Estimate required velocity for this geometry
                             double estimatedVelNeeded = distanceToEnemy / flightTime;
-                        
+
                             // Search velocity range around estimate (±30%)
                             float velMin = Math.Max(minSearchVelocity, (float)estimatedVelNeeded * 0.7f);
                             float velMax = Math.Min(maxGunVelocity, (float)estimatedVelNeeded * 1.3f);
-                        
+
                             for (float vel = velMin; vel <= velMax; vel += Math.Max(500f, (velMax - velMin) / 10f))
                             {
                                 Vector3 projAtFlight = CalculateProjectilePosition(flightTime, vel, elev, azim);
                                 Vector3 enemyAtIntercept = CalculateEnemyPosition(engagementTime + flightTime, enemyInitialPosition, enemyVelocity);
-                                
+
                                 Vector3 deviation = projAtFlight - enemyAtIntercept;
                                 double distance = deviation.Magnitude;
 
@@ -474,9 +474,9 @@ namespace Spacegun_Simulator
 
             // PASS 2: FINE SEARCH
             //Console.WriteLine($"      [PASS 2] Fine refinement...");
-            
+
             var topCandidates = candidates.OrderBy(c => c.deviation).Take(1).ToList();  // Top 1 only
-            
+
             foreach (var (baseDelay, baseElev, baseAzim, baseVel, baseDev) in topCandidates)
             {
                 for (float delayOffset = -0.5f; delayOffset <= 0.5f; delayOffset += 0.05f)
@@ -733,7 +733,7 @@ namespace Spacegun_Simulator
                 float elev = CenterElevation + (float)(rng.NextDouble() - 0.5) * 2 * ElevationSpread;
                 float azim = CenterAzimuth + (float)(rng.NextDouble() - 0.5) * 2 * AzimuthSpread;
                 float dist = DistanceMin + (float)rng.NextDouble() * (DistanceMax - DistanceMin);
-                
+
                 return AnglesToCartesian(elev, azim, dist);
             }
         }
@@ -749,11 +749,11 @@ namespace Spacegun_Simulator
                 // Random patch of sky - can come from any direction
                 CenterElevation = 10f + (float)(rng.NextDouble() * 70f),   // 10-80° elevation
                 CenterAzimuth = (float)(rng.NextDouble() * 360f),         // 0-360° azimuth
-                
+
                 // Small angular spread - enemies come from nearby patches
                 ElevationSpread = 3f + (float)(rng.NextDouble() * 5f),    // ±3-8° spread
                 AzimuthSpread = 3f + (float)(rng.NextDouble() * 5f),      // ±3-8° spread
-                
+
                 // Distance varies tier-by-tier
                 DistanceMin = 1_400_000f,                                  // 1.4M meters
                 DistanceMax = 1_900_000f                                   // 1.9M meters
@@ -768,36 +768,36 @@ namespace Spacegun_Simulator
             out (float LaunchDelayTime, float Elevation, float Azimuth, float Velocity) solution)
         {
             solution = default;
-            
+
             // Simple heuristic: intercept at enemy's mid-journey position
             float engagementTime = gunEffectiveRange / (float)enemyVelocity.Magnitude * 0.5f;
-            
+
             Vector3 enemyAtIntercept = CalculateEnemyPosition(engagementTime, enemyInitialPosition, enemyVelocity);
             double distanceToIntercept = enemyAtIntercept.Magnitude;
-            
+
             if (distanceToIntercept > gunEffectiveRange) return false;
-            
+
             var (elevTarget, azimTarget) = CartesianToAngles(enemyAtIntercept);
-            
+
             // Use 90% of max velocity (safe margin)
             float firingVelocity = maxGunVelocity * 0.9f;
-            
+
             // Estimate flight time needed
             float flightTime = (float)(distanceToIntercept / firingVelocity);
-            
+
             // Verify this solution works
             Vector3 projectileAtIntercept = CalculateProjectilePosition(flightTime, firingVelocity, elevTarget, azimTarget);
             Vector3 enemyAtActualIntercept = CalculateEnemyPosition(engagementTime + flightTime, enemyInitialPosition, enemyVelocity);
-            
+
             double deviation = (projectileAtIntercept - enemyAtActualIntercept).Magnitude;
             float hitTolerance = CalculateHitTolerance();
-            
+
             if (deviation < hitTolerance * 2f)  // Reasonable tolerance
             {
                 solution = (engagementTime, (float)elevTarget, (float)azimTarget, firingVelocity);
                 return true;
             }
-            
+
             return false;
         }
 
@@ -818,15 +818,15 @@ namespace Spacegun_Simulator
 
             double enemySpeed = enemyVelocity.Magnitude;
             if (enemySpeed < 1.0) return false;  // Enemy not moving
-            
+
             // HEURISTIC 1: Estimate engagement time based on range and speed
             // Use ~40% of max search window (doesn't need to be at midpoint)
             float estimatedEngagementTime = Math.Min(15f, (float)(gunEffectiveRange / enemySpeed * 0.4f));
-            
+
             // HEURISTIC 2: Where will the enemy be at this time?
             Vector3 enemyAtEngagement = CalculateEnemyPosition(estimatedEngagementTime, enemyInitialPosition, enemyVelocity);
             double distanceToEnemy = enemyAtEngagement.Magnitude;
-            
+
             // HEURISTIC 3: If enemy is out of range, adjust engagement time
             if (distanceToEnemy > gunEffectiveRange)
             {
@@ -834,18 +834,18 @@ namespace Spacegun_Simulator
                 enemyAtEngagement = CalculateEnemyPosition(estimatedEngagementTime, enemyInitialPosition, enemyVelocity);
                 distanceToEnemy = enemyAtEngagement.Magnitude;
             }
-            
+
             if (distanceToEnemy > gunEffectiveRange) return false;
-            
+
             // HEURISTIC 4: Get angles to enemy at engagement time
             var (targetElev, targetAzim) = CartesianToAngles(enemyAtEngagement);
-            
+
             // HEURISTIC 5: Use 85% of max velocity (conservative, gives margin)
             float firingVelocity = maxGunVelocity * 0.85f;
-            
+
             // HEURISTIC 6: Estimate flight time
             float estimatedFlightTime = (float)(distanceToEnemy / firingVelocity);
-            
+
             // HEURISTIC 7: Verify it's reasonable (flight time < 30s, common in our engagement window)
             if (estimatedFlightTime > 30f)
             {
@@ -853,9 +853,9 @@ namespace Spacegun_Simulator
                 firingVelocity = maxGunVelocity;
                 estimatedFlightTime = (float)(distanceToEnemy / firingVelocity);
             }
-            
+
             if (estimatedFlightTime < 0.5f) return false;  // Too fast
-            
+
             // Return the cached solution (will be reused for all player attempts on this wave)
             solution = (estimatedEngagementTime, (float)targetElev, (float)targetAzim, firingVelocity);
             return true;

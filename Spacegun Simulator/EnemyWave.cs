@@ -392,7 +392,7 @@
             // ===== TIER-CONSTRAINED VELOCITY (NEW) =====
             // Get tier-specific velocity bounds - enemies must stay within these
             var (enemyMinVel, enemyMaxVel, _, _) = GameConstants.GetTierVelocityConstraints(tierIndex);
-            
+
             // Generate velocity uniformly within tier constraints
             // NO archetype multiplier - velocity is determined by tier alone
             wave.AverageVelocity = enemyMinVel + rng.NextDouble() * (enemyMaxVel - enemyMinVel);

@@ -623,7 +623,7 @@ namespace Spacegun_Simulator.Tests
         private float GetScaledMuzzleVelocity(int waveNumber, float baseVelocity)
         {
             var tier = GameConstants.GetTierForWave(waveNumber);
-            
+
             // Use tier-specific test velocity designed for realistic intercept times
             return (float)GameConstants.GetTestPlayerVelocityForTier(tier.TierIndex);
         }

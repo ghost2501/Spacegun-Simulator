@@ -97,7 +97,7 @@ namespace Spacegun_Simulator.FireControlTools
             foreach (float elev in elevations)
             {
                 Console.WriteLine($"ELEVATION: {diffConfig.ElevationPrecision.Format(elev)}°");
-                
+
                 // Build header
                 Console.Write("Velocity  │");
                 foreach (int r in ranges)
@@ -329,7 +329,7 @@ namespace Spacegun_Simulator.FireControlTools
             double[] masses = { 10, 25, 50, 100 };
 
             Console.WriteLine("=== KINETIC ENERGY BY MASS AND VELOCITY (in MJ) ===");
-            
+
             // Build header
             Console.Write("Mass (kg) │");
             foreach (double vel in velocities)

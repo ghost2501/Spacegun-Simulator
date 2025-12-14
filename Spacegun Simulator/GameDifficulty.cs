@@ -227,8 +227,9 @@ namespace Spacegun_Simulator
 
             // ================================================================
             // COMETS AND ASTEROIDS (Hard)
-            // Hit tolerance: ~53 meters (√10 × 16.8m from RCS multiplier)
-            // Strategy: Larger targets but still need good calculations
+            // Hit tolerance: 0.5 × diameter × √(TargetRcsMultiplier)
+            // For a 10,000 ton ship (33.6m diameter): 0.5 × 33.6 × √10 ≈ 53m
+            // Strategy: Targets appear larger (10x RCS), making them easier to hit
             // ================================================================
             GameDifficulty.CometsAndAsteroids => new DifficultyConfig
             {
@@ -236,10 +237,10 @@ namespace Spacegun_Simulator
                 DisplayName = "Comets and Asteroids (hard)",
                 NarrativeDescription =
                     "They are slinging comets and asteroids, all we have are big bullets.\n" +
-                    "Targets are large but you need precise calculations to score a direct hit.\n" +
-                    "Hit tolerance: ~53 meters (asteroid cross-section)",
+                    "Targets are large natural bodies - easier to hit than warships.\n" +
+                    "Hit tolerance: 0.5 × diameter × √10 (RCS multiplier)",
                 HitToleranceMultiplier = 1.0,
-                TargetRcsMultiplier = 10.0,
+                TargetRcsMultiplier = 10.0,  // Asteroids appear 10x larger on radar
 
                 LaunchDelayPrecision = new PrecisionConfig { DecimalPlaces = 4, Increment = 0.0001 },
                 ElevationPrecision = new PrecisionConfig { DecimalPlaces = 3, Increment = 0.001 },

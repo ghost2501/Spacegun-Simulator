@@ -18,7 +18,7 @@ namespace Spacegun_Simulator
         public string Title { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public EventType Type { get; set; }
-        
+
         /// <summary>
         /// Multiplier applied to resource production this wave.
         /// > 1.0 = buff, < 1.0 = nerf, = 1.0 = neutral

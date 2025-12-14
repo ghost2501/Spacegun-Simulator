@@ -139,7 +139,7 @@ namespace Spacegun_Simulator
             foreach (ResourceType resource in System.Enum.GetValues(typeof(ResourceType)))
             {
                 double rate = GetEffectiveProductionRate(resource, techTree, difficulty, eventMultiplier);
-                
+
                 if (rate > 0)
                 {
                     string key = ResourceTypeHelper.GetDisplayName(resource);

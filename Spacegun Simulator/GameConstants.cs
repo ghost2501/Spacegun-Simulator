@@ -343,7 +343,7 @@ namespace Spacegun_Simulator
         {
             if (tierIndex < 0 || tierIndex >= 3)
                 tierIndex = 2;
-            
+
             return (
                 TierEnemyMinVelocity[tierIndex],
                 TierEnemyMaxVelocity[tierIndex],
@@ -362,7 +362,7 @@ namespace Spacegun_Simulator
             // For engagement scenarios with ~500-1000km distance:
             // Intercept time = Distance / (Enemy Velocity + Player Velocity)
             // Solving for Player Velocity to get 10-20s intercept:
-            
+
             return tierIndex switch
             {
                 // TIER 0: Enemy 50-90 km/s, Gun Range 1500 km
@@ -371,22 +371,22 @@ namespace Spacegun_Simulator
                 // V_player = 1,000,000/10 - 90,000 = 10,000 m/s min
                 // V_player = 1,000,000/20 - 90,000 = -50,000 m/s (clamped to 0, use 100 km/s)
                 0 => 150_000.0,  // 150 km/s (target: 1M / (90k + 150k) = 4.5s closing, add flight time)
-                
+
                 // TIER 1: Enemy 1,500-4,000 km/s, Gun Range 1500 km
                 // Engagement distance: ~1000 km
                 // Need: 1,000,000m / (4,000,000 + V_player) = 10-20s
                 // V_player = 1,000,000/10 - 4,000,000 = -3,000,000 m/s (player slower, use 5 Mm/s)
                 1 => 5_000_000.0,  // 5 Mm/s (5000 km/s)
-                
+
                 // TIER 2: Enemy 15,000-28,000 km/s, Gun Range 3000 km
                 // Engagement distance: ~2000 km
                 // Need: 2,000,000m / (28,000,000 + V_player) = 10-20s
                 // V_player = 2,000,000/10 - 28,000,000 = -200,000,000 m/s (far exceeds player, use 50 Mm/s)
                 2 => 50_000_000.0,  // 50 Mm/s (50,000 km/s)
-                
+
                 // TIER 3: Enemy 28,000-100,000 km/s, Gun Range 5000 km
                 3 => 100_000_000.0,  // 100 Mm/s (100,000 km/s)
-                
+
                 _ => 150_000.0
             };
         }
@@ -403,31 +403,31 @@ namespace Spacegun_Simulator
         {
             // Tier 0 baseline intercept time: 1,000,000m / (90k + 150k)m/s = 3.33s
             // To maintain this intercept time for other tiers, scale engagement distance
-            
+
             return tierIndex switch
             {
                 // TIER 0: Baseline
                 // Engagement: 1,000km, Enemy: 90km/s, Player: 150km/s
                 // Intercept: 1,000,000 / (90k + 150k) = 3.33s
                 0 => 1_000_000.0,
-                
+
                 // TIER 1: Scale to maintain 3.33s intercept
                 // Enemy: 4,000km/s, Player: 5,000km/s
                 // Required distance: (4,000,000 + 5,000,000) × 3.333 = 30,000km
                 1 => 30_000_000.0,
-                
+
                 // TIER 2: Scale to maintain 3.33s intercept
                 // Enemy: 28,000km/s, Player: 50,000km/s
                 // Required distance: (28,000,000 + 50,000,000) × 3.333 = 260,000km
                 2 => 260_000_000.0,
-                
+
                 // TIER 3: Scale to maintain 3.33s intercept
                 // Enemy: Variable up to 30,000km/s (approx), Player: 100,000km/s
                 // Required distance: Scales very large, capped at practical limit
                 // Using enemy velocity of 29,000km/s (near relativistic)
                 // (29,000,000 + 100,000,000) × 3.333 = 430,000km
                 3 => 430_000_000.0,
-                
+
                 _ => 1_000_000.0
             };
         }
@@ -465,7 +465,7 @@ namespace Spacegun_Simulator
             // Closing velocity approach
             double closingVelocity = enemyVelocity + playerVelocity;
             double timeToIntercept = engagementDistance / closingVelocity;
-            
+
             return timeToIntercept;
         }
     }

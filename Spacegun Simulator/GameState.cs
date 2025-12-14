@@ -164,11 +164,11 @@
             {
                 // Retrieve the pre-generated firing problem for this wave
                 var preGenProblem = PreGeneratedWaves[CurrentWaveIndex];
-                
+
                 // Generate wave data for display (detection stats), but use cached trajectory
                 CurrentWave = EnemyWave.GenerateWave(CurrentWaveNumber, rng, CampaignEnemyType);
                 CurrentWave.Targets = CurrentWave.Targets.Take(1).ToList();
-                
+
                 // Apply pre-generated trajectory data to ensure consistency
                 CurrentWave.CachedEnemyPosition = preGenProblem.EnemyPosition;
                 CurrentWave.CachedEnemyVelocity = preGenProblem.EnemyVelocity;
@@ -178,7 +178,7 @@
                 CurrentWave.CachedCorrectElevation = preGenProblem.CorrectElevation;
                 CurrentWave.CachedCorrectAzimuth = preGenProblem.CorrectAzimuth;
                 CurrentWave.CachedCorrectVelocity = preGenProblem.CorrectVelocity;
-                
+
                 // Store the pre-generated firing problem for use in firing phase
                 CurrentFiringProblem = preGenProblem;
             }
@@ -247,7 +247,7 @@
 
             // Calculate angles to intercept point
             double interceptDistance = interceptPoint.Magnitude;
-            
+
             // Handle edge case where intercept distance is zero (stationary target at origin)
             float elevation = 0f;
             float azimuth = 0f;
@@ -318,9 +318,9 @@
         public List<TechUnlock> GetAvailableTechs()
         {
             var available = TechUnlock.GetAvailableUnlocks(TechTree);
-            
+
             // Filter by affordability
-            return available.Where(tech => 
+            return available.Where(tech =>
             {
                 double budget = AccumulatedResources.ContainsKey("Budget") ? AccumulatedResources["Budget"] : 0;
                 double steel = AccumulatedResources.ContainsKey("Steel") ? AccumulatedResources["Steel"] : 0;
@@ -499,10 +499,36 @@
             var tier = GameConstants.GetTierForWave(CurrentWaveNumber);
             var diffConfig = DifficultyConfig.GetConfig(SelectedDifficulty);
 
-            // ===== TUTORIAL MODE: Use potato cannon specs =====
-            if (diffConfig.IsTutorialMode && SelectedGunProjectileSpec == null)
+            // ===== SET DEFAULT WEAPON BASED ON DIFFICULTY =====
+            // CRITICAL: Always check IsTutorialMode first, then set appropriate weapon
+            if (SelectedGunProjectileSpec == null)
             {
-                SelectedGunProjectileSpec = GunProjectileSpec.PotatoCannon;
+                if (diffConfig.IsTutorialMode)
+                {
+                    // Tutorial mode: Use potato cannon
+                    SelectedGunProjectileSpec = GunProjectileSpec.PotatoCannon;
+                }
+                else
+                {
+                    // Non-tutorial modes: Use a tier-appropriate default weapon
+                    SelectedGunProjectileSpec = tier.TierIndex switch
+                    {
+                        0 => GunProjectileSpec.All[1],  // Needle Strike (10kg @ 80,000 m/s)
+                        1 => GunProjectileSpec.All[2],  // Armor Piercer (25kg @ 160,000 m/s)
+                        _ => GunProjectileSpec.All[4]   // Hypersonic Rail (15kg @ 350,000 m/s)
+                    };
+                }
+            }
+            // ===== CRITICAL FIX: Verify weapon matches difficulty mode =====
+            // If we're NOT in tutorial mode but have the potato cannon, override it
+            else if (!diffConfig.IsTutorialMode && SelectedGunProjectileSpec.Id == "potato")
+            {
+                SelectedGunProjectileSpec = tier.TierIndex switch
+                {
+                    0 => GunProjectileSpec.All[1],  // Needle Strike
+                    1 => GunProjectileSpec.All[2],  // Armor Piercer
+                    _ => GunProjectileSpec.All[4]   // Hypersonic Rail
+                };
             }
 
             // ===== CRITICAL: Only generate if NOT already generated =====
@@ -517,7 +543,7 @@
                 else
                 {
                     var solver = new FiringSolution(
-                        (float)(SelectedGunProjectileSpec?.ProjectileMassKg ?? Gun.DefaultProjectile.Mass),
+                        (float)SelectedGunProjectileSpec.ProjectileMassKg,
                         (float)target.FractureEnergy,
                         target.Mass);
 
@@ -527,8 +553,7 @@
                         // Pass gun's effective range to constrain engagement
                         firingProblem = solver.GenerateFiringProblem(
                             CurrentWave,
-                            (float)(SelectedGunProjectileSpec?.MuzzleVelocityMs ??
-                                    BallisticsCalculator.CalculateMuzzleVelocity(Gun, Gun.DefaultProjectile)),
+                            (float)SelectedGunProjectileSpec.MuzzleVelocityMs,
                             (float)tier.MaxEffectiveGunRange,
                             rng);
                     }
@@ -552,8 +577,8 @@
             }
 
             // For tutorial, use tutorial effective range
-            double effectiveRange = diffConfig.IsTutorialMode 
-                ? DifficultyConfig.TutorialPotatoCannon.EffectiveRangeMeters 
+            double effectiveRange = diffConfig.IsTutorialMode
+                ? DifficultyConfig.TutorialPotatoCannon.EffectiveRangeMeters
                 : tier.MaxEffectiveGunRange;
 
             return new FiringPhaseResult
@@ -672,7 +697,7 @@
                 {
                     ExecuteFiringPhase();
                 }
-                
+
                 var data = GameStateData.FromGameState(this);
                 var json = System.Text.Json.JsonSerializer.Serialize(data, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                 System.IO.File.WriteAllText(savePath, json);
@@ -689,7 +714,7 @@
         public bool LoadAutoSave()
         {
             string savePath = GetAutoSavePath();
-            
+
             try
             {
                 if (!System.IO.File.Exists(savePath))
@@ -702,7 +727,7 @@
                     return false;
 
                 data.ApplyToGameState(this);
-                
+
                 return true;
             }
             catch (Exception ex)
@@ -855,9 +880,9 @@
             }
 
             stopwatch.Stop();
-            
+
             Console.WriteLine($"\n✓ Generated {successCount}/{campaignLength} waves in {stopwatch.ElapsedMilliseconds}ms");
-            
+
             if (failureCount > 0)
                 Console.WriteLine($"  ({failureCount} waves had generation issues)");
         }
