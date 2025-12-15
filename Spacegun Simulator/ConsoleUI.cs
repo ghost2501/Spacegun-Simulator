@@ -338,7 +338,7 @@ namespace Spacegun_Simulator
 
                 if (!detectionResult.WaveDetected)
                 {
-                    Console.WriteLine("\n✗ Wave detection failed. Challenge cancelled.");
+                    Console.WriteLine("\n✗ Wave detection failed. Challenge canceled.");
                     System.Threading.Thread.Sleep(2000);
                     return;
                 }
@@ -415,10 +415,17 @@ namespace Spacegun_Simulator
             Console.WriteLine($"Type: {detectionResult.Wave.Targets[0].Name}");
             Console.WriteLine($"Detection Distance: {GameConstants.FormatDistance(detectionResult.Wave.CurrentDistance)}");
             Console.WriteLine($"Velocity: {GameConstants.FormatVelocity(detectionResult.Wave.AverageVelocity)}");
-            
-            // Apply RCS multiplier for consistent display
-            double displayRCS = detectionResult.Wave.AverageRadarCrossSection * diffConfig.TargetRcsMultiplier;
-            Console.WriteLine($"Radar Cross-Section: {displayRCS:F1} m²");
+
+            // For tutorial mode, use fixed beachball RCS; otherwise apply multiplier
+            if (diffConfig.IsTutorialMode)
+            {
+                Console.WriteLine($"Radar Cross-Section: {DifficultyConfig.TutorialBeachball.CrossSectionM2:F2} m² (beachball)");
+            }
+            else
+            {
+                double displayRCS = detectionResult.Wave.AverageRadarCrossSection * diffConfig.TargetRcsMultiplier;
+                Console.WriteLine($"Radar Cross-Section: {displayRCS:F1} m²");
+            }
 
             Console.WriteLine($"\n=== TIME BUDGET ===");
             Console.WriteLine($"Years Available: {(long)detectionResult.AvailableYears} years");
@@ -576,8 +583,8 @@ namespace Spacegun_Simulator
 
             Console.WriteLine("\nPress any key to proceed to Development phase...");
             Console.ReadKey();
-
-            engine.CurrentPhase = GameState.GamePhase.Development;
+            Console.WriteLine(
+            engine.CurrentPhase = GameState.GamePhase.Development);
             engine.AutoSaveGame();
         }
 
@@ -586,7 +593,7 @@ namespace Spacegun_Simulator
             Console.Clear();
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
             Console.WriteLine("║              RESOURCE ALLOCATION MENU                     ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+            Console.WriteLine("╚═══════════════════════════════════════════════════════════╗\n");
 
             Console.WriteLine($"Time Remaining: {engine.RemainingYears} years\n");
             Console.WriteLine("Enter years for each resource. Type 'u' to undo the last input.\n");
@@ -731,130 +738,513 @@ namespace Spacegun_Simulator
 
         private void RunDevelopmentPhase()
         {
-            Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║              DEVELOPMENT & UPGRADES PHASE                 ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+            bool developmentComplete = false;
 
-            Console.WriteLine($"Accumulated Resources (this wave):");
-            Console.WriteLine($"  Steel: {engine.AccumulatedResources["Steel"]:F0} tons");
-            Console.WriteLine($"  Exotic: {engine.AccumulatedResources["Exotic"]:F1} units");
-            Console.WriteLine($"  Budget: {engine.AccumulatedResources["Budget"]:F0} currency\n");
-
-            // ===== DISPLAY TARGET REQUIREMENT =====
-            if (engine.CurrentWave?.Archetype != null)
+            while (!developmentComplete)
             {
-                var archetype = engine.CurrentWave.Archetype;
-                Console.WriteLine($"=== TARGET REQUIREMENT ===");
-                Console.WriteLine($"Archetype: {archetype.Name}");
-                Console.WriteLine($"Fracture Energy Needed: {archetype.FractureEnergyRange.Min:N0} - {archetype.FractureEnergyRange.Max:N0} MJ");
-                Console.WriteLine();
-            }
+                Console.Clear();
+                Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+                Console.WriteLine("║              WEAPON DEVELOPMENT PHASE                     ║");
+                Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
-            Console.WriteLine("=== AVAILABLE GUN/PROJECTILE COMBINATIONS ===\n");
+                // ===== RESOURCES SUMMARY =====
+                Console.WriteLine("=== AVAILABLE RESOURCES ===");
+                Console.WriteLine($"  Budget: {engine.AccumulatedResources["Budget"]:F0}");
+                Console.WriteLine($"  Steel:  {engine.AccumulatedResources["Steel"]:F0} tons");
+                Console.WriteLine($"  Exotic: {engine.AccumulatedResources["Exotic"]:F1} units\n");
 
-            // Convert accumulated resources to ResourceCost for affordability check
-            var availableResources = new ResourceCost(
-                budget: engine.AccumulatedResources["Budget"],
-                steel: engine.AccumulatedResources["Steel"],
-                exotic: engine.AccumulatedResources["Exotic"]
-            );
-
-            // Get affordable options
-            var affordableSpecs = GunProjectileSpec.GetAffordable(availableResources);
-
-            if (affordableSpecs.Count == 0)
-            {
-                Console.WriteLine("✗ No affordable gun/projectile combinations with current resources.");
-                Console.WriteLine("\nPress any key to proceed to Firing Solution phase...");
-                Console.ReadKey();
-                engine.CurrentPhase = GameState.GamePhase.Firing;
-                engine.AutoSaveGame();
-                return;
-            }
-
-            // Display all options (affordable and not affordable)
-            for (int i = 0; i < GunProjectileSpec.All.Length; i++)
-            {
-                var spec = GunProjectileSpec.All[i];
-                bool isAffordable = affordableSpecs.Contains(spec);
-                string affordabilityMark = isAffordable ? "✓" : "✗";
-
-                Console.WriteLine($"{affordabilityMark} [{i + 1}] {spec.Name}");
-                Console.WriteLine($"    Mass: {spec.ProjectileMassKg}kg @ {spec.MuzzleVelocityMs:N0} m/s");
-                Console.WriteLine($"    Kinetic Energy: {spec.ResultingKE_MJ:N0} MJ");
-                Console.WriteLine($"    Cost: {spec.Cost.Budget:F0} Budget, {spec.Cost.Steel:F0} Steel, {spec.Cost.ExoticMaterials:F1} Exotic");
-
-                // Show if this meets the requirement
+                // ===== TARGET REQUIREMENT =====
                 if (engine.CurrentWave?.Archetype != null)
                 {
-                    bool meetsRequirement = BallisticsCalculator.CanDestroyTarget(spec.ResultingKE_MJ, engine.CurrentWave.Targets[0]);
-                    string requirement = meetsRequirement ? "✓ MEETS REQUIREMENT" : "✗ Insufficient energy";
-                    Console.WriteLine($"    {requirement}");
+                    var archetype = engine.CurrentWave.Archetype;
+                    Console.WriteLine("=== TARGET REQUIREMENT ===");
+                    Console.WriteLine($"  Archetype: {archetype.Name}");
+                    Console.WriteLine($"  Fracture Energy Needed: {archetype.FractureEnergyRange.Min:N0} - {archetype.FractureEnergyRange.Max:N0} MJ\n");
                 }
 
-                Console.WriteLine();
+                // ===== CURRENT WEAPON TECH STATUS =====
+                Console.WriteLine("=== CURRENT WEAPON TECHNOLOGY ===");
+                Console.WriteLine($"  Weapons Tech:     Level {engine.TechTree.CurrentLevel[TechTree.TechType.Weapons]} - {TechTree.GetTechDescription(TechTree.TechType.Weapons, engine.TechTree.CurrentLevel[TechTree.TechType.Weapons])}");
+                Console.WriteLine($"  Projectiles Tech: Level {engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles]} - {TechTree.GetTechDescription(TechTree.TechType.Projectiles, engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles])}");
+
+                // ===== CURRENT WEAPON CONFIGURATION =====
+                Console.WriteLine("\n=== CURRENT WEAPON CONFIGURATION ===");
+                if (engine.CraftedProjectile != null)
+                {
+                    var proj = engine.CraftedProjectile;
+                    Console.WriteLine($"  Projectile: {proj.DisplayName}");
+                    Console.WriteLine($"  Mass: {proj.MassKg} kg | Velocity: {proj.MaxVelocityMs:N0} m/s");
+                    Console.WriteLine($"  Kinetic Energy: {proj.EffectiveKineticEnergyMJ:N0} MJ");
+                    if (proj.HitToleranceMultiplier != 1.0)
+                        Console.WriteLine($"  Hit Tolerance Bonus: {(proj.HitToleranceMultiplier - 1) * 100:+0}%");
+                }
+                else
+                {
+                    Console.WriteLine("  Projectile: [NOT CONFIGURED]");
+                    Console.WriteLine("  ⚠ You must develop a projectile before firing!");
+                }
+
+                Console.WriteLine($"\n  Gun Configuration:");
+                Console.WriteLine($"    Barrel Integrity: {engine.Gun.BarrelIntegrity:P0}");
+                Console.WriteLine($"    Power Capacity: {engine.Gun.PowerCapacity:F0} MW");
+                Console.WriteLine($"    Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(engine.CurrentWaveNumber).MaxEffectiveGunRange)}");
+
+                // ===== DEVELOPMENT OPTIONS =====
+                Console.WriteLine("\n=== DEVELOPMENT OPTIONS ===");
+                Console.WriteLine("[P] Projectile Development - Craft a new projectile");
+                Console.WriteLine("[G] Gun Development - Upgrade gun systems");
+                Console.WriteLine("[S] Show Detailed Status");
+                
+                if (engine.CraftedProjectile != null)
+                {
+                    Console.WriteLine("[D] Done - Proceed to Firing Phase");
+                }
+                else
+                {
+                    Console.WriteLine("[D] Done - (Requires projectile configuration)");
+                }
+
+                Console.Write("\nSelect action (P/G/S/D): ");
+                string action = Console.ReadLine()?.ToUpper() ?? "";
+
+                switch (action)
+                {
+                    case "P":
+                        RunProjectileDevelopment();
+                        break;
+
+                    case "G":
+                        RunGunDevelopment();
+                        break;
+
+                    case "S":
+                        DisplayDetailedWeaponStatus();
+                        break;
+
+                    case "D":
+                        if (engine.CraftedProjectile != null)
+                        {
+                            developmentComplete = true;
+                        }
+                        else
+                        {
+                            Console.WriteLine("\n✗ You must configure a projectile before proceeding!");
+                            Console.WriteLine("Press any key to continue...");
+                            Console.ReadKey();
+                        }
+                        break;
+
+                    default:
+                        Console.WriteLine("\nInvalid action.");
+                        Thread.Sleep(1000);
+                        break;
+                }
             }
 
-            Console.WriteLine("Select a gun/projectile spec (1-5), or 0 to skip: ");
-            string input = Console.ReadLine() ?? "0";
+            // Transition to firing phase
+            engine.CurrentPhase = GameState.GamePhase.Firing;
+            Console.WriteLine("\n✓ Weapon development complete. Proceeding to firing phase...");
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey();
+        }
 
-            if (!int.TryParse(input, out int choice) || choice < 0 || choice > GunProjectileSpec.All.Length)
+        /// <summary>
+        /// Projectile Development submenu - craft a projectile from components.
+        /// Velocity comes from the gun; propulsion provides Delta-V boost.
+        /// </summary>
+        private void RunProjectileDevelopment()
+        {
+            Console.Clear();
+            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+            Console.WriteLine("║            PROJECTILE DEVELOPMENT PHASE                   ║");
+            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+
+            Console.WriteLine("=== AVAILABLE RESOURCES ===");
+            Console.WriteLine($"  Budget: {engine.AccumulatedResources["Budget"]:F0}");
+            Console.WriteLine($"  Steel:  {engine.AccumulatedResources["Steel"]:F0} tons");
+            Console.WriteLine($"  Exotic: {engine.AccumulatedResources["Exotic"]:F1} units\n");
+
+            // Display gun base velocity
+            int weaponsTechLevel = engine.TechTree.CurrentLevel[TechTree.TechType.Weapons];
+            double gunBaseVelocity = GunConfiguration.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel);
+            Console.WriteLine("=== GUN SPECIFICATIONS ===");
+            Console.WriteLine($"  Weapons Tech Level: {weaponsTechLevel}");
+            Console.WriteLine($"  Base Muzzle Velocity: {gunBaseVelocity:N0} m/s ({gunBaseVelocity / 1000:N0} km/s)");
+            Console.WriteLine($"  Barrel Integrity: {engine.Gun.BarrelIntegrity:P2}\n");
+
+            // Get unlocked components based on tech tree
+            var unlockedCores = CraftedProjectile.GetUnlockedCores(engine.TechTree);
+            var unlockedPropulsion = CraftedProjectile.GetUnlockedPropulsion(engine.TechTree);
+            var unlockedEnhancements = CraftedProjectile.GetUnlockedEnhancements(engine.TechTree);
+
+            // Step 1: Select Core
+            Console.WriteLine("=== STEP 1: SELECT PROJECTILE CORE ===");
+            Console.WriteLine("(Determines projectile mass)\n");
+
+            for (int i = 0; i < unlockedCores.Count; i++)
             {
-                Console.WriteLine("Invalid selection.");
-                engine.CurrentPhase = GameState.GamePhase.Firing;
-                Console.WriteLine("Press any key to proceed to Firing Solution phase...");
+                var core = unlockedCores[i];
+                // Preview KE with gun base velocity only (no propulsion)
+                double baseKE = BallisticsCalculator.CalculateKineticEnergyMJ(core.MassKg, gunBaseVelocity);
+                Console.WriteLine($"[{i + 1}] {core.Name}");
+                Console.WriteLine($"    Mass: {core.MassKg} kg");
+                Console.WriteLine($"    Base KE (gun only): {baseKE:N0} MJ");
+                Console.WriteLine($"    Cost: {core.Cost.Budget:F0} Budget, {core.Cost.Steel:F0} Steel, {core.Cost.ExoticMaterials:F0} Exotic");
+                Console.WriteLine($"    {core.Description}\n");
+            }
+
+            ProjectileCore? selectedCore = null;
+            while (selectedCore == null)
+            {
+                Console.Write("Select core (1-" + unlockedCores.Count + "): ");
+                if (int.TryParse(Console.ReadLine(), out int coreChoice) && coreChoice >= 1 && coreChoice <= unlockedCores.Count)
+                {
+                    selectedCore = unlockedCores[coreChoice - 1];
+                }
+                else
+                {
+                    Console.WriteLine("Invalid selection.\n");
+                }
+            }
+            Console.WriteLine($"\n✓ Selected: {selectedCore.Name}\n");
+
+            // Step 2: Select Propulsion (optional - provides Delta-V)
+            Console.WriteLine("=== STEP 2: SELECT PROPULSION SYSTEM (OPTIONAL) ===");
+            Console.WriteLine("(Provides Delta-V boost during flight - unlocked at Projectiles Tech 2)\n");
+
+            bool hasPropulsionOptions = unlockedPropulsion.Count > 1;  // More than just "None"
+            
+            for (int i = 0; i < unlockedPropulsion.Count; i++)
+            {
+                var prop = unlockedPropulsion[i];
+                
+                if (prop.Id == "none")
+                {
+                    double baseKE = BallisticsCalculator.CalculateKineticEnergyMJ(selectedCore.MassKg, gunBaseVelocity);
+                    Console.WriteLine($"[{i + 1}] {prop.Name}");
+                    Console.WriteLine($"    Velocity: {gunBaseVelocity:N0} m/s (gun only)");
+                    Console.WriteLine($"    KE: {baseKE:N0} MJ");
+                    Console.WriteLine($"    Cost: FREE\n");
+                }
+                else
+                {
+                    // Calculate max velocity with full Delta-V
+                    double maxDeltaV = prop.CalculateEffectiveDeltaV(selectedCore.MassKg, prop.BurnDurationSeconds);
+                    double maxVelocity = gunBaseVelocity + maxDeltaV;
+                    double maxKE = BallisticsCalculator.CalculateKineticEnergyMJ(selectedCore.MassKg, maxVelocity);
+                    
+                    Console.WriteLine($"[{i + 1}] {prop.Name}");
+                    Console.WriteLine($"    Delta-V: +{prop.DeltaVCapacityMs:N0} m/s over {prop.BurnDurationSeconds:F1}s burn");
+                    Console.WriteLine($"    Effective Delta-V (for {selectedCore.MassKg}kg): +{maxDeltaV:N0} m/s");
+                    Console.WriteLine($"    Max Velocity: {maxVelocity:N0} m/s ({maxVelocity / 1000:N0} km/s)");
+                    Console.WriteLine($"    Max KE: {maxKE:N0} MJ");
+                    Console.WriteLine($"    Cost: {prop.Cost.Budget:F0} Budget, {prop.Cost.Steel:F0} Steel, {prop.Cost.ExoticMaterials:F0} Exotic");
+                    Console.WriteLine($"    {prop.Description}\n");
+                }
+            }
+
+            PropulsionSystem selectedPropulsion = PropulsionSystem.None;
+            Console.Write($"Select propulsion (1-{unlockedPropulsion.Count}, or Enter for none): ");
+            string propInput = Console.ReadLine() ?? "";
+            if (int.TryParse(propInput, out int propChoice) && propChoice >= 1 && propChoice <= unlockedPropulsion.Count)
+            {
+                selectedPropulsion = unlockedPropulsion[propChoice - 1];
+                Console.WriteLine($"\n✓ Selected: {selectedPropulsion.Name}\n");
+            }
+            else
+            {
+                Console.WriteLine("\n✓ No propulsion selected (using gun velocity only).\n");
+            }
+
+            // Step 3: Select Enhancement (optional)
+            Console.WriteLine("=== STEP 3: SELECT ENHANCEMENT (OPTIONAL) ===");
+            Console.WriteLine("(Modifies accuracy or damage)\n");
+
+            for (int i = 0; i < unlockedEnhancements.Count; i++)
+            {
+                var enh = unlockedEnhancements[i];
+                string bonusText = "";
+                if (enh.HitToleranceBonus != 1.0)
+                    bonusText += $"Hit Tolerance: {(enh.HitToleranceBonus - 1) * 100:+0;-0}%  ";
+                if (enh.EnergyEfficiencyBonus != 1.0)
+                    bonusText += $"Damage: {(enh.EnergyEfficiencyBonus - 1) * 100:+0;-0}%";
+
+                Console.WriteLine($"[{i + 1}] {enh.Name}");
+                if (!string.IsNullOrEmpty(bonusText))
+                    Console.WriteLine($"    Bonuses: {bonusText}");
+                if (enh.Id != "none")
+                    Console.WriteLine($"    Cost: {enh.Cost.Budget:F0} Budget, {enh.Cost.Steel:F0} Steel, {enh.Cost.ExoticMaterials:F0} Exotic");
+                Console.WriteLine($"    {enh.Description}\n");
+            }
+
+            ProjectileEnhancement selectedEnhancement = ProjectileEnhancement.None;
+            Console.Write("Select enhancement (1-" + unlockedEnhancements.Count + ", or Enter to skip): ");
+            string enhInput = Console.ReadLine() ?? "";
+            if (int.TryParse(enhInput, out int enhChoice) && enhChoice >= 1 && enhChoice <= unlockedEnhancements.Count)
+            {
+                selectedEnhancement = unlockedEnhancements[enhChoice - 1];
+                Console.WriteLine($"\n✓ Selected: {selectedEnhancement.Name}\n");
+            }
+            else
+            {
+                Console.WriteLine("\n✓ No enhancement selected.\n");
+            }
+
+            // Create the crafted projectile with gun base velocity
+            var craftedProjectile = new CraftedProjectile(selectedCore, selectedPropulsion, selectedEnhancement, gunBaseVelocity);
+
+            // Display final configuration
+            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+            Console.WriteLine("║            PROJECTILE CONFIGURATION SUMMARY               ║");
+            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+
+            Console.WriteLine($"  Configuration: {craftedProjectile.DisplayName}");
+            Console.WriteLine($"  Projectile Mass: {craftedProjectile.MassKg} kg");
+            Console.WriteLine($"  Gun Base Velocity: {gunBaseVelocity:N0} m/s");
+            
+            if (selectedPropulsion.Id != "none")
+            {
+                double maxDeltaV = selectedPropulsion.CalculateEffectiveDeltaV(craftedProjectile.MassKg, selectedPropulsion.BurnDurationSeconds);
+                Console.WriteLine($"  Propulsion Delta-V: +{maxDeltaV:N0} m/s (over {selectedPropulsion.BurnDurationSeconds:F1}s)");
+                Console.WriteLine($"  Max Impact Velocity: {craftedProjectile.MaxVelocityMs:N0} m/s");
+                Console.WriteLine($"  ⚠ Note: Actual velocity depends on flight time to target");
+            }
+            
+            Console.WriteLine($"  Max Kinetic Energy: {craftedProjectile.RawKineticEnergyMJ:N0} MJ");
+            
+            if (craftedProjectile.Enhancement.EnergyEfficiencyBonus != 1.0)
+                Console.WriteLine($"  Effective KE (with bonus): {craftedProjectile.EffectiveKineticEnergyMJ:N0} MJ");
+            
+            if (craftedProjectile.HitToleranceMultiplier != 1.0)
+                Console.WriteLine($"  Hit Tolerance Bonus: {(craftedProjectile.HitToleranceMultiplier - 1) * 100:+0}%");
+
+            Console.WriteLine($"\n  TOTAL COST:");
+            Console.WriteLine($"    Budget: {craftedProjectile.TotalCost.Budget:F0}");
+            Console.WriteLine($"    Steel:  {craftedProjectile.TotalCost.Steel:F0}");
+            Console.WriteLine($"    Exotic: {craftedProjectile.TotalCost.ExoticMaterials:F0}");
+
+            // Check if meets requirement (using max KE as upper bound)
+            if (engine.CurrentWave?.Archetype != null)
+            {
+                bool meetsRequirement = craftedProjectile.EffectiveKineticEnergyMJ >= engine.CurrentWave.Archetype.FractureEnergyRange.Min;
+                Console.WriteLine($"\n  Target Requirement: {(meetsRequirement ? "✓ MEETS REQUIREMENT" : "✗ INSUFFICIENT ENERGY")}");
+            }
+
+            // Check affordability
+            bool canAfford = CraftedProjectile.CanAfford(craftedProjectile, engine.AccumulatedResources);
+            Console.WriteLine($"  Affordability: {(canAfford ? "✓ CAN AFFORD" : "✗ INSUFFICIENT RESOURCES")}");
+
+            if (!canAfford)
+            {
+                Console.WriteLine("\n✗ Cannot afford this configuration. Please select different components.");
+                Console.WriteLine("Press any key to return to Weapon Development...");
                 Console.ReadKey();
-                engine.AutoSaveGame();
                 return;
             }
 
-            if (choice == 0)
+            Console.Write("\nConfirm build? (Y/N): ");
+            string confirm = Console.ReadLine()?.ToUpper() ?? "N";
+
+            if (confirm != "Y")
             {
-                Console.WriteLine("Proceeding to Firing Solution phase without selecting a spec...");
-                engine.CurrentPhase = GameState.GamePhase.Firing;
-                Console.WriteLine("Press any key to proceed...");
+                Console.WriteLine("Build cancelled.");
+                Console.WriteLine("Press any key to return to Weapon Development...");
                 Console.ReadKey();
-                engine.AutoSaveGame();
                 return;
             }
 
-            var selectedSpec = GunProjectileSpec.All[choice - 1];
+            // Deduct resources
+            engine.AccumulatedResources["Budget"] -= craftedProjectile.TotalCost.Budget;
+            engine.AccumulatedResources["Steel"] -= craftedProjectile.TotalCost.Steel;
+            engine.AccumulatedResources["Exotic"] -= craftedProjectile.TotalCost.ExoticMaterials;
 
-            // Check if affordable
-            if (!affordableSpecs.Contains(selectedSpec))
-            {
-                Console.WriteLine($"\n✗ Cannot afford {selectedSpec.Name}.");
-                Console.WriteLine($"Required: {selectedSpec.Cost.Budget:F0} Budget, {selectedSpec.Cost.Steel:F0} Steel, {selectedSpec.Cost.ExoticMaterials:F1} Exotic");
-                Console.WriteLine($"Available: {availableResources.Budget:F0} Budget, {availableResources.Steel:F0} Steel, {availableResources.ExoticMaterials:F1} Exotic");
-                Console.WriteLine("Press any key to select a different spec...");
-                Console.ReadKey();
-                RunDevelopmentPhase(); // Loop back
-                return;
-            }
+            // Store crafted projectile
+            engine.CraftedProjectile = craftedProjectile;
 
-            // Apply the selection
-            Console.WriteLine($"\n✓ Selected: {selectedSpec.Name}");
-            Console.WriteLine($"Deducting resources...");
-
-            engine.AccumulatedResources["Budget"] -= selectedSpec.Cost.Budget;
-            engine.AccumulatedResources["Steel"] -= selectedSpec.Cost.Steel;
-            engine.AccumulatedResources["Exotic"] -= selectedSpec.Cost.ExoticMaterials;
-
-            // Store the selected spec for firing phase
-            engine.SelectedGunProjectileSpec = selectedSpec;
-
+            Console.WriteLine("\n✓ Projectile built successfully!");
             Console.WriteLine($"\nRemaining Resources:");
             Console.WriteLine($"  Budget: {engine.AccumulatedResources["Budget"]:F0}");
-            Console.WriteLine($"  Steel: {engine.AccumulatedResources["Steel"]:F0}");
+            Console.WriteLine($"  Steel:  {engine.AccumulatedResources["Steel"]:F0}");
             Console.WriteLine($"  Exotic: {engine.AccumulatedResources["Exotic"]:F1}");
 
-            engine.CurrentPhase = GameState.GamePhase.Firing;
-            Console.WriteLine("\nPress any key to proceed to Firing Solution phase...");
+            Console.WriteLine("\nPress any key to return to Weapon Development...");
             Console.ReadKey();
+        }
 
-            // Auto-save after development phase
-            engine.AutoSaveGame();
+        private void RunGunDevelopment()
+        {
+            Console.Clear();
+            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+            Console.WriteLine("║                  GUN DEVELOPMENT                          ║");
+            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+
+            Console.WriteLine("=== AVAILABLE RESOURCES ===");
+            Console.WriteLine($"  Budget: {engine.AccumulatedResources["Budget"]:F0}");
+            Console.WriteLine($"  Steel:  {engine.AccumulatedResources["Steel"]:F0} tons");
+            Console.WriteLine($"  Exotic: {engine.AccumulatedResources["Exotic"]:F1} units\n");
+
+            Console.WriteLine("=== CURRENT GUN STATUS ===");
+            Console.WriteLine($"  Barrel Integrity: {engine.Gun.BarrelIntegrity:P0}");
+            Console.WriteLine($"  Power Capacity: {engine.Gun.PowerCapacity:F0} MW");
+            Console.WriteLine($"  Weapons Tech Level: {engine.TechTree.CurrentLevel[TechTree.TechType.Weapons]}\n");
+
+            Console.WriteLine("=== AVAILABLE UPGRADES ===\n");
+
+            // Define available gun upgrades
+            var upgrades = new List<(string Name, string Description, ResourceCost Cost, Action Apply)>
+            {
+                ("Barrel Repair", "Restore barrel integrity to 100%", 
+                    new ResourceCost(budget: 100, steel: 50, exotic: 0),
+                    () => engine.Gun.BarrelIntegrity = 1.0),
+
+                ("Power Capacitor Upgrade", "Increase power capacity by 20%",
+                    new ResourceCost(budget: 150, steel: 80, exotic: 20),
+                    () => engine.Gun.PowerCapacity *= 1.2),
+
+                ("Reinforced Barrel", "Reduce barrel degradation per shot by 50%",
+                    new ResourceCost(budget: 200, steel: 120, exotic: 40),
+                    () => { /* Future: implement barrel reinforcement tracking */ })
+            };
+
+            for (int i = 0; i < upgrades.Count; i++)
+            {
+                var (name, description, cost, _) = upgrades[i];
+                bool canAfford = engine.AccumulatedResources["Budget"] >= cost.Budget &&
+                                 engine.AccumulatedResources["Steel"] >= cost.Steel &&
+                                 engine.AccumulatedResources["Exotic"] >= cost.ExoticMaterials;
+                
+                string affordMark = canAfford ? "✓" : "✗";
+                Console.WriteLine($"[{i + 1}] {affordMark} {name}");
+                Console.WriteLine($"    {description}");
+                Console.WriteLine($"    Cost: {cost.Budget:F0} Budget, {cost.Steel:F0} Steel, {cost.ExoticMaterials:F0} Exotic\n");
+            }
+
+            Console.WriteLine("[0] Cancel - Return to Weapon Development\n");
+
+            Console.Write($"Select upgrade (0-{upgrades.Count}): ");
+            if (int.TryParse(Console.ReadLine(), out int choice))
+            {
+                if (choice == 0) return;
+
+                if (choice >= 1 && choice <= upgrades.Count)
+                {
+                    var (name, _, cost, apply) = upgrades[choice - 1];
+
+                    bool canAfford = engine.AccumulatedResources["Budget"] >= cost.Budget &&
+                                     engine.AccumulatedResources["Steel"] >= cost.Steel &&
+                                     engine.AccumulatedResources["Exotic"] >= cost.ExoticMaterials;
+
+                    if (!canAfford)
+                    {
+                        Console.WriteLine("\n✗ Cannot afford this upgrade.");
+                        Console.WriteLine("Press any key to continue...");
+                        Console.ReadKey();
+                        return;
+                    }
+
+                    Console.Write($"\nApply {name}? (Y/N): ");
+                    if (Console.ReadLine()?.ToUpper() == "Y")
+                    {
+                        engine.AccumulatedResources["Budget"] -= cost.Budget;
+                        engine.AccumulatedResources["Steel"] -= cost.Steel;
+                        engine.AccumulatedResources["Exotic"] -= cost.ExoticMaterials;
+
+                        apply();
+
+                        Console.WriteLine($"\n✓ {name} applied successfully!");
+                    }
+                    else
+                    {
+                        Console.WriteLine("\nUpgrade cancelled.");
+                    }
+                }
+            }
+
+            Console.WriteLine("\nPress any key to return to Weapon Development...");
+            Console.ReadKey();
+        }
+
+        /// <summary>
+        /// Display detailed weapon status information.
+        /// </summary>
+        private void DisplayDetailedWeaponStatus()
+        {
+            Console.Clear();
+            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+            Console.WriteLine("║              DETAILED WEAPON STATUS                       ║");
+            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+
+            // Tech Levels
+            Console.WriteLine("=== TECHNOLOGY LEVELS ===");
+            Console.WriteLine($"  Weapons:     Level {engine.TechTree.CurrentLevel[TechTree.TechType.Weapons]}");
+            Console.WriteLine($"               {TechTree.GetTechDescription(TechTree.TechType.Weapons, engine.TechTree.CurrentLevel[TechTree.TechType.Weapons])}");
+            Console.WriteLine($"  Projectiles: Level {engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles]}");
+            Console.WriteLine($"               {TechTree.GetTechDescription(TechTree.TechType.Projectiles, engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles])}");
+
+            // Gun Base Velocity
+            int weaponsTechLevel = engine.TechTree.CurrentLevel[TechTree.TechType.Weapons];
+            double gunBaseVelocity = GunConfiguration.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel);
+            Console.WriteLine($"\n=== GUN BASE VELOCITY ===");
+            Console.WriteLine($"  Base Muzzle Velocity: {gunBaseVelocity:N0} m/s ({gunBaseVelocity / 1000:N0} km/s)");
+
+            // Unlocked Components
+            Console.WriteLine("\n=== UNLOCKED COMPONENTS ===");
+            
+            var cores = CraftedProjectile.GetUnlockedCores(engine.TechTree);
+            Console.WriteLine($"  Cores ({cores.Count} available):");
+            foreach (var core in cores)
+                Console.WriteLine($"    - {core.Name} ({core.MassKg} kg)");
+
+            var propulsion = CraftedProjectile.GetUnlockedPropulsion(engine.TechTree);
+            Console.WriteLine($"\n  Propulsion ({propulsion.Count} available):");
+            foreach (var prop in propulsion)
+            {
+                if (prop.Id == "none")
+                    Console.WriteLine($"    - {prop.Name} (no boost)");
+                else
+                    Console.WriteLine($"    - {prop.Name} (+{prop.DeltaVCapacityMs / 1000:N0} km/s Delta-V over {prop.BurnDurationSeconds:F1}s)");
+            }
+
+            var enhancements = CraftedProjectile.GetUnlockedEnhancements(engine.TechTree);
+            Console.WriteLine($"\n  Enhancements ({enhancements.Count} available):");
+            foreach (var enh in enhancements)
+                Console.WriteLine($"    - {enh.Name}");
+
+            // Gun Status
+            Console.WriteLine("\n=== GUN CONFIGURATION ===");
+            Console.WriteLine($"  Barrel Integrity: {engine.Gun.BarrelIntegrity:P2}");
+            Console.WriteLine($"  Estimated Shots Remaining: {engine.Gun.EstimatedShotsRemaining()}");
+            Console.WriteLine($"  Barrel Material: {engine.Gun.BarrelMaterial}");
+            Console.WriteLine($"  Barrel Integrity Failure Threshold: {engine.Gun.IntegrityFailureThreshold:P0}");
+
+            // Current Projectile
+            Console.WriteLine("\n=== CURRENT PROJECTILE ===");
+            if (engine.CraftedProjectile != null)
+            {
+                var proj = engine.CraftedProjectile;
+                Console.WriteLine($"  Configuration: {proj.DisplayName}");
+                Console.WriteLine($"  Mass: {proj.MassKg} kg");
+                Console.WriteLine($"  Gun Base Velocity: {proj.GunBaseMuzzleVelocityMs:N0} m/s");
+                
+                if (proj.Propulsion.Id != "none")
+                {
+                    double maxDeltaV = proj.Propulsion.CalculateEffectiveDeltaV(proj.MassKg, proj.Propulsion.BurnDurationSeconds);
+                    Console.WriteLine($"  Propulsion Delta-V: +{maxDeltaV:N0} m/s");
+                    Console.WriteLine($"  Max Velocity: {proj.MaxVelocityMs:N0} m/s");
+                }
+                
+                Console.WriteLine($"  Max KE: {proj.RawKineticEnergyMJ:N0} MJ");
+                Console.WriteLine($"  Effective KE: {proj.EffectiveKineticEnergyMJ:N0} MJ");
+                if (proj.HitToleranceMultiplier != 1.0)
+                    Console.WriteLine($"  Hit Tolerance: {proj.HitToleranceMultiplier:P0}");
+            }
+            else
+            {
+                Console.WriteLine("  [NOT CONFIGURED]");
+            }
+
+            Console.WriteLine("\nPress any key to return to Weapon Development...");
+            Console.ReadKey();
         }
 
         private void RunFiringPhase()
@@ -923,13 +1313,14 @@ namespace Spacegun_Simulator
 
             float minVelocity = calculator.CalculateRequiredVelocity();
             double targetRadarCrossSection = target.CrossSection;
-            
+
             // ===== APPLY RCS MULTIPLIER FOR DISPLAY =====
             double displayRCS = targetRadarCrossSection * diffConfig.TargetRcsMultiplier;
 
             Console.WriteLine($"=== YOUR WEAPON ===");
             Console.WriteLine($"Projectile Mass: {FiringPhaseFormatter.FormatMass(projectileMass, engine.SelectedDifficulty)} kg");
             Console.WriteLine($"Max Muzzle Velocity: {FiringPhaseFormatter.FormatVelocity(muzzleVelocity, engine.SelectedDifficulty)} m/s");
+            Console.WriteLine($"Barrel Integrity: {engine.Gun.BarrelIntegrity:P2}");
             Console.WriteLine($"Has Guidance System: {(engine.Gun.DefaultProjectile.HasGuidance ? "Yes" : "No")}");
             Console.WriteLine($"Gun Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(engine.CurrentWaveNumber).MaxEffectiveGunRange)}\n");
 
@@ -945,7 +1336,6 @@ namespace Spacegun_Simulator
             Console.WriteLine($"Approach Speed: {FiringPhaseFormatter.FormatVelocity(firingProblem.ApproachSpeed, engine.SelectedDifficulty)} m/s");
             Console.WriteLine($"Fracture Energy Required: {FiringPhaseFormatter.FormatEnergy(firingProblem.FractureEnergyRequired, engine.SelectedDifficulty)}");
 
-            // Display hit tolerance instead of RCS for tutorial mode
             if (diffConfig.IsTutorialMode)
             {
                 double hitTolerance = DifficultyConfig.TutorialBeachball.RadiusMeters;
@@ -953,7 +1343,6 @@ namespace Spacegun_Simulator
             }
             else
             {
-                // Use multiplied RCS for display consistency with detection phase
                 Console.WriteLine($"Target Radar Cross-Section: {FiringPhaseFormatter.FormatRadarCrossSection(displayRCS, engine.SelectedDifficulty)} m²\n");
             }
 
@@ -1033,8 +1422,7 @@ namespace Spacegun_Simulator
                         float playerLaunchDelayTime = GetPlayerTimeInput("Launch delay time (seconds): ");
                         float playerTargetElevation = GetPlayerElevationInput("Target elevation angle (-90 to 90 degrees): ");
                         float playerTargetAzimuth = GetPlayerAzimuthInput("Target azimuth bearing (0-360 degrees, 0=North): ");
-                        
-                        // FIX: Format velocity number only, then add unit suffix
+
                         var velPrecision = DifficultyConfig.GetConfig(engine.SelectedDifficulty).VelocityPrecision;
                         float playerLaunchVelocity = GetPlayerVelocityInput(
                             $"Launch velocity (0-{velPrecision.Format(muzzleVelocity)} m/s): ");
@@ -1075,6 +1463,20 @@ namespace Spacegun_Simulator
                             hitResult);
 
                         DisplayDebugCalculations(solution, projectileMass, playerLaunchVelocity, displayRCS);
+
+                        // ===== APPLY BARREL DEGRADATION (GAMEPLAY ONLY) =====
+                        if (engine.Gun != null)
+                        {
+                            bool barrelStillOk = engine.Gun.RegisterShot();
+                            Console.WriteLine($"\nBarrel Integrity (post-shot): {engine.Gun.BarrelIntegrity:P2}");
+                            if (!barrelStillOk)
+                            {
+                                Console.WriteLine("\n✗ Barrel integrity failed after shot. The gun is unusable until repaired.");
+                                Console.WriteLine("Press any key to continue...");
+                                // Behavior on barrel failure: mark game over to require maintenance/replace in future design.
+                                engine.IsGameOver = true;
+                            }
+                        }
 
                         if (hitResult)
                         {
@@ -1118,8 +1520,7 @@ namespace Spacegun_Simulator
                         float directDelayTime = GetPlayerTimeInput("Launch delay time (seconds): ");
                         float directElevation = GetPlayerElevationInput("Target elevation angle (-90 to 90 degrees): ");
                         float directAzimuth = GetPlayerAzimuthInput("Target azimuth bearing (0-360 degrees, 0=North): ");
-                        
-                        // FIX: Use correct velocity formatting for difficulty
+
                         float directVelocity = GetPlayerVelocityInput(
                             $"Launch velocity (0-{FiringPhaseFormatter.FormatVelocity(muzzleVelocity, engine.SelectedDifficulty)}): ");
 
@@ -1146,6 +1547,19 @@ namespace Spacegun_Simulator
                         bool directHitResult = directSolution.CanDestroy && directSolution.CanHit;
 
                         DisplayDebugCalculations(directSolution, projectileMass, directVelocity, displayRCS);
+
+                        // ===== APPLY BARREL DEGRADATION (GAMEPLAY ONLY) =====
+                        if (engine.Gun != null)
+                        {
+                            bool barrelStillOk = engine.Gun.RegisterShot();
+                            Console.WriteLine($"\nBarrel Integrity (post-shot): {engine.Gun.BarrelIntegrity:P2}");
+                            if (!barrelStillOk)
+                            {
+                                Console.WriteLine("\n✗ Barrel integrity failed after shot. The gun is unusable until repaired.");
+                                Console.WriteLine("Press any key to continue...");
+                                engine.IsGameOver = true;
+                            }
+                        }
 
                         if (directHitResult)
                         {
@@ -1203,12 +1617,13 @@ namespace Spacegun_Simulator
 
             Console.Clear();
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║            FIRING SOLUTION & ENGAGEMENT PHASE             ║");
+            Console.WriteLine("║              FIRING SOLUTION & ENGAGEMENT PHASE             ║");
             Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
             Console.WriteLine("=== YOUR WEAPON ===");
             Console.WriteLine($"Projectile Mass: {(engine.SelectedGunProjectileSpec?.ProjectileMassKg ?? engine.Gun.DefaultProjectile.Mass):F1} kg");
             Console.WriteLine($"Max Muzzle Velocity: {FiringPhaseFormatter.FormatVelocity(muzzleVelocity, engine.SelectedDifficulty)} m/s");
+            Console.WriteLine($"Barrel Integrity: {engine.Gun.BarrelIntegrity:P2}");
             Console.WriteLine($"Has Guidance System: {(engine.Gun.DefaultProjectile.HasGuidance ? "Yes" : "No")}");
             Console.WriteLine($"Gun Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(engine.CurrentWaveNumber).MaxEffectiveGunRange)}\n");
 

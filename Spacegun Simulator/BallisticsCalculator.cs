@@ -172,5 +172,19 @@
             double radiusM = Math.Pow(3.0 * volumeM3 / (4.0 * Math.PI), 1.0 / 3.0);
             return radiusM * 2.0;
         }
+
+        /// <summary>
+        /// Compute a target fracture energy (MJ) from mass (tons).
+        /// Default specific energy is chosen so 1 ton -> ~10 MJ when specificEnergyJPerKg = 10000.
+        /// Make this configurable (GameConfig) for designer balance.
+        /// </summary>
+        public static double CalculateFractureEnergyMJFromMass(double massTons, double specificEnergyJPerKg = 10000.0)
+        {
+            double massKg = massTons * 1000.0;
+            double fractureJ = massKg * specificEnergyJPerKg;
+            double fractureMJ = fractureJ / 1_000_000.0;
+            // keep a sensible minimum so tiny masses don't produce zero
+            return Math.Max(1.0, fractureMJ);
+        }
     }
 }

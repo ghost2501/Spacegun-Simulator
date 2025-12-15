@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+
 namespace Spacegun_Simulator.Tests
 {
     /// <summary>
@@ -12,7 +16,7 @@ namespace Spacegun_Simulator.Tests
     /// - Engine calculations are mathematically self-consistent
     /// - Fast, deterministic, requires no external calibration
     /// </summary>
-    public static class TestScenarios
+    public static partial class TestScenarios
     {
         // Standard projectile specs
         private const float StandardProjectileMass = 100.0f;
@@ -289,6 +293,134 @@ namespace Spacegun_Simulator.Tests
                 MaxExpectedIterations = 100
             };
         }
+
+        // ====================================================================
+        // WEAPONS TECH AUDIT SCENARIOS
+        // ====================================================================
+
+        /// <summary>
+        /// Generate a set of scenarios to audit weapon tech levels and
+        /// projectile/propulsion upgrades. Uses a single fixed target so
+        /// results are directly comparable between runs.
+        /// 
+        /// Scenarios vary:
+        ///  - Weapons Tech (base muzzle velocity): L1/L2/L3
+        ///  - Delta-V "upgrades" applied on top of the gun base
+        ///  - Projectile core masses (light/standard/heavy/ultra)
+        /// 
+        /// Unlimited resources are assumed for the audit; the harness will only
+        /// evaluate ballistic results and write them to disk.
+        /// </summary>
+        public static List<TestScenario> GetTechAuditScenarios()
+        {
+            var scenarios = new List<TestScenario>();
+
+            // Fixed target (easy to compare across runs)
+            var fixedTargetPosition = new Vector3(0, 500_000, 0);   // 500 km out on Y axis
+            var fixedTargetVelocity = new Vector3(0, 0, 0);         // stationary
+            const double fixedTargetMass = 1000.0;                  // tons
+            const float fixedRcs = 10.0f;                           // m^2
+
+            // Compute fracture energy from mass so value is derived not hard-coded.
+            // Uses a reference velocity and scale factor so returned MJ are in a sensible gameplay range.
+            float computedFractureEnergy = (float)ComputeFractureEnergyMJ(fixedTargetMass);
+
+            // Define weapons tech base muzzle velocities (m/s)
+            var weaponBases = new (int TechLevel, double BaseMs)[]
+            {
+                (1, 80_000),   // Tech L1
+                (2, 160_000),  // Tech L2
+                (3, 350_000)   // Tech L3
+            };
+
+            // Delta-V "upgrades" to simulate propulsion options (m/s)
+            double[] deltaVs = { 0, 20_000, 40_000, 80_000 };
+
+            // Core masses (kg) representing projectile cores
+            var cores = new (string Id, double MassKg)[]
+            {
+                ("light", 10.0),
+                ("standard", 15.0),
+                ("heavy", 25.0),
+                ("ultra", 50.0)
+            };
+
+            int idx = 1;
+            foreach (var wb in weaponBases)
+            {
+                foreach (var dv in deltaVs)
+                {
+                    foreach (var core in cores)
+                    {
+                        double finalMuzzle = wb.BaseMs + dv;
+
+                        var scenario = new TestScenario
+                        {
+                            Name = $"TechAudit #{idx++} - W{wb.TechLevel} DV+{(int)(dv/1000)}km/s Core:{core.Id}",
+                            Difficulty = TestDifficulty.Moderate,
+                            Description = $"WeaponsTech L{wb.TechLevel}, +{dv:N0} m/s delta-V, core {core.Id} ({core.MassKg} kg).",
+
+                            // Fixed target
+                            TargetPosition = fixedTargetPosition,
+                            TargetVelocity = fixedTargetVelocity,
+
+                            // Test parameters: use the final muzzle as the launch velocity for consistency
+                            CorrectLaunchDelay = 0.0f,
+                            CorrectElevation = 45.0f, // fire at 45°
+                            CorrectAzimuth = 0.0f,    // fire at 0°
+                            CorrectVelocity = (float)finalMuzzle,
+
+                            // Weapon configuration
+                            ProjectileMass = (float)core.MassKg,
+                            MuzzleVelocity = (float)finalMuzzle,
+
+                            // Target configuration (computed from mass so it isn't always the same constant)
+                            TargetFractureEnergy = computedFractureEnergy,
+                            TargetMass = fixedTargetMass,
+                            TargetRadarCrossSection = fixedRcs,
+
+                            // Audit metadata for CSV output
+                            TechLevel = wb.TechLevel,
+                            BaseMuzzleVelocityMs = wb.BaseMs,
+                            DeltaVMs = dv,
+                            CoreType = core.Id,
+
+                            // Expectations are intentionally permissive; this audit is for comparison
+                            MaxDeviation = 1_000_000f,
+                            RequiresSufficientEnergy = false,
+                            MinExpectedIterations = 0,
+                            MaxExpectedIterations = 0
+                        };
+
+                        scenarios.Add(scenario);
+                    }
+                }
+            }
+
+            return scenarios;
+        }
+
+        /// <summary>
+        /// Compute a target fracture energy (MJ) from mass (tons).
+        /// Method:
+        ///  - Convert tons -> kg
+        ///  - Compute kinetic energy at a sensible reference velocity (1000 m/s)
+        ///  - Scale that energy by a small factor so fracture values are in a gameplay-friendly range
+        /// The constants (refVelocity, scale) are chosen so 1000 tons -> ~10,000 MJ (matches previous constant),
+        /// but the value will vary if mass changes.
+        /// </summary>
+        private static double ComputeFractureEnergyMJ(double massTons)
+        {
+            const double referenceVelocityMs = 1000.0; // reference speed for mapping mass -> energy
+            const double scale = 0.02;                 // factor to convert KE@refVel -> fracture energy MJ
+
+            double massKg = massTons * 1000.0;
+            double keMJ = BallisticsCalculator.CalculateKineticEnergyMJ(massKg, referenceVelocityMs);
+
+            double fractureMJ = keMJ * scale;
+            // Floor the value to a sensible minimum
+            return Math.Max(100.0, fractureMJ);
+        }
     }
 
     /// <summary>
@@ -324,6 +456,12 @@ namespace Spacegun_Simulator.Tests
         public bool RequiresSufficientEnergy { get; set; }
         public int? MinExpectedIterations { get; set; }
         public int? MaxExpectedIterations { get; set; }
+
+        // ===== NEW: Audit metadata =====
+        public int TechLevel { get; set; } = 1;
+        public double BaseMuzzleVelocityMs { get; set; } = 0.0;
+        public double DeltaVMs { get; set; } = 0.0;
+        public string CoreType { get; set; } = string.Empty;
 
         public override string ToString()
         {

@@ -910,5 +910,8 @@
             CurrentWaveIndex++;
             return CurrentWaveIndex < PreGeneratedWaves.Count;
         }
+
+        // Add this property to the GameState class:
+        public CraftedProjectile? CraftedProjectile { get; set; }
     }
 }

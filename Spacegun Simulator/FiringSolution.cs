@@ -238,6 +238,27 @@ namespace Spacegun_Simulator
             return new Vector3(x, y, z);
         }
 
+        // Added: public static wrapper to compute projectile position identical to the instance method.
+        // This allows test code to reuse the solver's exact trajectory math.
+
+        public static Vector3 CalculateProjectilePositionStatic(double flightTime, double launchVelocity, double elevationDeg, double azimuthDeg)
+        {
+            double elevationRad = elevationDeg * Math.PI / 180.0;
+            double azimuthRad = azimuthDeg * Math.PI / 180.0;
+
+            double vz = launchVelocity * Math.Sin(elevationRad);
+            double vHorizontal = launchVelocity * Math.Cos(elevationRad);
+
+            double vx = vHorizontal * Math.Sin(azimuthRad);
+            double vy = vHorizontal * Math.Cos(azimuthRad);
+
+            double x = vx * flightTime;
+            double y = vy * flightTime;
+            double z = vz * flightTime - 0.5 * GRAVITY * flightTime * flightTime;
+
+            return new Vector3(x, y, z);
+        }
+
         /// <summary>
         /// Calculate enemy position at time T (measured from engagement start).
         /// PRECISION: Using double for all time calculations to maintain sub-meter accuracy.
