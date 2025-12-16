@@ -162,19 +162,9 @@ namespace Spacegun_Simulator.FireControlTools
             double azimuthDegrees,
             double flightTime)
         {
-            double elevationRad = elevationDegrees * Math.PI / 180.0;
-            double azimuthRad = azimuthDegrees * Math.PI / 180.0;
-
-            double verticalVelocity = launchVelocity * Math.Sin(elevationRad);
-            double z = verticalVelocity * flightTime - 0.5 * 9.81 * flightTime * flightTime;
-
-            double horizontalVelocity = launchVelocity * Math.Cos(elevationRad);
-            double horizontalDistance = horizontalVelocity * flightTime;
-
-            double x = horizontalDistance * Math.Sin(azimuthRad);
-            double y = horizontalDistance * Math.Cos(azimuthRad);
-
-            return new Vector3(x, y, z);
+            // Use canonical calculation to prevent formula drift.
+            // BallisticsCalculator signature: (flightTime, launchVelocity, elevationDeg, azimuthDeg)
+            return BallisticsCalculator.CalculateProjectilePositionStatic(flightTime, launchVelocity, elevationDegrees, azimuthDegrees);
         }
 
         /// <summary>

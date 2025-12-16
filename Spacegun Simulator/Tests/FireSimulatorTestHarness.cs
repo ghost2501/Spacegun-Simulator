@@ -134,6 +134,30 @@ namespace Spacegun_Simulator.Tests
 
         public void RunAllTests()
         {
+            // Run quick consistency checks before interactive test modes.
+            try
+            {
+                // Tier / array consistency
+                TierArraysConsistencyTests.RunAllChecks();
+                Console.WriteLine("✓ Tier arrays consistency checks passed.");
+
+                // Constants consumer checks (barrel wear, tech velocity mapping)
+                ConstantsConsistencyUnitTests.RunAllChecks();
+                Console.WriteLine("✓ Constants consistency checks passed.");
+
+                // Backwards-compatible quick checks (existing)
+                ConstantsConsistencyTests.RunWeaponTechMappingCheck();
+                ConstantsConsistencyTests.RunBarrelWearMappingCheck();
+                Console.WriteLine("✓ Legacy consistency checks passed.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Constants consistency check failed: " + ex.Message);
+                Console.WriteLine("Fix the mapping in GameConstants, GunConfiguration, or EnemyWave before running tests.");
+                Console.WriteLine("Press any key to continue to the test menu (tests may be unreliable)...");
+                Console.ReadKey();
+            }
+
             while (true)
             {
                 Console.Clear();
@@ -141,6 +165,7 @@ namespace Spacegun_Simulator.Tests
                 Console.WriteLine("║         FIRE SIMULATOR TEST HARNESS - SELECT MODE         ║");
                 Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
+                Console.WriteLine("[C] CONSISTENCY CHECK - Run constants mapping checks");
                 Console.WriteLine("[T] TECH AUDIT - Run weapons / propulsion / core matrix (fixed target)");
                 Console.WriteLine("    Runs a matrix of tech levels & upgrade deltas against a single fixed target");
                 Console.WriteLine("    Output written to CSV for easy comparison\n");
@@ -152,6 +177,10 @@ namespace Spacegun_Simulator.Tests
 
                 switch (mode)
                 {
+                    case "C":
+                        RunConsistencyCheckInteractive();
+                        break;
+
                     case "T":
                         RunTechAudit();
                         break;
@@ -165,6 +194,56 @@ namespace Spacegun_Simulator.Tests
                         break;
                 }
             }
+        }
+
+        private void RunConsistencyCheckInteractive()
+        {
+            Console.Clear();
+            Console.WriteLine("=== RUNNING CONSISTENCY CHECKS ===\n");
+
+            // Run both checks and show results separately.
+            try
+            {
+                TierArraysConsistencyTests.RunAllChecks();
+                Console.WriteLine("✓ Tier arrays consistency check passed.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"✗ Tier arrays consistency check failed: {ex.Message}");
+            }
+
+            try
+            {
+                ConstantsConsistencyUnitTests.RunAllChecks();
+                Console.WriteLine("✓ Constants consistency check passed.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"✗ Constants consistency check failed: {ex.Message}");
+            }
+
+            try
+            {
+                ConstantsConsistencyTests.RunWeaponTechMappingCheck();
+                Console.WriteLine("✓ Legacy weapon-tech mapping check passed.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"✗ Legacy weapon-tech mapping check failed: {ex.Message}");
+            }
+
+            try
+            {
+                ConstantsConsistencyTests.RunBarrelWearMappingCheck();
+                Console.WriteLine("✓ Legacy barrel-wear mapping check passed.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"✗ Legacy barrel-wear mapping check failed: {ex.Message}");
+            }
+
+            Console.WriteLine("\nPress any key to return to test menu...");
+            Console.ReadKey();
         }
     }
 }

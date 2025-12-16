@@ -2,20 +2,110 @@
 {
     // ============================================================================
     // BALLISTICS CALCULATOR
+    // Centralized physics/math helpers: muzzle velocity estimates, projectile
+    // trajectory, kinetic energy, diameter-from-mass, fracture-energy mapping.
+    // All other systems should call into this class to avoid formula drift.
     // ============================================================================
-    // Core ballistics calculations: muzzle velocity, kinetic energy (damage),
-    // and target destruction validation.
-    //
-    // NOTE: Hit probability calculation has been moved to the Firing Phase UI.
-    // This allows player input (firing solution calculations) to directly influence
-    // hit probability, creating a skill-based component to the game.
 
     public static class BallisticsCalculator
     {
-        public static double CalculateMuzzleVelocity(
-            GunConfiguration gun,
-            ProjectileConfiguration projectile)
+        /// <summary>
+        /// Calculate kinetic energy in megajoules.
+        /// KE = 0.5 * mass * velocity²
+        /// </summary>
+        public static double CalculateKineticEnergyMJ(double projectileMassKg, double projectileVelocityMs)
         {
+            double energyJoules = 0.5 * projectileMassKg * projectileVelocityMs * projectileVelocityMs;
+            return energyJoules / 1_000_000.0;
+        }
+
+        /// <summary>
+        /// Calculate diameter (meters) from mass in metric tons using an assumed density.
+        /// Returns diameter in meters.
+        /// </summary>
+        public static double CalculateDiameterFromMass(double massTons, double densityKgM3 = 500.0)
+        {
+            double massKg = massTons * 1000.0;
+            double volumeM3 = massKg / densityKgM3;
+            double radiusM = Math.Pow(3.0 * volumeM3 / (4.0 * Math.PI), 1.0 / 3.0);
+            return radiusM * 2.0;
+        }
+
+        /// <summary>
+        /// Compute a target fracture energy (MJ) from mass (tons).
+        /// Default specific energy is chosen so 1 ton -> ~10 MJ when specificEnergyJPerKg = 10000.
+        /// </summary>
+        public static double CalculateFractureEnergyMJFromMass(double massTons, double specificEnergyJPerKg = 10000.0)
+        {
+            double massKg = massTons * 1000.0;
+            double fractureJ = massKg * specificEnergyJPerKg;
+            double fractureMJ = fractureJ / 1_000_000.0;
+            return Math.Max(1.0, fractureMJ);
+        }
+
+        /// <summary>
+        /// Convert a linear RPM-style descriptor into an approximate muzzle velocity.
+        /// - rpm: revolutions per minute of a mechanical accelerator (or launcher)
+        /// - linearTravelPerRevMeters: linear distance the projectile advances per revolution (m)
+        /// This is a generic helper for derived launcher designs; if you have a specific
+        /// propulsion model prefer CalculateMuzzleVelocity(GunConfiguration, ProjectileConfiguration).
+        /// </summary>
+        public static double CalculateMuzzleVelocityFromRpm(double rpm, double linearTravelPerRevMeters)
+        {
+            if (rpm <= 0 || linearTravelPerRevMeters <= 0) return 0.0;
+            // rpm -> revs per second = rpm / 60
+            return (rpm / 60.0) * linearTravelPerRevMeters;
+        }
+
+        /// <summary>
+        /// Calculate the projectile position at a given flight time using a simple ballistic model:
+        ///   - vz = launchVelocity * sin(elevation)
+        ///   - vHorizontal = launchVelocity * cos(elevation)
+        ///   - vx = vHorizontal * sin(azimuth)
+        ///   - vy = vHorizontal * cos(azimuth)
+        ///   - x = vx * flightTime
+        ///   - y = vy * flightTime
+        ///   - z = vz * flightTime - 0.5 * g * flightTime^2
+        /// Uses the shared Vector3 struct defined in FiringSolution.cs (same namespace).
+        /// </summary>
+        public static Vector3 CalculateProjectilePositionStatic(double flightTime, double launchVelocity, double elevationDeg, double azimuthDeg)
+        {
+            const double GRAVITY = 9.81;
+
+            double elevationRad = elevationDeg * Math.PI / 180.0;
+            double azimuthRad = azimuthDeg * Math.PI / 180.0;
+
+            double vz = launchVelocity * Math.Sin(elevationRad);
+            double vHorizontal = launchVelocity * Math.Cos(elevationRad);
+
+            double vx = vHorizontal * Math.Sin(azimuthRad);
+            double vy = vHorizontal * Math.Cos(azimuthRad);
+
+            double x = vx * flightTime;
+            double y = vy * flightTime;
+            double z = vz * flightTime - 0.5 * GRAVITY * flightTime * flightTime;
+
+            return new Vector3(x, y, z);
+        }
+
+        /// <summary>
+        /// Heuristic muzzle velocity estimate from gun and projectile properties.
+        /// Kept for convenience; more detailed models should use CalculateMuzzleVelocity(GunConfiguration, ProjectileConfiguration).
+        /// </summary>
+        public static double EstimateMuzzleVelocity(double propellantEnergyJ, double projectileMassKg, double efficiency = 0.3)
+        {
+            if (projectileMassKg <= 0) return 0.0;
+            double kineticEnergy = propellantEnergyJ * efficiency;
+            return Math.Sqrt(2.0 * kineticEnergy / projectileMassKg);
+        }
+
+        /// <summary>
+        /// Existing higher-level muzzle velocity calculator that consumes Gun + Projectile models.
+        /// Kept as wrapper for compatibility; prefer calling this from game code when computing runtime muzzle speeds.
+        /// </summary>
+        public static double CalculateMuzzleVelocity(GunConfiguration gun, ProjectileConfiguration projectile)
+        {
+            // Reuse existing logic from previous BallisticsCalculator.CalculateMuzzleVelocity implementation.
             double velocity = 0.0;
 
             switch (gun.PropulsionSystem)
@@ -51,109 +141,7 @@
         }
 
         /// <summary>
-        /// Calculate the base weapon accuracy capability.
-        /// This represents the gun's inherent accuracy potential without player input.
-        /// Used as reference for player to compare against their calculated firing solution.
-        /// </summary>
-        public static double GetBaseWeaponAccuracy(GunConfiguration gun)
-        {
-            double baseAccuracy = 0.5 + (gun.BarrelLength / 400.0) * gun.BarrelIntegrity;
-            return Math.Min(0.95, baseAccuracy);
-        }
-
-        /// <summary>
-        /// Calculate the theoretical best-case hit probability for a given gun/target combination.
-        /// This is what the player should aspire to achieve with perfect firing solution.
-        /// </summary>
-        public static double GetTheoreticalMaxProbability(
-            GunConfiguration gun,
-            ProjectileConfiguration projectile,
-            EnemyTarget target)
-        {
-            double baseAccuracy = GetBaseWeaponAccuracy(gun);
-
-            // Guidance system bonus
-            if (projectile.HasGuidance)
-            {
-                baseAccuracy += (1.0 - baseAccuracy) * projectile.GuidanceAccuracy;
-            }
-
-            // Target-specific modifiers (fixed characteristics)
-            double targetSize = target.CrossSection;
-            double sizeBonus = Math.Log10(targetSize) / 10.0;
-
-            double evasionPenalty = target.Evasiveness * 0.3;
-
-            double theoreticalMax = baseAccuracy + sizeBonus - evasionPenalty;
-
-            return Math.Clamp(theoreticalMax, 0.05, 0.99);
-        }
-
-        /// <summary>
-        /// Calculate firing solution accuracy based on player's calculated values vs optimal.
-        /// </summary>
-        public static double CalculateFiringSolutionAccuracy(
-            float playerAngleEstimate,
-            float calculatedOptimalAngle,
-            float playerTimeEstimate,
-            float calculatedTimeToImpact)
-        {
-            // Calculate angle deviation in degrees
-            float angleDifference = Math.Abs(playerAngleEstimate - calculatedOptimalAngle);
-            // Normalize to 0-180 range
-            if (angleDifference > 180f)
-                angleDifference = 360f - angleDifference;
-
-            // Calculate time deviation as percentage
-            float timeDifference = Math.Abs(playerTimeEstimate - calculatedTimeToImpact);
-            float timePercentDifference = (calculatedTimeToImpact > 0.1f)
-                ? (timeDifference / calculatedTimeToImpact) * 100f
-                : 0;
-
-            // Combined deviation score (lower is better)
-            float totalDeviation = (angleDifference / 45f) * 50f + timePercentDifference * 0.5f;
-
-            // Convert deviation to accuracy (0 deviation = 1.0 accuracy, 100 deviation = 0.5 accuracy)
-            double accuracy = 1.0 - (totalDeviation / 100.0);
-
-            // Clamp to realistic range
-            return Math.Clamp(accuracy, 0.5, 1.0);
-        }
-
-        /// <summary>
-        /// Calculate kinetic energy in megajoules.
-        /// KE = 0.5 * mass * velocity²
-        /// </summary>
-        public static double CalculateKineticEnergyMJ(double projectileMassKg, double projectileVelocityMs)
-        {
-            double energyJoules = 0.5 * projectileMassKg * projectileVelocityMs * projectileVelocityMs;
-            return energyJoules / 1_000_000.0;
-        }
-
-        /// <summary>
-        /// Calculate damage as kinetic energy in megajoules.
-        /// This is the value compared against fracture energy.
-        /// </summary>
-        public static double CalculateDamage(
-            ProjectileConfiguration projectile,
-            double impactVelocity,
-            EnemyTarget target)
-        {
-            return CalculateKineticEnergyMJ(projectile.Mass, impactVelocity);
-        }
-
-        /// <summary>
-        /// Determine if the projectile delivers sufficient kinetic energy to destroy the target.
-        /// Uses a 95% threshold to provide a margin for safety.
-        /// </summary>
-        public static bool CanDestroyTarget(double projectileKineticEnergyMJ, EnemyTarget target)
-        {
-            double threshold = target.FractureEnergy * 0.95;
-            return projectileKineticEnergyMJ >= threshold;
-        }
-
-        /// <summary>
-        /// Get a human-readable difficulty description based on stars.
+        /// Convenience: human-readable difficulty description (kept here so callers can centralize).
         /// </summary>
         public static string GetDifficultyDescription(int stars) => stars switch
         {
@@ -164,27 +152,5 @@
             5 => "★★★★★ Extreme",
             _ => "Unknown"
         };
-
-        public static double CalculateDiameterFromMass(double massTons, double densityKgM3 = 500.0)
-        {
-            double massKg = massTons * 1000.0;
-            double volumeM3 = massKg / densityKgM3;
-            double radiusM = Math.Pow(3.0 * volumeM3 / (4.0 * Math.PI), 1.0 / 3.0);
-            return radiusM * 2.0;
-        }
-
-        /// <summary>
-        /// Compute a target fracture energy (MJ) from mass (tons).
-        /// Default specific energy is chosen so 1 ton -> ~10 MJ when specificEnergyJPerKg = 10000.
-        /// Make this configurable (GameConfig) for designer balance.
-        /// </summary>
-        public static double CalculateFractureEnergyMJFromMass(double massTons, double specificEnergyJPerKg = 10000.0)
-        {
-            double massKg = massTons * 1000.0;
-            double fractureJ = massKg * specificEnergyJPerKg;
-            double fractureMJ = fractureJ / 1_000_000.0;
-            // keep a sensible minimum so tiny masses don't produce zero
-            return Math.Max(1.0, fractureMJ);
-        }
     }
 }

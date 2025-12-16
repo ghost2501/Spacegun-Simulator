@@ -438,9 +438,34 @@ namespace Spacegun_Simulator
                 };
             }
 
+            // Resolve selected projectile spec (robust fallback if saved id is missing or obsolete)
             if (!string.IsNullOrEmpty(SelectedGunProjectileSpecId))
             {
-                gameState.SelectedGunProjectileSpec = GunProjectileSpec.All.FirstOrDefault(s => s.Id == SelectedGunProjectileSpecId);
+                var spec = GunProjectileSpec.All.FirstOrDefault(s => s.Id == SelectedGunProjectileSpecId);
+                if (spec != null)
+                {
+                    gameState.SelectedGunProjectileSpec = spec;
+                }
+                else
+                {
+                    // saved id not found (legacy removal/mismatch) — choose sensible default by tier
+                    var tier = GameConstants.GetTierForWave(gameState.CurrentWaveNumber);
+                    gameState.SelectedGunProjectileSpec = GunProjectileSpec.CreateDefaultForTier(tier.TierIndex);
+                }
+            }
+            else
+            {
+                // No saved ID — pick tutorial potato or tier default
+                var diff = DifficultyConfig.GetConfig(gameState.SelectedDifficulty);
+                if (diff.IsTutorialMode)
+                {
+                    gameState.SelectedGunProjectileSpec = GunProjectileSpec.PotatoCannon;
+                }
+                else
+                {
+                    var tier = GameConstants.GetTierForWave(gameState.CurrentWaveNumber);
+                    gameState.SelectedGunProjectileSpec = GunProjectileSpec.CreateDefaultForTier(tier.TierIndex);
+                }
             }
 
             if (!string.IsNullOrEmpty(CampaignEnemyTypeId))

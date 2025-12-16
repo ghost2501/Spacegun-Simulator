@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Linq;
 
 namespace Spacegun_Simulator.Tests
 {
@@ -20,7 +21,14 @@ namespace Spacegun_Simulator.Tests
     {
         // Standard projectile specs
         private const float StandardProjectileMass = 100.0f;
-        private const float StandardMuzzleVelocity = 320000.0f;
+
+        // Use canonical value from GameConstants (tier 3 as the "standard" test velocity).
+        // Falls back to previous hard-coded value if the array is missing.
+        private static readonly float StandardMuzzleVelocity =
+            (float)(GameConstants.WeaponsTechBaseVelocity.Length > 2
+                ? GameConstants.WeaponsTechBaseVelocity[2]
+                : 320_000.0);
+
         private const float StandardFractureEnergy = 40000.0f;  // MJ
         private const double StandardTargetMass = 10000.0;      // Tons
 
@@ -325,13 +333,11 @@ namespace Spacegun_Simulator.Tests
             // Uses a reference velocity and scale factor so returned MJ are in a sensible gameplay range.
             float computedFractureEnergy = (float)ComputeFractureEnergyMJ(fixedTargetMass);
 
-            // Define weapons tech base muzzle velocities (m/s)
-            var weaponBases = new (int TechLevel, double BaseMs)[]
-            {
-                (1, 80_000),   // Tech L1
-                (2, 160_000),  // Tech L2
-                (3, 350_000)   // Tech L3
-            };
+            // Define weapons tech base muzzle velocities (m/s) - use canonical values.
+            // Build tuples (TechLevel, BaseMs) dynamically from GameConstants to avoid duplication.
+            var weaponBases = GameConstants.WeaponsTechBaseVelocity
+                .Select((v, idx) => (TechLevel: idx + 1, BaseMs: v))
+                .ToArray();
 
             // Delta-V "upgrades" to simulate propulsion options (m/s)
             double[] deltaVs = { 0, 20_000, 40_000, 80_000 };

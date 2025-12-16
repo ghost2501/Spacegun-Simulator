@@ -212,7 +212,7 @@
             double availableSecondsForGunRange = distanceToGunRange / CurrentWave.AverageVelocity;
 
             // Round to whole years, minimum 1 year
-            AvailableYears = Math.Max(1, (long)Math.Round(availableSecondsForGunRange / GameConstants.SecondsPerYear));
+            AvailableYears = Math.Max(1, (long)Math.Round(availableSecondsForGunRange / GameConstants.SECONDS_PER_YEAR));
             RemainingYears = AvailableYears;
             InitializeResourceAccumulation();
 
@@ -510,25 +510,15 @@
                 }
                 else
                 {
-                    // Non-tutorial modes: Use a tier-appropriate default weapon
-                    SelectedGunProjectileSpec = tier.TierIndex switch
-                    {
-                        0 => GunProjectileSpec.All[1],  // Needle Strike (10kg @ 80,000 m/s)
-                        1 => GunProjectileSpec.All[2],  // Armor Piercer (25kg @ 160,000 m/s)
-                        _ => GunProjectileSpec.All[4]   // Hypersonic Rail (15kg @ 350,000 m/s)
-                    };
+                    // Non-tutorial modes: Use the recommended factory method
+                    SelectedGunProjectileSpec = GunProjectileSpec.CreateDefaultForTier(tier.TierIndex);
                 }
             }
             // ===== CRITICAL FIX: Verify weapon matches difficulty mode =====
             // If we're NOT in tutorial mode but have the potato cannon, override it
             else if (!diffConfig.IsTutorialMode && SelectedGunProjectileSpec.Id == "potato")
             {
-                SelectedGunProjectileSpec = tier.TierIndex switch
-                {
-                    0 => GunProjectileSpec.All[1],  // Needle Strike
-                    1 => GunProjectileSpec.All[2],  // Armor Piercer
-                    _ => GunProjectileSpec.All[4]   // Hypersonic Rail
-                };
+                SelectedGunProjectileSpec = GunProjectileSpec.CreateDefaultForTier(tier.TierIndex);
             }
 
             // ===== CRITICAL: Only generate if NOT already generated =====

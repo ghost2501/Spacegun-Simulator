@@ -6,15 +6,6 @@ namespace Spacegun_Simulator
     // ====================================================================
     // GUN CONFIGURATION
     // ====================================================================
-    // The gun provides the BASE muzzle velocity for all projectiles.
-    // Velocity is determined by Weapons Tech level and gun upgrades.
-    // Projectile propulsion (Delta-V) is an optional modifier unlocked at
-    // Projectiles Tech Level 2+.
-    //
-    // NEW: Barrel degradation system
-    // - Tracks shots fired and cumulative wear
-    // - Applies per-shot wear based on heat, pressure and installed upgrades
-    // - Exposes repair/replacement helpers and diagnostics
     public class GunConfiguration
     {
         public double BarrelLength { get; set; }
@@ -48,26 +39,12 @@ namespace Spacegun_Simulator
         // ====================================================================
         // Barrel degradation state (new)
         // ====================================================================
-        /// <summary>
-        /// Number of shots fired since last maintenance/replace.
-        /// </summary>
         public long ShotsFired { get; private set; }
-
-        /// <summary>
-        /// Cumulative wear applied as a fraction (0..1). Mirrors integrity reduction.
-        /// </summary>
         public double CumulativeWear { get; private set; }
 
-        /// <summary>
-        /// Base wear per shot (fraction of integrity lost) under nominal conditions.
-        /// Designers can tune this value. Typical default produces slow wear across many shots.
-        /// </summary>
-        public double BaseWearPerShot { get; set; } = 0.0005; // 0.05% per nominal shot
-
-        /// <summary>
-        /// Minimum integrity threshold below which the barrel is considered unusable.
-        /// </summary>
-        public double IntegrityFailureThreshold { get; set; } = 0.05; // 5%
+        // Initialize from canonical source in GameConstants (single source of truth)
+        public double BaseWearPerShot { get; set; }
+        public double IntegrityFailureThreshold { get; set; } = 0.05;
 
         public double MaxSafePressure => CalculateMaxPressure();
         public double HeatPerShot => CalculateHeatGeneration();
@@ -90,8 +67,13 @@ namespace Spacegun_Simulator
             AmmunitionCount = 10;
             DefaultProjectile = new ProjectileConfiguration();
 
-            // Default base velocity for Weapons Tech Level 1
-            BaseMuzzleVelocityMs = 80_000;  // 80 km/s
+            // Default base velocity for Weapons Tech Level 1 (canonical source)
+            BaseMuzzleVelocityMs = GameConstants.WeaponsTechBaseVelocity.Length > 0
+                ? GameConstants.WeaponsTechBaseVelocity[0]
+                : 80_000;
+
+            // Initialize wear tunable from canonical source
+            BaseWearPerShot = GameConstants.DefaultBarrelWearPerShot;
 
             ShotsFired = 0;
             CumulativeWear = 0.0;
@@ -99,23 +81,22 @@ namespace Spacegun_Simulator
 
         /// <summary>
         /// Get the base muzzle velocity for a given Weapons Tech level.
-        /// Higher tech levels unlock faster gun systems.
+        /// Values are read from GameConstants.WeaponsTechBaseVelocity to centralize tuning.
         /// </summary>
         public static double GetBaseMuzzleVelocityForTechLevel(int weaponsTechLevel)
         {
-            return weaponsTechLevel switch
-            {
-                1 => 80_000,    // 80 km/s - Chemical propellant
-                2 => 160_000,   // 160 km/s - Electromagnetic railgun
-                3 => 350_000,   // 350 km/s - Plasma rail system
-                _ => 80_000
-            };
+            if (weaponsTechLevel <= 0) weaponsTechLevel = 1;
+
+            int index = weaponsTechLevel - 1;
+            if (index >= 0 && index < GameConstants.WeaponsTechBaseVelocity.Length)
+                return GameConstants.WeaponsTechBaseVelocity[index];
+
+            // Fallback to first entry if out of range
+            return GameConstants.WeaponsTechBaseVelocity.Length > 0
+                ? GameConstants.WeaponsTechBaseVelocity[0]
+                : 80_000;
         }
 
-        /// <summary>
-        /// Update the gun's base velocity based on current Weapons Tech level.
-        /// Call this after researching Weapons tech upgrades.
-        /// </summary>
         public void UpdateBaseMuzzleVelocity(int weaponsTechLevel)
         {
             BaseMuzzleVelocityMs = GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel);

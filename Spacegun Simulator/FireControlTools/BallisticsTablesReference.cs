@@ -289,8 +289,8 @@ namespace Spacegun_Simulator.FireControlTools
 
         public static double CalculateKineticEnergyMJ(double massKg, double velocityMs)
         {
-            double energyJoules = 0.5 * massKg * velocityMs * velocityMs;
-            return energyJoules / 1_000_000.0;
+            // Delegate to canonical implementation to avoid formula drift.
+            return BallisticsCalculator.CalculateKineticEnergyMJ(massKg, velocityMs);
         }
 
         /// <summary>

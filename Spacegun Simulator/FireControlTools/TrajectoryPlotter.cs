@@ -137,24 +137,28 @@ namespace Spacegun_Simulator.FireControlTools
             float azimuthDegrees,
             float flightTime)
         {
-            float elevationRad = elevationDegrees * (float)Math.PI / 180f;
-            float azimuthRad = azimuthDegrees * (float)Math.PI / 180f;
+            // Use canonical projectile position calculation to keep formulas centralized.
+            var pos = BallisticsCalculator.CalculateProjectilePositionStatic(flightTime, launchVelocity, elevationDegrees, azimuthDegrees);
 
+            // Convert to floats for the result object (preserve existing API)
+            float xPosition = (float)pos.X;
+            float yPosition = (float)pos.Y;
+            float zPosition = (float)pos.Z;
+
+            // Vertical velocity for drop/time-to-max-altitude calculations
+            float elevationRad = elevationDegrees * (float)Math.PI / 180f;
             float verticalVelocity = launchVelocity * (float)Math.Sin(elevationRad);
-            float zPosition = verticalVelocity * flightTime - 0.5f * GRAVITY * flightTime * flightTime;
+
             float gravitationalDrop = 0.5f * GRAVITY * flightTime * flightTime;
 
             float horizontalVelocity = launchVelocity * (float)Math.Cos(elevationRad);
             float horizontalRange = horizontalVelocity * flightTime;
 
-            float xPosition = horizontalRange * (float)Math.Sin(azimuthRad);
-            float yPosition = horizontalRange * (float)Math.Cos(azimuthRad);
-
             float rangeFromOrigin = (float)Math.Sqrt(xPosition * xPosition + yPosition * yPosition + zPosition * zPosition);
 
-            float timeToMaxAltitude = Math.Max(0, verticalVelocity / GRAVITY);
+            float timeToMaxAltitude = Math.Max(0f, verticalVelocity / GRAVITY);
             float maxAltitude = verticalVelocity * timeToMaxAltitude - 0.5f * GRAVITY * timeToMaxAltitude * timeToMaxAltitude;
-            maxAltitude = Math.Max(0, maxAltitude);
+            maxAltitude = Math.Max(0f, maxAltitude);
 
             return new TrajectoryResult
             {

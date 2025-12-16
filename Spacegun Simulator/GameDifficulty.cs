@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace Spacegun_Simulator
 {
     // ============================================================================
@@ -294,7 +297,7 @@ namespace Spacegun_Simulator
         }
 
         // ====================================================================
-        // TUTORIAL MODE CONSTANTS
+        // TUTORIAL MODE CONSTANTS (moved here — single canonical location)
         // ====================================================================
 
         /// <summary>
@@ -306,8 +309,11 @@ namespace Spacegun_Simulator
             public const double DiameterMeters = 2.0;
             public const double RadiusMeters = 1.0;  // Hit tolerance
             public const double MassKg = 0.5;  // Light inflatable ball
+            public const double MassTons = 0.0005;  // For archetype compatibility (metric tons)
             public const double FractureEnergyJoules = 50.0;  // Pop the ball (~50 J)
+            public const double FractureEnergyMJ = 0.00005;  // 50 J = 0.00005 MJ
             public const double CrossSectionM2 = 3.14;  // π × r² ≈ π × 1² ≈ 3.14 m²
+            public const double Evasiveness = 0.0;  // No evasion, just floating
         }
 
         /// <summary>
@@ -322,7 +328,7 @@ namespace Spacegun_Simulator
         }
 
         /// <summary>
-        /// Tutorial scenario: Beachball trajectory.
+        /// Tutorial scenario: Beachball trajectory defaults.
         /// Gentle arc traveling ~100m, easy to intercept.
         /// </summary>
         public static class TutorialTrajectory
@@ -331,6 +337,90 @@ namespace Spacegun_Simulator
             public const double ApproachSpeedMs = 10.0;  // Slow, gentle approach (~22 mph)
             public const double ArcHeightMeters = 20.0;  // Peak height of arc
             public const double FlightTimeSeconds = 10.0;  // ~10 seconds to reach gun
+        }
+
+        /// <summary>
+        /// Data structure for tutorial scenarios (moved into DifficultyConfig).
+        /// </summary>
+        public class TutorialScenarioData
+        {
+            public string Name { get; init; } = string.Empty;
+            public string Description { get; init; } = string.Empty;
+            public double StartDistanceMeters { get; init; }
+            public double ApproachSpeedMs { get; init; }
+            public double ArcHeightMeters { get; init; }
+            public float Elevation { get; init; }
+            public float Azimuth { get; init; }
+        }
+
+        /// <summary>
+        /// Tutorial scenarios collection (moved here so all tutorial constants live in DifficultyConfig).
+        /// </summary>
+        public static class TutorialScenarios
+        {
+            public static readonly TutorialScenarioData Stationary = new()
+            {
+                Name = "Stationary Beachball",
+                Description = "A beachball is floating motionless at 50 meters.",
+                StartDistanceMeters = 50.0,
+                ApproachSpeedMs = 0.0,
+                ArcHeightMeters = 0.0,
+                Elevation = 0.0f,
+                Azimuth = 0.0f
+            };
+
+            public static readonly TutorialScenarioData SlowApproach = new()
+            {
+                Name = "Slow Approach",
+                Description = "A beachball is drifting toward you at 5 m/s from 100 meters.",
+                StartDistanceMeters = 100.0,
+                ApproachSpeedMs = 5.0,
+                ArcHeightMeters = 0.0,
+                Elevation = 0.0f,
+                Azimuth = 0.0f
+            };
+
+            public static readonly TutorialScenarioData ArcTrajectory = new()
+            {
+                Name = "Arc Trajectory",
+                Description = "A beachball is arcing toward you - 100m away, 20m high, descending.",
+                StartDistanceMeters = 100.0,
+                ApproachSpeedMs = 10.0,
+                ArcHeightMeters = 20.0,
+                Elevation = 15.0f,
+                Azimuth = 0.0f
+            };
+
+            public static readonly TutorialScenarioData CrossingTarget = new()
+            {
+                Name = "Crossing Target",
+                Description = "A beachball is floating across your field of view from East to West.",
+                StartDistanceMeters = 80.0,
+                ApproachSpeedMs = 8.0,
+                ArcHeightMeters = 10.0,
+                Elevation = 10.0f,
+                Azimuth = 90.0f
+            };
+
+            public static readonly TutorialScenarioData Full3DIntercept = new()
+            {
+                Name = "Full 3D Intercept",
+                Description = "Final challenge: A beachball arcing from the Northeast. Calculate all parameters!",
+                StartDistanceMeters = 100.0,
+                ApproachSpeedMs = 10.0,
+                ArcHeightMeters = 20.0,
+                Elevation = 20.0f,
+                Azimuth = 45.0f
+            };
+
+            public static readonly TutorialScenarioData[] All =
+            {
+                Stationary,
+                SlowApproach,
+                ArcTrajectory,
+                CrossingTarget,
+                Full3DIntercept
+            };
         }
 
         // ====================================================================

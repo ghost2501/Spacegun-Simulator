@@ -1,18 +1,31 @@
 using System.Text.Json;
+using System.Diagnostics;
 
 namespace Spacegun_Simulator
 {
     // Centralized constants and simple helpers for SI unit display and tunables.
     public static class GameConstants
     {
+        // ====================================================================
+        // NOTE: TierCount is the single source of truth for how many tiers exist.
+        // Update this value if WaveTiers length changes and keep arrays in sync.
+        // ====================================================================
+        public const int TierCount = 4;
+
+        // ====================================================================
+        // Barrel wear tunables (canonical single source)
+        // - DefaultBarrelWearPerShot is the canonical variable tests and systems should use.
+        //
+        // Migration note:
+        // - Prefer GameConstants.DefaultBarrelWearPerShot from now on.
+        // - GameConfig.json still supports the old key "BarrelIntegrityLossPerShot" and
+        //   the loader maps it into DefaultBarrelWearPerShot to preserve old configs.
+        // ====================================================================
+        public static double DefaultBarrelWearPerShot = 0.0005; // 0.05% per nominal shot
+
         // ============================================================================
         // WAVE TIER SYSTEM - Oort Cloud to Earth Defense
         // ============================================================================
-        // NARRATIVE: Enemies detected in the Oort Cloud (15,000-100,000 AU away).
-        // Projectile has been traveling from deep space for many years.
-        // At engagement T+0s, enemy is at 1000-2000km altitude approaching Earth.
-        // Gun calculates when to fire so the incoming projectile arrives at intercept.
-        // Gun range represents how far from Earth the projectile can still effectively reach target.
 
         public class WaveTier
         {
@@ -42,10 +55,21 @@ namespace Spacegun_Simulator
         public const double SECONDS_PER_YEAR = 31557600.0;  // SI year
         public const double TACTICAL_MAX_RANGE = 2_000_000.0;  // 2000 km - maximum engagement distance
 
+        // ====================================================================
+        // Weapons tech base muzzle velocities (canonical source)
+        // Indexing: WeaponsTechBaseVelocity[techLevel - 1]
+        // Keep these values as the single source of truth for base muzzle speeds.
+        // ====================================================================
+        public static readonly double[] WeaponsTechBaseVelocity = new[]
+        {
+            80_000.0,   // Tech level 1 - Chemical baseline (80 km/s)
+            160_000.0,  // Tech level 2 - Railgun baseline (160 km/s)
+            350_000.0   // Tech level 3 - Plasma/advanced baseline (350 km/s)
+        };
+
         public static readonly WaveTier[] WaveTiers = new WaveTier[]
         {
             // TIER 0: Early game (Waves 1-6)
-            // Slow enemies at medium distance = ample time
             new WaveTier
             {
                 TierIndex = 0,
@@ -59,56 +83,54 @@ namespace Spacegun_Simulator
                 TimeToImpactMin = (long)(150.0 * SECONDS_PER_YEAR),
                 TimeToImpactMax = (long)(400.0 * SECONDS_PER_YEAR)
             },
-            
+
             // TIER 1: Mid-game (Waves 7-12)
-            // Faster enemies but still at distance, game is winnable
             new WaveTier
             {
                 TierIndex = 1,
                 StartWave = 7,
                 EndWave = 12,
-                DetectionRangeMin = 60_000.0 * AU_TO_METERS,  // REDUCED from 30k
-                DetectionRangeMax = 100_000.0 * AU_TO_METERS,  // REDUCED from 50k
-                VelocityMin = 200_000,          // 200 km/s (realistic progression)
-                VelocityMax = 500_000,          // 500 km/s (challenging but solvable)
-                MaxEffectiveGunRange = 5_000_000.0,  // 2000 km
-                TimeToImpactMin = (long)(15.0 * SECONDS_PER_YEAR),  // Still winnable
+                DetectionRangeMin = 60_000.0 * AU_TO_METERS,
+                DetectionRangeMax = 100_000.0 * AU_TO_METERS,
+                VelocityMin = 200_000,          // 200 km/s
+                VelocityMax = 500_000,          // 500 km/s
+                MaxEffectiveGunRange = 5_000_000.0,
+                TimeToImpactMin = (long)(15.0 * SECONDS_PER_YEAR),
                 TimeToImpactMax = (long)(40.0 * SECONDS_PER_YEAR)
             },
-            
+
             // TIER 2: Late-game (Waves 13-19)
-            // Very fast enemies, compressed timeline
             new WaveTier
             {
                 TierIndex = 2,
                 StartWave = 13,
                 EndWave = 19,
-                DetectionRangeMin = 50_000.0 * AU_TO_METERS,  // REDUCED from 60k
-                DetectionRangeMax = 150_000.0 * AU_TO_METERS,  // REDUCED from 90k
-                VelocityMin = 1_000_000,        // 1,000 km/s (ultra-fast)
-                VelocityMax = 3_000_000,        // 3,000 km/s (near-relativistic)
-                MaxEffectiveGunRange = 15_000_000.0,  // 3000 km (scaled up)
-                TimeToImpactMin = (long)(2.0 * SECONDS_PER_YEAR),  // Tight timeline
+                DetectionRangeMin = 50_000.0 * AU_TO_METERS,
+                DetectionRangeMax = 150_000.0 * AU_TO_METERS,
+                VelocityMin = 1_000_000,        // 1,000 km/s
+                VelocityMax = 3_000_000,        // 3,000 km/s
+                MaxEffectiveGunRange = 15_000_000.0,
+                TimeToImpactMin = (long)(2.0 * SECONDS_PER_YEAR),
                 TimeToImpactMax = (long)(8.0 * SECONDS_PER_YEAR)
             },
-            
+
             // TIER 3: Endgame (Waves 20-25)
-            // Extreme speeds, final challenge
             new WaveTier
             {
                 TierIndex = 3,
                 StartWave = 20,
                 EndWave = 25,
-                DetectionRangeMin = 150_000.0 * AU_TO_METERS,  // REDUCED from 95k
-                DetectionRangeMax = 500_000.0 * AU_TO_METERS,  // REDUCED from 100k
-                VelocityMin = 5_000_000,        // 5,000 km/s (extreme)
-                VelocityMax = 10_000_000,       // 10,000 km/s (near-light)
-                MaxEffectiveGunRange = 45_000_000.0,  // 5000 km (maximum)
-                TimeToImpactMin = (long)(1.0 * SECONDS_PER_YEAR),  // Minimal warning
+                DetectionRangeMin = 150_000.0 * AU_TO_METERS,
+                DetectionRangeMax = 500_000.0 * AU_TO_METERS,
+                VelocityMin = 5_000_000,        // 5,000 km/s
+                VelocityMax = 10_000_000,       // 10,000 km/s
+                MaxEffectiveGunRange = 45_000_000.0,
+                TimeToImpactMin = (long)(1.0 * SECONDS_PER_YEAR),
                 TimeToImpactMax = (long)(2.0 * SECONDS_PER_YEAR)
             }
         };
 
+        // Added GetTierForWave implementation so dependent code compiles.
         public static WaveTier GetTierForWave(int waveNumber)
         {
             foreach (var tier in WaveTiers)
@@ -116,7 +138,21 @@ namespace Spacegun_Simulator
                 if (waveNumber >= tier.StartWave && waveNumber <= tier.EndWave)
                     return tier;
             }
+
+            // Fallback: return last tier if wave number out of range
             return WaveTiers[^1];
+        }
+
+        // Validate tier arrays on static initialization to catch mismatches early.
+        static GameConstants()
+        {
+            // Basic length assertions
+            Debug.Assert(WaveTiers.Length == TierCount, $"WaveTiers length ({WaveTiers.Length}) must equal TierCount ({TierCount}).");
+
+            Debug.Assert(TierEnemyMinVelocity.Length == TierCount, $"TierEnemyMinVelocity length ({TierEnemyMinVelocity.Length}) must equal TierCount ({TierCount}).");
+            Debug.Assert(TierEnemyMaxVelocity.Length == TierCount, $"TierEnemyMaxVelocity length ({TierEnemyMaxVelocity.Length}) must equal TierCount ({TierCount}).");
+            Debug.Assert(TierPlayerMinVelocity.Length == TierCount, $"TierPlayerMinVelocity length ({TierPlayerMinVelocity.Length}) must equal TierCount ({TierCount}).");
+            Debug.Assert(TierPlayerMaxVelocity.Length == TierCount, $"TierPlayerMaxVelocity length ({TierPlayerMaxVelocity.Length}) must equal TierCount ({TierCount}).");
         }
 
         // ============================================================================
@@ -124,7 +160,6 @@ namespace Spacegun_Simulator
         // ============================================================================
 
         public static int TotalWaves = 25;
-        public static double BarrelIntegrityLossPerShot = 0.01; // fraction
         public static double BudgetRewardBase = 100.0;
         public static double BudgetRewardPerWave = 10.0;
         public static double SteelRewardBase = 50.0;
@@ -196,7 +231,7 @@ namespace Spacegun_Simulator
         public const double SecondsPerMinute = 60.0;
         public const double SecondsPerHour = 3600.0;
         public const double SecondsPerDay = 86400.0;
-        public const double SecondsPerYear = 31557600.0;
+        // NOTE: SecondsPerYear removed (use SECONDS_PER_YEAR)
 
         /// <summary>
         /// Format distance to appropriate AU/Gm/km units as whole numbers.
@@ -243,9 +278,9 @@ namespace Spacegun_Simulator
         /// </summary>
         public static string FormatTime(double seconds)
         {
-            if (seconds >= SecondsPerYear)
+            if (seconds >= SECONDS_PER_YEAR)
             {
-                long years = (long)Math.Round(seconds / SecondsPerYear);
+                long years = (long)Math.Round(seconds / SECONDS_PER_YEAR);
                 return $"{years} year{(years != 1 ? "s" : "")}";
             }
             if (seconds >= SecondsPerDay * 30)
@@ -278,6 +313,7 @@ namespace Spacegun_Simulator
         /// </summary>
         public static long RoundToWholeYear(double seconds)
         {
+            // Keep behaviour unchanged aside from using canonical constant where needed.
             return (long)Math.Round(seconds);
         }
 
@@ -293,56 +329,59 @@ namespace Spacegun_Simulator
         // ===== TIER-BASED VELOCITY CONSTRAINTS (NEW) =====
         /// <summary>
         /// Minimum enemy velocity for each tier (m/s).
+        /// Aligned with WaveTiers VelocityMin values.
         /// </summary>
         public static readonly double[] TierEnemyMinVelocity = new[]
         {
-            50_000.0,    // Tier 0: 50 km/s min
-            100_000.0,   // Tier 1: 100 km/s min
-            250_000.0    // Tier 2: 250 km/s min
+            50_000.0,      // Tier 0
+            200_000.0,     // Tier 1
+            1_000_000.0,   // Tier 2
+            5_000_000.0    // Tier 3
         };
 
         /// <summary>
         /// Maximum enemy velocity for each tier (m/s).
-        /// Scaled for playability and solvability.
+        /// Aligned with WaveTiers VelocityMax values.
         /// </summary>
         public static readonly double[] TierEnemyMaxVelocity = new[]
         {
-            90_000.0,        // Tier 0: 90 km/s max
-            500_000.0,       // Tier 1: 500 km/s max (updated)
-            3_000_000.0,     // Tier 2: 3,000 km/s max (updated)
-            10_000_000.0     // Tier 3: 10,000 km/s max (updated)
+            90_000.0,        // Tier 0
+            500_000.0,       // Tier 1
+            3_000_000.0,     // Tier 2
+            10_000_000.0     // Tier 3
         };
 
         /// <summary>
-        /// Maximum player gun velocity for each tier (m/s).
-        /// Set to 150% of tier enemy max for skill-based difficulty.
+        /// Maximum player gun velocity for each tier (m/s) - 150% of enemy max.
         /// </summary>
         public static readonly double[] TierPlayerMaxVelocity = new[]
         {
-            135_000.0,       // Tier 0: 150% of 90 km/s
-            750_000.0,       // Tier 1: 150% of 500 km/s
-            4_500_000.0,     // Tier 2: 150% of 3,000 km/s
-            15_000_000.0     // Tier 3: 150% of 10,000 km/s
+            135_000.0,       // Tier 0
+            750_000.0,       // Tier 1
+            4_500_000.0,     // Tier 2
+            15_000_000.0     // Tier 3
         };
 
         /// <summary>
         /// Minimum player gun velocity for each tier (m/s).
-        /// Set to enemy max velocity - player can ALWAYS reach the target.
+        /// Set to the enemy max velocity so player can always reach the target.
         /// </summary>
         public static readonly double[] TierPlayerMinVelocity = new[]
         {
-            90_000.0,    // Tier 0: 90 km/s min (match enemy max)
-            200_000.0,   // Tier 1: 200 km/s min (match enemy max)
-            400_000.0    // Tier 2: 400 km/s min (match enemy max)
+            90_000.0,        // Tier 0
+            500_000.0,       // Tier 1
+            3_000_000.0,     // Tier 2
+            10_000_000.0     // Tier 3
         };
 
         /// <summary>
         /// Get velocity constraints for a specific tier.
+        /// Uses TierCount for bounds checking.
         /// </summary>
         public static (double EnemyMin, double EnemyMax, double PlayerMin, double PlayerMax) GetTierVelocityConstraints(int tierIndex)
         {
-            if (tierIndex < 0 || tierIndex >= 3)
-                tierIndex = 2;
+            if (tierIndex < 0 || tierIndex >= TierCount)
+                tierIndex = TierCount - 1;
 
             return (
                 TierEnemyMinVelocity[tierIndex],
@@ -359,92 +398,42 @@ namespace Spacegun_Simulator
         /// </summary>
         public static double GetTestPlayerVelocityForTier(int tierIndex)
         {
-            // For engagement scenarios with ~500-1000km distance:
-            // Intercept time = Distance / (Enemy Velocity + Player Velocity)
-            // Solving for Player Velocity to get 10-20s intercept:
-
             return tierIndex switch
             {
-                // TIER 0: Enemy 50-90 km/s, Gun Range 1500 km
-                // Engagement distance: ~1000 km
-                // Need: 1,000,000m / (90,000 + V_player) = 10-20s
-                // V_player = 1,000,000/10 - 90,000 = 10,000 m/s min
-                // V_player = 1,000,000/20 - 90,000 = -50,000 m/s (clamped to 0, use 100 km/s)
-                0 => 150_000.0,  // 150 km/s (target: 1M / (90k + 150k) = 4.5s closing, add flight time)
-
-                // TIER 1: Enemy 1,500-4,000 km/s, Gun Range 1500 km
-                // Engagement distance: ~1000 km
-                // Need: 1,000,000m / (4,000,000 + V_player) = 10-20s
-                // V_player = 1,000,000/10 - 4,000,000 = -3,000,000 m/s (player slower, use 5 Mm/s)
-                1 => 5_000_000.0,  // 5 Mm/s (5000 km/s)
-
-                // TIER 2: Enemy 15,000-28,000 km/s, Gun Range 3000 km
-                // Engagement distance: ~2000 km
-                // Need: 2,000,000m / (28,000,000 + V_player) = 10-20s
-                // V_player = 2,000,000/10 - 28,000,000 = -200,000,000 m/s (far exceeds player, use 50 Mm/s)
-                2 => 50_000_000.0,  // 50 Mm/s (50,000 km/s)
-
-                // TIER 3: Enemy 28,000-100,000 km/s, Gun Range 5000 km
-                3 => 100_000_000.0,  // 100 Mm/s (100,000 km/s)
-
+                0 => 150_000.0,
+                1 => 5_000_000.0,
+                2 => 50_000_000.0,
+                3 => 100_000_000.0,
                 _ => 150_000.0
             };
         }
 
         /// <summary>
         /// Get test gun range for a specific tier.
-        /// Scaled to maintain consistent intercept time (~3.33s) across all tiers.
-        /// Formula: (Enemy Max Velocity + Player Velocity) × BaseInterceptTime
-        /// 
-        /// Tier 0 baseline: 1,000km / (90k m/s + 150k m/s) = 3.33s
-        /// Other tiers: Scale gun range to maintain same intercept time
         /// </summary>
         public static double GetTestGunRangeForTier(int tierIndex)
         {
-            // Tier 0 baseline intercept time: 1,000,000m / (90k + 150k)m/s = 3.33s
-            // To maintain this intercept time for other tiers, scale engagement distance
-
             return tierIndex switch
             {
-                // TIER 0: Baseline
-                // Engagement: 1,000km, Enemy: 90km/s, Player: 150km/s
-                // Intercept: 1,000,000 / (90k + 150k) = 3.33s
                 0 => 1_000_000.0,
-
-                // TIER 1: Scale to maintain 3.33s intercept
-                // Enemy: 4,000km/s, Player: 5,000km/s
-                // Required distance: (4,000,000 + 5,000,000) × 3.333 = 30,000km
                 1 => 30_000_000.0,
-
-                // TIER 2: Scale to maintain 3.33s intercept
-                // Enemy: 28,000km/s, Player: 50,000km/s
-                // Required distance: (28,000,000 + 50,000,000) × 3.333 = 260,000km
                 2 => 260_000_000.0,
-
-                // TIER 3: Scale to maintain 3.33s intercept
-                // Enemy: Variable up to 30,000km/s (approx), Player: 100,000km/s
-                // Required distance: Scales very large, capped at practical limit
-                // Using enemy velocity of 29,000km/s (near relativistic)
-                // (29,000,000 + 100,000,000) × 3.333 = 430,000km
                 3 => 430_000_000.0,
-
                 _ => 1_000_000.0
             };
         }
 
         /// <summary>
         /// Get test engagement distance for a specific tier.
-        /// This is the typical distance at which firing occurs (gun range to target position).
-        /// Used to calculate expected intercept time in tests.
         /// </summary>
         public static double GetTestEngagementDistanceForTier(int tierIndex)
         {
             return tierIndex switch
             {
-                0 => 1_000_000.0,   // 1000 km engagement
-                1 => 1_000_000.0,   // 1000 km engagement
-                2 => 2_000_000.0,   // 2000 km engagement (larger due to higher velocities)
-                3 => 3_000_000.0,   // 3000 km engagement (extreme distances)
+                0 => 1_000_000.0,
+                1 => 1_000_000.0,
+                2 => 2_000_000.0,
+                3 => 3_000_000.0,
                 _ => 1_000_000.0
             };
         }
@@ -452,7 +441,6 @@ namespace Spacegun_Simulator
         /// <summary>
         /// Calculate expected intercept time for a test scenario.
         /// Formula: Distance / (Enemy Velocity + Player Velocity)
-        /// Plus travel time for projectile to reach engagement point.
         /// </summary>
         public static double CalculateExpectedInterceptTime(
             double engagementDistance,
@@ -462,11 +450,8 @@ namespace Spacegun_Simulator
             if (enemyVelocity + playerVelocity <= 0)
                 return double.PositiveInfinity;
 
-            // Closing velocity approach
             double closingVelocity = enemyVelocity + playerVelocity;
-            double timeToIntercept = engagementDistance / closingVelocity;
-
-            return timeToIntercept;
+            return engagementDistance / closingVelocity;
         }
     }
 
@@ -479,13 +464,13 @@ namespace Spacegun_Simulator
         {
             try
             {
-                if (!File.Exists(ConfigPath)) return;
-                var json = File.ReadAllText(ConfigPath);
+                if (!System.IO.File.Exists(ConfigPath)) return;
+                var json = System.IO.File.ReadAllText(ConfigPath);
                 var cfg = JsonSerializer.Deserialize<GameConfig>(json);
                 if (cfg is null) return;
 
                 if (cfg.TotalWaves.HasValue) GameConstants.TotalWaves = cfg.TotalWaves.Value;
-                if (cfg.BarrelIntegrityLossPerShot.HasValue) GameConstants.BarrelIntegrityLossPerShot = cfg.BarrelIntegrityLossPerShot.Value;
+                if (cfg.BarrelIntegrityLossPerShot.HasValue) GameConstants.DefaultBarrelWearPerShot = cfg.BarrelIntegrityLossPerShot.Value;
                 if (cfg.BudgetRewardBase.HasValue) GameConstants.BudgetRewardBase = cfg.BudgetRewardBase.Value;
                 if (cfg.BudgetRewardPerWave.HasValue) GameConstants.BudgetRewardPerWave = cfg.BudgetRewardPerWave.Value;
                 if (cfg.SteelRewardBase.HasValue) GameConstants.SteelRewardBase = cfg.SteelRewardBase.Value;

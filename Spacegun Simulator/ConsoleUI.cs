@@ -1666,12 +1666,10 @@ namespace Spacegun_Simulator
             Console.WriteLine($"  Mass: {mass:F1} kg");
             Console.WriteLine($"  Velocity: {velocity:F0} m/s");
 
-            double displayVelSq = velocity * velocity;
-            double displayEnergyJ = 0.5 * mass * displayVelSq;
-            double displayEnergyMJ = displayEnergyJ / 1_000_000.0;
+            // Delegate KE computation to canonical BallisticsCalculator
+            double displayEnergyMJ = BallisticsCalculator.CalculateKineticEnergyMJ(mass, velocity);
 
             Console.WriteLine($"  Calculation: 0.5 × {mass:F1} × ({velocity:F0})²");
-            Console.WriteLine($"  = 0.5 × {mass:F1} × {displayVelSq:F0}");
             Console.WriteLine($"  = {displayEnergyMJ:F1} MJ");
             Console.WriteLine($"Required: {solution.FractureEnergyRequired:F0} MJ");
             Console.WriteLine($"✓ Energy Check: {(solution.CanDestroy ? "PASS" : "FAIL")} ({displayEnergyMJ:F1} MJ vs {solution.FractureEnergyRequired:F0} MJ threshold)\n");
@@ -1694,7 +1692,7 @@ namespace Spacegun_Simulator
                 else
                 {
                     // For non-tutorial modes, estimate hit tolerance from RCS
-                    // This is approximate - the real calculation is in FiringSolution
+                    // Keep existing behaviour for display, real calculation lives in FiringSolution.
                     double diameterFromRCS = 2.0 * Math.Sqrt(targetRCS / Math.PI);
                     hitTolerance = diameterFromRCS * 0.5 * diffConfig.HitToleranceMultiplier;
                     Console.WriteLine($"  Hit tolerance: {hitTolerance:F1} m (from {targetRCS:F1} m² RCS)");
@@ -1715,78 +1713,7 @@ namespace Spacegun_Simulator
             Console.WriteLine($"Result: {(solution.CanDestroy && solution.CanHit ? "✓ HIT" : "✗ MISS")}\n");
         }
 
-        private float GetPlayerTimeInput(string prompt)
-        {
-            while (true)
-            {
-                Console.Write(prompt);
-                string input = Console.ReadLine() ?? "0";
-
-                if (float.TryParse(input, out float time) && time >= 0)
-                {
-                    return time;
-                }
-
-                Console.WriteLine("Invalid input. Please enter a non-negative time value in seconds.\n");
-            }
-        }
-
-        private float GetPlayerElevationInput(string prompt)
-        {
-            while (true)
-            {
-                Console.Write(prompt);
-                string input = Console.ReadLine() ?? "0";
-
-                if (float.TryParse(input, out float angle) && angle >= -90 && angle <= 90)
-                {
-                    return angle;
-                }
-
-                Console.WriteLine("Invalid input. Please enter an angle between -90 and 90 degrees.\n");
-            }
-        }
-
-        private float GetPlayerAzimuthInput(string prompt)
-        {
-            while (true)
-            {
-                Console.Write(prompt);
-                string input = Console.ReadLine() ?? "0";
-
-                if (float.TryParse(input, out float bearing) && bearing >= 0 && bearing < 360)
-                {
-                    return bearing;
-                }
-
-                Console.WriteLine("Invalid input. Please enter a bearing between 0 and 360 degrees.\n");
-            }
-        }
-
-        private float GetPlayerVelocityInput(string prompt)
-        {
-            while (true)
-            {
-                Console.Write(prompt);
-                string input = Console.ReadLine() ?? "0";
-
-                if (float.TryParse(input, out float velocity) && velocity > 0)
-                {
-                    return velocity;
-                }
-
-                Console.WriteLine("Invalid input. Please enter a positive velocity value in m/s.\n");
-            }
-        }
-
-        // ====================================================================
-        // ANIMATED SHOT VISUALIZATION
-        // ====================================================================
-
-        /// <summary>
-        /// Display an animated visualization of the projectile trajectory.
-        /// Shows the projectile moving toward the target in a 2D side-view.
-        /// </summary>
+        // Also updated animated projectile calculation to use BallisticsCalculator
         private void DisplayAnimatedShot(
             Vector3 enemyPosition,
             Vector3 enemyVelocity,
@@ -1818,15 +1745,10 @@ namespace Spacegun_Simulator
 
             for (double t = 0; t <= maxFlightTime; t += timeStep)
             {
-                // Calculate projectile position (2D projection: horizontal distance vs altitude)
-                double elevRad = elevation * Math.PI / 180.0;
-                double azimRad = azimuth * Math.PI / 180.0;
-
-                double vz = velocity * Math.Sin(elevRad);
-                double vHorizontal = velocity * Math.Cos(elevRad);
-
-                double projX = vHorizontal * t;  // Horizontal distance
-                double projZ = vz * t - 0.5 * 9.81 * t * t;  // Altitude
+                // Use canonical trajectory math
+                var projVec = BallisticsCalculator.CalculateProjectilePositionStatic(t, velocity, elevation, azimuth);
+                double projX = projVec.Magnitude; // horizontal projection used below via horizontal distance
+                double projZ = projVec.Z;
 
                 projectilePositions.Add((t, projX, projZ));
 
@@ -1937,8 +1859,6 @@ namespace Spacegun_Simulator
             Console.ReadKey();
         }
 
-        // ADD THIS METHOD before the closing brace of the class:
-
         private void RunWaveCompletePhase()
         {
             if (engine.IsGameOver)
@@ -1988,6 +1908,62 @@ namespace Spacegun_Simulator
 
                 Console.WriteLine("\nInvalid selection. Please try again.");
                 System.Threading.Thread.Sleep(1500);
+            }
+        }
+
+        private float GetPlayerTimeInput(string prompt)
+        {
+            while (true)
+            {
+                Console.Write(prompt);
+                string input = Console.ReadLine() ?? "0";
+
+                if (float.TryParse(input, out float time) && time >= 0)
+                    return time;
+
+                Console.WriteLine("Invalid input. Please enter a non-negative time value in seconds.\n");
+            }
+        }
+
+        private float GetPlayerElevationInput(string prompt)
+        {
+            while (true)
+            {
+                Console.Write(prompt);
+                string input = Console.ReadLine() ?? "0";
+
+                if (float.TryParse(input, out float angle) && angle >= -90 && angle <= 90)
+                    return angle;
+
+                Console.WriteLine("Invalid input. Please enter an angle between -90 and 90 degrees.\n");
+            }
+        }
+
+        private float GetPlayerAzimuthInput(string prompt)
+        {
+            while (true)
+            {
+                Console.Write(prompt);
+                string input = Console.ReadLine() ?? "0";
+
+                if (float.TryParse(input, out float bearing) && bearing >= 0 && bearing < 360)
+                    return bearing;
+
+                Console.WriteLine("Invalid input. Please enter a bearing between 0 and 360 degrees.\n");
+            }
+        }
+
+        private float GetPlayerVelocityInput(string prompt)
+        {
+            while (true)
+            {
+                Console.Write(prompt);
+                string input = Console.ReadLine() ?? "0";
+
+                if (float.TryParse(input, out float velocity) && velocity > 0)
+                    return velocity;
+
+                Console.WriteLine("Invalid input. Please enter a positive velocity value in m/s.\n");
             }
         }
     }

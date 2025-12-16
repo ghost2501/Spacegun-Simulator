@@ -172,14 +172,6 @@ namespace Spacegun_Simulator
             return requiredVelocity;
         }
 
-        public double CalculateKineticEnergyMJ(float velocity)
-        {
-            double v = velocity;
-            double m = projectileMass;
-            double energyJoules = 0.5 * m * v * v;
-            return energyJoules / 1_000_000.0;
-        }
-
         /// <summary>
         /// Calculate hit tolerance as 0.5 × target diameter, modified by difficulty settings.
         /// 
@@ -615,7 +607,9 @@ namespace Spacegun_Simulator
             //Console.WriteLine($"  ✓ All parameter validations passed");
 
             float minVelocity = CalculateRequiredVelocity();
-            double playerKE_MJ = CalculateKineticEnergyMJ((float)playerLaunchVelocity);
+            //double playerKE_MJ = CalculateKineticEnergyMJ((float)playerLaunchVelocity);
+            // Use centralized KE formula to avoid missing local helper
+            double playerKE_MJ = BallisticsCalculator.CalculateKineticEnergyMJ(this.projectileMass, playerLaunchVelocity);
 
             //Console.WriteLine($"  Energy: {playerKE_MJ:F0} MJ required (fracture: {enemyFractureEnergy:F0} MJ)");
 
