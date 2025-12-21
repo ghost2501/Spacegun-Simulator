@@ -423,31 +423,58 @@ namespace Spacegun_Simulator
                 Console.SetOut(indentWriter);
 
                 int col = Math.Max(0, contentLeftNoOffset + indentWriter.IndentLength);
-                int row = Math.Max(0, promptRowNoOffset);
 
+                // Place prompts in a dedicated area BELOW the main frame to avoid overwriting
+                // any buffered page content. Use a bottom area (reserve 2 lines) inside the visible window.
+                int targetRow;
                 try
                 {
-                    // Clamp row to console buffer if possible.
-                    if (row >= Console.BufferHeight) row = Console.BufferHeight - 1;
+                    int winH = Console.WindowHeight;
+                    // Reserve two lines at bottom for status/prompt. If console very small, this clamps to 0.
+                    int bottomPromptRow = Math.Max(0, winH - 3);
+                    // Allow callers' promptRowNoOffset only if it is already below the header area,
+                    // otherwise prefer the bottom prompt row to keep prompt external to central window.
+                    targetRow = Math.Max(promptRowNoOffset, bottomPromptRow);
+
+                    // Clamp to buffer height when possible.
+                    if (targetRow >= Console.BufferHeight) targetRow = Console.BufferHeight - 1;
+                    if (targetRow < 0) targetRow = 0;
                 }
                 catch
                 {
-                    // ignore when BufferHeight not available
+                    // Fallback when console metrics not available
+                    targetRow = Math.Max(promptRowNoOffset, 0);
                 }
 
+                // Some consoles disallow SetCursorPosition to rows ahead of current cursor.
+                // Try SetCursorPosition, otherwise write newlines until we reach the target row.
                 try
                 {
-                    Console.SetCursorPosition(col, row);
+                    Console.SetCursorPosition(col, targetRow);
                 }
                 catch
                 {
-                    // best-effort fallback: set column only at current row
-                    try { Console.SetCursorPosition(col, Console.CursorTop); } catch { }
+                    try
+                    {
+                        // Best-effort: move to desired column at current row, then advance by writing blank lines.
+                        Console.SetCursorPosition(col, Console.CursorTop);
+                    }
+                    catch { /* ignore */ }
+
+                    int current = 0;
+                    try { current = Console.CursorTop; } catch { current = 0; }
+                    while (current < targetRow)
+                    {
+                        Console.WriteLine();
+                        current++;
+                    }
+
+                    try { Console.SetCursorPosition(col, Math.Min(targetRow, Console.CursorTop)); } catch { /* ignore */ }
                 }
             }
             catch
             {
-                // Ensure Console.Out is the indentWriter on failure.
+                // Ensure Console.Out remains the indent writer on failure.
                 try { Console.SetOut(indentWriter); } catch { }
             }
         }
@@ -459,8 +486,8 @@ namespace Spacegun_Simulator
                 var header = new System.Collections.Generic.List<string>
                 {
                     "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
-                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                "                                                             ",
+                    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                    "                                                             ",
                     "               TEST MODE - DEBUG TOOLS                      ",
 
                     string.Empty
@@ -759,8 +786,8 @@ namespace Spacegun_Simulator
                 var optionsHeader = new System.Collections.Generic.List<string>
                 {
                     "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
-                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                "                                                             ",
+                    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                    "                                                             ",
                     "          PREPARATION PHASE - RESOURCES & RESEARCH            ",
 
                     string.Empty
@@ -1024,8 +1051,8 @@ namespace Spacegun_Simulator
                 var header = new System.Collections.Generic.List<string>
                 {
                     "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
-                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                "                                                             ",
+                    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                    "                                                             ",
                     "               WEAPON DEVELOPMENT PHASE                      ",
 
                     string.Empty
@@ -1623,8 +1650,8 @@ namespace Spacegun_Simulator
                         var step1Header = new System.Collections.Generic.List<string>
                         {
                             "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
-                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                "                                                             ",
+                            "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                            "                                                             ",
                             "      STEP 1: PREDICT TARGET POSITION                        ",
 
                             string.Empty
@@ -1651,8 +1678,8 @@ namespace Spacegun_Simulator
                         var step2Header = new System.Collections.Generic.List<string>
                         {
                             "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
-                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                "                                                             ",
+                            "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                            "                                                             ",
                             "      STEP 2: CALCULATE REQUIREMENTS                        ",
 
                             string.Empty
@@ -1672,8 +1699,8 @@ namespace Spacegun_Simulator
                         var step3Header = new System.Collections.Generic.List<string>
                         {
                             "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
-                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                "                                                             ",
+                            "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                            "                                                             ",
                             "      STEP 3: PLAN TRAJECTORY                               ",
 
                             string.Empty
@@ -1697,8 +1724,8 @@ namespace Spacegun_Simulator
                         var step4Header = new System.Collections.Generic.List<string>
                         {
                             "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
-                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                "                                                             ",
+                            "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                            "                                                             ",
                             "      STEP 4: TEST SOLUTION (TEST MODE)                     ",
 
                             string.Empty
@@ -1722,8 +1749,8 @@ namespace Spacegun_Simulator
                         var step5Header = new System.Collections.Generic.List<string>
                         {
                             "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
-                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                "                                                             ",
+                            "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                            "                                                             ",
                             "      STEP 5: ENTER FINAL SOLUTION                          ",
 
                             string.Empty
@@ -1827,8 +1854,8 @@ namespace Spacegun_Simulator
                         var directHeader = new System.Collections.Generic.List<string>
                         {
                             "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
-                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                "                                                             ",
+                            "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                            "                                                             ",
                             "      DIRECT FIRING SOLUTION ENTRY (SKIP WORKFLOW)          ",
 
                             string.Empty
@@ -1942,8 +1969,8 @@ namespace Spacegun_Simulator
                 var header = new System.Collections.Generic.List<string>
                 {
                     "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
-                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                "                                                             ",
+                    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                    "                                                             ",
                     "                         DIFFICULTY                          ",
 
                     string.Empty
@@ -2114,7 +2141,7 @@ namespace Spacegun_Simulator
                 "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                 "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                 "                                                             ",
-                "               FIRING SOLUTION & ENGAGEMENT PHASE              ",
+                "             FIRING SOLUTION & ENGAGEMENT PHASE              ",
 
                 string.Empty
             };
@@ -2171,7 +2198,7 @@ namespace Spacegun_Simulator
             Console.WriteLine($"  Can Hit: {(solution.SolutionValid ? (solution.CanHit ? "Yes" : "No") : "N/A")}");
 
             // Indicate if solution is valid
-            Console.WriteLine($"  Solution Valid: {(solution.SolutionValid ? "Yes" : "No")}\n");
+            Console.WriteLine($"  Solution Valid: {(solution.SolutionValid ? "✓ Yes" : "✗ No")}\n");
         }
 
         private void DisplayDebugCalculations(FiringSolutionResult solution, double mass, float velocity, double targetRCS)
