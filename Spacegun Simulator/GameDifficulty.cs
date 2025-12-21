@@ -178,13 +178,8 @@ namespace Spacegun_Simulator
                 Difficulty = GameDifficulty.PotatoCannonsAndBeachballs,
                 DisplayName = "Potato Cannons and Beachballs (tutorial)",
                 NarrativeDescription =
-                    "Learn the basics of ballistic interception!\n" +
-                    "A 2-meter beachball is floating toward you in a gentle arc.\n" +
-                    "Your weapon: a trusty potato cannon.\n\n" +
-                    "• Simple numbers with 1 decimal place\n" +
-                    "• No resource management\n" +
-                    "• Generous hit tolerance (1 meter)\n" +
-                    "• Perfect for learning the workflow",
+                    "• Simple numbers.\n" +
+                    "• No resource management.",
                 HitToleranceMultiplier = 1.0,  // Base tolerance is target radius
                 TargetRcsMultiplier = 1.0,
                 SkipResourcePhases = true,
@@ -213,9 +208,7 @@ namespace Spacegun_Simulator
                 Difficulty = GameDifficulty.NuclearOption,
                 DisplayName = "The Nuclear Option (easy)",
                 NarrativeDescription =
-                    "You have nuclear warheads and are not afraid to use them.\n" +
-                    "Precision requirements are relaxed - get close enough and the warhead does the rest.\n" +
-                    "Hit tolerance: ~1,680 meters (warhead blast radius)",
+                    "• Tolerance 1km*",
                 HitToleranceMultiplier = 100.0,
                 TargetRcsMultiplier = 1.0,
 
@@ -239,9 +232,7 @@ namespace Spacegun_Simulator
                 Difficulty = GameDifficulty.CometsAndAsteroids,
                 DisplayName = "Comets and Asteroids (hard)",
                 NarrativeDescription =
-                    "They are slinging comets and asteroids, all we have are big bullets.\n" +
-                    "Targets are large natural bodies - easier to hit than warships.\n" +
-                    "Hit tolerance: 0.5 × diameter × √10 (RCS multiplier)",
+                    "• Tolerance: 100m*",
                 HitToleranceMultiplier = 1.0,
                 TargetRcsMultiplier = 10.0,  // Asteroids appear 10x larger on radar
 
@@ -264,9 +255,7 @@ namespace Spacegun_Simulator
                 Difficulty = GameDifficulty.RealSpacegunSimulator,
                 DisplayName = "The Real Spacegun Simulator (extreme)",
                 NarrativeDescription =
-                    "Space bullet vs Space bullet.\n" +
-                    "Maximum precision required. You're threading the needle at 1000+ km.\n" +
-                    "Hit tolerance: ~16.8 meters (direct kinetic impact)",
+                    "• Tolerance: 10m*",
                 HitToleranceMultiplier = 1.0,
                 TargetRcsMultiplier = 1.0,
 

@@ -1,25 +1,84 @@
+using System;
+using System.IO;
+using System.Text;
 using Spacegun_Simulator.FireControlTools;
 
 namespace Spacegun_Simulator
 {
-    // Console UI implementing 4-turn sequence:
-    // Turn 1: Detection → Show threat
-    // Turn 2: Resource Allocation → Gather resources
-    // Turn 3: Development → Apply upgrades
-    // Turn 4: Firing Solution → Single shot engagement
-    // 
-    // SAVE SYSTEM: Single auto-save slot prevents save-scumming.
-    // Players can stop/resume but cannot replay waves.
-    // Game Over states are NOT saved.
     public class ConsoleUI
     {
         private readonly GameState engine;
         private const string SaveDirectory = "Saves";
 
+        private readonly ScreenLayout screenLayout;
+        private readonly TextWriter? originalConsoleOut;
+        private readonly IndentTextWriter indentWriter;
+
+        // Buffer used during a BeginBufferedPage/EndBufferedPage sequence.
+        private global::Spacegun_Simulator.PageBuffer? _pageBuffer;
+
         public ConsoleUI(GameState engine)
         {
             this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
             EnsureSaveDirectory();
+
+            // Keep original Console.Out so we can write raw (no global indent) when rendering full-width art.
+            originalConsoleOut = Console.Out;
+
+            // Create and install the global indent writer once.
+            indentWriter = new IndentTextWriter(originalConsoleOut, indentSpaces: 30);
+            Console.SetOut(indentWriter);
+
+            // Use the same left indent as the global IndentTextWriter so centering math aligns.
+            screenLayout = new ScreenLayout(offset: indentWriter.IndentLength, frameWidth: 60);
+
+            // Try to load optional side art files (place your art in Assets\ascii art\SideLeft.txt / SideRight.txt)
+            try
+            {
+                string baseAssets = Path.Combine(AppContext.BaseDirectory, "Assets", "ascii art");
+                string leftPath = Path.Combine(baseAssets, "SideLeft.txt");
+                string rightPath = Path.Combine(baseAssets, "SideRight.txt");
+                screenLayout.LoadSideArt(File.Exists(leftPath) ? leftPath : null, File.Exists(rightPath) ? rightPath : null);
+            }
+            catch
+            {
+                // Non-fatal - side art is optional
+            }
+
+            // One-time diagnostic: write to Console.Error (not captured by IndentTextWriter) and to layout_debug.txt
+            try
+            {
+                int winW = 0, winH = 0;
+                try { winW = Console.WindowWidth; winH = Console.WindowHeight; } catch { }
+
+                int leftW = 0; foreach (var s in screenLayout.LeftArt) if (!string.IsNullOrEmpty(s) && s.Length > leftW) leftW = s.Length;
+                int rightW = 0; foreach (var s in screenLayout.RightArt) if (!string.IsNullOrEmpty(s) && s.Length > rightW) rightW = s.Length;
+                int frameW = screenLayout.FrameWidth;
+                int offset = screenLayout.Offset;
+                int totalWidth = leftW + frameW + rightW;
+                int padLeftNoOffset = Math.Max(0, (winW - totalWidth) / 2);
+                int padLeftWithOffset = padLeftNoOffset + offset;
+
+                string msg = $"[LayoutDebug] Window={winW}x{winH} | Indent={indentWriter.IndentLength} | ScreenLayout.Offset={offset} | FrameWidth={frameW} | LeftW={leftW} | RightW={rightW} | TotalWidth={totalWidth} | PadNoOffset={padLeftNoOffset} | PadWithOffset={padLeftWithOffset}";
+
+                try { originalConsoleOut?.WriteLine(msg); } catch { }
+                try { Console.Error.WriteLine(msg); } catch { }
+
+                try
+                {
+                    var f = Path.Combine(AppContext.BaseDirectory, "layout_debug.txt");
+                    File.AppendAllText(f, DateTime.UtcNow.ToString("s") + " " + msg + Environment.NewLine);
+                }
+                catch { }
+
+                try
+                {
+                    string f2 = Path.Combine(Directory.GetCurrentDirectory(), "layout_debug.txt");
+                    File.AppendAllText(f2, DateTime.UtcNow.ToString("s") + " " + msg + Environment.NewLine);
+                }
+                catch { }
+            }
+            catch { /* non-fatal */ }
         }
 
         private void EnsureSaveDirectory()
@@ -73,21 +132,30 @@ namespace Spacegun_Simulator
         /// </summary>
         private void DisplayGameOverScreen()
         {
-            Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║                    GAME OVER                              ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+            var header = new System.Collections.Generic.List<string>
+            {
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "                     GAME OVER                               ",
 
-            if (engine.WavesDefeated >= GameConstants.TotalWaves)
+                string.Empty
+            };
+
+            Console.Clear();
+            RenderBufferedPage("GameOver", header, () =>
             {
-                Console.WriteLine("✓ VICTORY! Campaign Complete!\n");
-                Console.WriteLine($"Waves Defeated: {engine.WavesDefeated}/{GameConstants.TotalWaves}");
-            }
-            else
-            {
-                Console.WriteLine("✗ DEFEAT! Mission Failed\n");
-                Console.WriteLine($"Waves Defeated: {engine.WavesDefeated}/{GameConstants.TotalWaves}");
-            }
+                if (engine.WavesDefeated >= GameConstants.TotalWaves)
+                {
+                    Console.WriteLine("✓ VICTORY! Campaign Complete!\n");
+                    Console.WriteLine($"Waves Defeated: {engine.WavesDefeated}/{GameConstants.TotalWaves}");
+                }
+                else
+                {
+                    Console.WriteLine("✗ DEFEAT! Mission Failed\n");
+                    Console.WriteLine($"Waves Defeated: {engine.WavesDefeated}/{GameConstants.TotalWaves}");
+                }
+            });
 
             Console.WriteLine("\nPress any key to return to main menu...");
             Console.ReadKey();
@@ -115,8 +183,8 @@ namespace Spacegun_Simulator
             }
             catch (Exception ex)
             {
-                // Silently fail - save deletion is not critical to gameplay
-                System.Console.WriteLine($"Note: Could not delete save file: {ex.Message}");
+                // Non-critical
+                originalConsoleOut?.WriteLine($"Note: Could not delete save file: {ex.Message}");
             }
         }
 
@@ -126,50 +194,43 @@ namespace Spacegun_Simulator
 
         private void ShowMainMenu()
         {
-            Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║        SPACE GUN DEFENSE SIMULATOR - MAIN MENU            ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+            try
+            {
+                // Title screen responsibility moved to ScreenLayout
+                screenLayout.ShowTitleScreen(originalConsoleOut, indentWriter);
+            }
+            catch { }
 
             bool autoSaveExists = GameState.AutoSaveExists();
 
-            if (autoSaveExists)
-            {
-                Console.WriteLine("RESUME GAME");
-                Console.WriteLine($"Auto-save found (last saved: {GameState.GetAutoSaveTimestamp()})\n");
-            }
-
-            Console.WriteLine("[1] Start New Game");
-
-            if (autoSaveExists)
-            {
-                Console.WriteLine("[2] Resume Game");
-                Console.WriteLine("[3] Test Mode (Debug Tools)");
-                Console.WriteLine("[4] Exit");
-            }
-            else
-            {
-                Console.WriteLine("[2] Test Mode (Debug Tools)");
-                Console.WriteLine("[3] Exit");
-            }
+            Console.Clear();
+            int contentLeft = RenderMainMenuWithSides(autoSaveExists);
 
             bool validChoice = false;
             while (!validChoice)
             {
-                Console.Write("\nSelect option: ");
+                // RenderMainMenuWithSides positions the cursor row (no-offset -> indented coords) for the prompt.
+                // We only need to ensure column alignment here (fallback) — do NOT emit an extra newline.
+                try
+                {
+                    Console.SetCursorPosition(contentLeft, Console.CursorTop);
+                }
+                catch
+                {
+                    // ignore if console too small or cursor position cannot be set
+                }
+
+                Console.Write("Select option: ");
                 string input = Console.ReadLine() ?? "0";
 
                 switch (input)
                 {
                     case "1":
-                        // NEW GAME: Show difficulty selection
                         Console.WriteLine("\nInitializing new game...\n");
                         System.Threading.Thread.Sleep(800);
 
-                        // CRITICAL: Call difficulty selection before starting game
                         GameDifficulty selectedDifficulty = ShowDifficultySelection();
 
-                        // Set difficulty and reset game state for new game
                         engine.SelectedDifficulty = selectedDifficulty;
                         engine.CurrentWaveNumber = 1;
                         engine.IsGameOver = false;
@@ -179,7 +240,6 @@ namespace Spacegun_Simulator
                         var diffConfig = DifficultyConfig.GetConfig(selectedDifficulty);
                         Console.WriteLine($"\nDifficulty: {diffConfig.DisplayName}");
 
-                        // ===== NEW: PRE-GENERATE ALL CAMPAIGN WAVES =====
                         Console.WriteLine("\n[INITIALIZATION] Pre-generating campaign waves...");
                         Console.WriteLine("This may take a few seconds on first run.\n");
 
@@ -212,7 +272,6 @@ namespace Spacegun_Simulator
                         }
                         else
                         {
-                            // No auto-save, so option 2 is Test Mode
                             RunTestModeMenu();
                             validChoice = true;
                             ShowMainMenu();
@@ -223,7 +282,6 @@ namespace Spacegun_Simulator
                     case "3":
                         if (autoSaveExists)
                         {
-                            // Auto-save exists, so option 3 is Test Mode
                             RunTestModeMenu();
                             validChoice = true;
                             ShowMainMenu();
@@ -231,7 +289,6 @@ namespace Spacegun_Simulator
                         }
                         else
                         {
-                            // No auto-save, so option 3 is Exit
                             Environment.Exit(0);
                             break;
                         }
@@ -239,7 +296,6 @@ namespace Spacegun_Simulator
                     case "4":
                         if (autoSaveExists)
                         {
-                            // Exit with auto-save
                             Environment.Exit(0);
                         }
                         else
@@ -255,18 +311,163 @@ namespace Spacegun_Simulator
             }
         }
 
+        // Important: Render side art using the raw Console.Out so art can occupy absolute left/right margins.
+        // We temporarily restore the original Console.Out (no global indent) while rendering the panel,
+        // then restore the global indent writer so the rest of the UI remains indented.
+        private int RenderMainMenuWithSides(bool autoSaveExists)
+        {
+            var centerLines = new System.Collections.Generic.List<string>
+            {
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "         SPACE GUN DEFENSE SIMULATOR - MAIN MENU             ",
+
+                string.Empty
+            };
+
+            if (autoSaveExists)
+            {
+                centerLines.Add("RESUME GAME");
+                string ts = GameState.GetAutoSaveTimestamp();
+                centerLines.Add($"Auto-save found (last saved: {ts})");
+                centerLines.Add(string.Empty);
+            }
+
+            centerLines.Add("[1] Start New Game");
+
+            if (autoSaveExists)
+            {
+                centerLines.Add("[2] Resume Game");
+                centerLines.Add("[3] Test Mode (Debug Tools)");
+                centerLines.Add("[4] Exit");
+            }
+            else
+            {
+                centerLines.Add("[2] Test Mode (Debug Tools)");
+                centerLines.Add("[3] Exit");
+            }
+
+            centerLines.Add(string.Empty);
+            centerLines.Add("Use number keys to select an option.");
+
+            // Render using raw Console.Out so the side art prints at true left margin.
+            // Capture the start row (no-offset) so we can compute exact prompt row after rendering.
+            int startRowNoOffset = 0;
+            try { startRowNoOffset = Console.CursorTop; } catch { startRowNoOffset = 0; }
+
+            try
+            {
+                Console.SetOut(originalConsoleOut ?? Console.Out);
+                screenLayout.RenderWithSides_NoOffset(centerLines, null, null);
+
+                int contentLeftNoOffset = screenLayout.CalculateContentLeft_NoOffset(centerLines, null, null);
+
+                // The center content occupies `centerLines.Count` rows starting at startRowNoOffset.
+                int promptRowNoOffset = startRowNoOffset + centerLines.Count;
+
+                // Use central helper to position cursor (maps no-offset to indented coordinates).
+                PositionPromptCursor_NoOffset(contentLeftNoOffset, promptRowNoOffset);
+
+                // Restore indented writer and position cursor inside the center frame.
+                Console.SetOut(indentWriter);
+                int promptColIndented = Math.Max(0, contentLeftNoOffset + indentWriter.IndentLength);
+
+                try
+                {
+                    // Map the no-offset row into the console's coordinate space.
+                    int targetRow = Math.Max(0, promptRowNoOffset);
+                    // If targetRow is beyond the buffer height, clamp to the last possible row.
+                    try
+                    {
+                        if (targetRow >= Console.BufferHeight) targetRow = Console.BufferHeight - 1;
+                    }
+                    catch
+                    {
+                        // ignore if Console.BufferHeight unavailable
+                    }
+
+                    Console.SetCursorPosition(promptColIndented, targetRow);
+                }
+                catch
+                {
+                    // Fallback: position at same row, column only
+                    try { Console.SetCursorPosition(promptColIndented, Console.CursorTop); } catch { }
+                }
+
+                return contentLeftNoOffset + indentWriter.IndentLength;
+            }
+            catch
+            {
+                // On failure, fall back to normal rendering path (indented)
+                try { Console.SetOut(indentWriter); } catch { }
+                screenLayout.RenderWithSides(centerLines);
+                int contentLeft = screenLayout.CalculateContentLeft(centerLines);
+                try { Console.SetCursorPosition(Math.Max(0, contentLeft), Console.CursorTop); } catch { }
+                return contentLeft;
+            }
+        }
+
         /// <summary>
-        /// Display test mode menu with debug tools.
-        /// Includes Firing Challenge and automated test harness.
+        /// Centralised cursor-placement used by MainMenu, RenderPageFrame and RenderBufferedPage.
+        /// Place the input cursor inside the center frame using no-offset coordinates returned by ScreenLayout.
+        /// contentLeftNoOffset and promptRowNoOffset are coordinates in the raw (no-indent) console space.
+        /// This method restores the global indent writer and maps the no-offset column to the indented column.
+        /// It never writes padding lines — only moves the cursor.
         /// </summary>
+        private void PositionPromptCursor_NoOffset(int contentLeftNoOffset, int promptRowNoOffset)
+        {
+            try
+            {
+                // Restore indented writer for subsequent input/output.
+                Console.SetOut(indentWriter);
+
+                int col = Math.Max(0, contentLeftNoOffset + indentWriter.IndentLength);
+                int row = Math.Max(0, promptRowNoOffset);
+
+                try
+                {
+                    // Clamp row to console buffer if possible.
+                    if (row >= Console.BufferHeight) row = Console.BufferHeight - 1;
+                }
+                catch
+                {
+                    // ignore when BufferHeight not available
+                }
+
+                try
+                {
+                    Console.SetCursorPosition(col, row);
+                }
+                catch
+                {
+                    // best-effort fallback: set column only at current row
+                    try { Console.SetCursorPosition(col, Console.CursorTop); } catch { }
+                }
+            }
+            catch
+            {
+                // Ensure Console.Out is the indentWriter on failure.
+                try { Console.SetOut(indentWriter); } catch { }
+            }
+        }
+
         private void RunTestModeMenu()
         {
             while (true)
             {
+                var header = new System.Collections.Generic.List<string>
+                {
+                    "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                    "               TEST MODE - DEBUG TOOLS                      ",
+
+                    string.Empty
+                };
+
                 Console.Clear();
-                Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-                Console.WriteLine("║              TEST MODE - DEBUG TOOLS                     ║");
-                Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+                RenderPageFrame(header);
 
                 Console.WriteLine("[1] Firing Challenge (Quick Firing Test)");
                 Console.WriteLine("[2] Test Harness (Automated Validation)");
@@ -296,23 +497,24 @@ namespace Spacegun_Simulator
             }
         }
 
-        /// <summary>
-        /// Run a quick firing challenge mode, skipping resource and development phases.
-        /// Useful for debugging firing solution mechanics without full game setup.
-        /// Uses actual gameplay firing system, not a separate test iteration.
-        /// </summary>
         private void RunFiringChallenge()
         {
-            Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║            FIRING CHALLENGE MODE (DEBUG)                  ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+            var header = new System.Collections.Generic.List<string>
+            {
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "             FIRING CHALLENGE MODE (DEBUG)                   ",
 
-            // Select difficulty
+                string.Empty
+            };
+
+            Console.Clear();
+            RenderPageFrame(header);
+
             GameDifficulty difficulty = ShowDifficultySelection();
             engine.SelectedDifficulty = difficulty;
 
-            // Initialize engine for new challenge
             engine.CurrentWaveNumber = 1;
             engine.IsGameOver = false;
             engine.WavesDefeated = 0;
@@ -321,19 +523,16 @@ namespace Spacegun_Simulator
             var diffConfig = DifficultyConfig.GetConfig(difficulty);
             Console.WriteLine($"\nDifficulty: {diffConfig.DisplayName}");
 
-            // Generate campaign enemy type
             if (engine.CampaignEnemyType == null)
             {
                 engine.CampaignEnemyType = EnemyType.GenerateForCampaign(engine.rng ?? new Random());
             }
 
-            // Pre-generate first wave only (faster for quick testing)
             Console.WriteLine("\n[INITIALIZATION] Generating firing challenge wave...");
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
             try
             {
-                // Use the standard detection phase to properly initialize wave
                 var detectionResult = engine.ExecuteDetectionPhase();
 
                 if (!detectionResult.WaveDetected)
@@ -348,7 +547,6 @@ namespace Spacegun_Simulator
                 Console.WriteLine("\nPress any key to skip directly to firing phase...\n");
                 Console.ReadKey();
 
-                // Skip to firing phase directly (no resource allocation or development)
                 engine.CurrentPhase = GameState.GamePhase.Firing;
                 RunFiringPhase();
             }
@@ -359,10 +557,6 @@ namespace Spacegun_Simulator
             }
         }
 
-        /// <summary>
-        /// Run automated firing solution test harness.
-        /// Tests all scenarios and validates mechanics without affecting game state.
-        /// </summary>
         private void RunTestMode()
         {
             using (Spacegun_Simulator.Tests.FireSimulatorTestHarness harness = new())
@@ -377,63 +571,86 @@ namespace Spacegun_Simulator
 
         private void RunDetectionPhase()
         {
-            Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║           SPACE GUN DEFENSE SIMULATOR                     ║");
-            Console.WriteLine($"║           Wave {engine.CurrentWaveNumber} of {GameConstants.TotalWaves}".PadRight(57) + "║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+            // Build the framed center block
+            var header = new System.Collections.Generic.List<string>
+            {
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "            SPACE GUN DEFENSE SIMULATOR                      ",
+                $"            Wave {engine.CurrentWaveNumber} of {GameConstants.TotalWaves}".PadRight(57) + " ",
 
+                string.Empty
+            };
+
+            // Create a page renderer that composes ScreenLayout and the existing writers.
+            var renderer = new global::Spacegun_Simulator.PageRenderer(screenLayout, originalConsoleOut, indentWriter, indentWriter.IndentLength);
+
+            // Compute detection (do this before rendering so contentWriter can use the result
+            // and the method can make control-flow decisions afterwards).
             var diffConfig = DifficultyConfig.GetConfig(engine.SelectedDifficulty);
-
             var detectionResult = engine.ExecuteDetectionPhase();
 
-            Console.WriteLine("=== DETECTION PHASE ===\n");
-            Console.WriteLine(detectionResult.Message);
+            // Use the centralized buffered renderer so flush coordinates match the side-art rendering.
+            RenderBufferedPage("Detection", header, () =>
+            {
+                // This lambda runs with Console.Out redirected to the page buffer.
+                Console.WriteLine("=== DETECTION PHASE ===\n");
+                Console.WriteLine(detectionResult.Message);
 
+                if (!detectionResult.WaveDetected)
+                {
+                    Console.WriteLine("\n✗ MISSION FAILED");
+                    // Return from the content writer; ScreenLayout will flush/restore.
+                    return;
+                }
+
+                // ===== ARCHETYPE THREAT PROFILE =====
+                var archetype = detectionResult.Wave.Archetype;
+                Console.WriteLine($"\n=== THREAT ARCHETYPE ===");
+                Console.WriteLine($"Class: {archetype.Name}");
+                Console.WriteLine($"Description: {archetype.Description}");
+                Console.WriteLine();
+
+                // ===== BALLISTIC REQUIREMENTS =====
+                Console.WriteLine($"=== BALLISTIC REQUIREMENTS ===");
+                Console.WriteLine($"Enemy Mass Range: {archetype.MassRange.Min:N0} - {archetype.MassRange.Max:N0} metric tons");
+                Console.WriteLine($"Required Fracture Energy Range: {archetype.FractureEnergyRange.Min:N0} - {archetype.FractureEnergyRange.Max:N0} MJ");
+                Console.WriteLine($"Difficulty: {BallisticsCalculator.GetDifficultyDescription(archetype.BaseDifficultyRating)}");
+                Console.WriteLine();
+
+                Console.WriteLine($"=== ENEMY PROFILE ===");
+                Console.WriteLine($"Type: {detectionResult.Wave.Targets[0].Name}");
+                Console.WriteLine($"Detection Distance: {GameConstants.FormatDistance(detectionResult.Wave.CurrentDistance)}");
+                Console.WriteLine($"Velocity: {GameConstants.FormatVelocity(detectionResult.Wave.AverageVelocity)}");
+
+                // For tutorial mode, use fixed beachball RCS; otherwise apply multiplier
+                if (diffConfig.IsTutorialMode)
+                {
+                    Console.WriteLine($"Radar Cross-Section: {DifficultyConfig.TutorialBeachball.CrossSectionM2:F2} m² (beachball)");
+                }
+                else
+                {
+                    double displayRCS = detectionResult.Wave.AverageRadarCrossSection * diffConfig.TargetRcsMultiplier;
+                    Console.WriteLine($"Radar Cross-Section: {displayRCS:F1} m²");
+                }
+
+                Console.WriteLine($"\n=== TIME BUDGET ===");
+                Console.WriteLine($"Years Available: {(long)detectionResult.AvailableYears} years");
+
+                Console.WriteLine($"\n=== CURRENT RESOURCES ===");
+                Console.WriteLine($"Budget: {engine.Resources.Budget:F0}");
+                Console.WriteLine($"Steel: {engine.Resources.Steel:F0} tons");
+                Console.WriteLine($"Exotic Materials: {engine.Resources.ExoticMaterials:F1} units");
+            });
+
+            // After rendering, inspect the detection result and continue control flow.
             if (!detectionResult.WaveDetected)
             {
-                Console.WriteLine("\n✗ MISSION FAILED");
+                // Detection failed — game over
                 engine.IsGameOver = true;
                 return;
             }
-
-            // ===== ARCHETYPE THREAT PROFILE =====
-            var archetype = detectionResult.Wave.Archetype;
-            Console.WriteLine($"\n=== THREAT ARCHETYPE ===");
-            Console.WriteLine($"Class: {archetype.Name}");
-            Console.WriteLine($"Description: {archetype.Description}");
-            Console.WriteLine();
-
-            // ===== BALLISTIC REQUIREMENTS =====
-            Console.WriteLine($"=== BALLISTIC REQUIREMENTS ===");
-            Console.WriteLine($"Enemy Mass Range: {archetype.MassRange.Min:N0} - {archetype.MassRange.Max:N0} metric tons");
-            Console.WriteLine($"Required Fracture Energy Range: {archetype.FractureEnergyRange.Min:N0} - {archetype.FractureEnergyRange.Max:N0} MJ");
-            Console.WriteLine($"Difficulty: {BallisticsCalculator.GetDifficultyDescription(archetype.BaseDifficultyRating)}");
-            Console.WriteLine();
-
-            Console.WriteLine($"=== ENEMY PROFILE ===");
-            Console.WriteLine($"Type: {detectionResult.Wave.Targets[0].Name}");
-            Console.WriteLine($"Detection Distance: {GameConstants.FormatDistance(detectionResult.Wave.CurrentDistance)}");
-            Console.WriteLine($"Velocity: {GameConstants.FormatVelocity(detectionResult.Wave.AverageVelocity)}");
-
-            // For tutorial mode, use fixed beachball RCS; otherwise apply multiplier
-            if (diffConfig.IsTutorialMode)
-            {
-                Console.WriteLine($"Radar Cross-Section: {DifficultyConfig.TutorialBeachball.CrossSectionM2:F2} m² (beachball)");
-            }
-            else
-            {
-                double displayRCS = detectionResult.Wave.AverageRadarCrossSection * diffConfig.TargetRcsMultiplier;
-                Console.WriteLine($"Radar Cross-Section: {displayRCS:F1} m²");
-            }
-
-            Console.WriteLine($"\n=== TIME BUDGET ===");
-            Console.WriteLine($"Years Available: {(long)detectionResult.AvailableYears} years");
-
-            Console.WriteLine($"\n=== CURRENT RESOURCES ===");
-            Console.WriteLine($"Budget: {engine.Resources.Budget:F0}");
-            Console.WriteLine($"Steel: {engine.Resources.Steel:F0} tons");
-            Console.WriteLine($"Exotic Materials: {engine.Resources.ExoticMaterials:F1} units");
 
             // ===== TUTORIAL MODE: Skip resource phases =====
             if (diffConfig.SkipResourcePhases)
@@ -460,32 +677,20 @@ namespace Spacegun_Simulator
 
         private void RunResourceAllocationPhase()
         {
-            Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║         PREPARATION PHASE - RESOURCES & RESEARCH           ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
-
-            // ===== NEW: Display wave event if present =====
-            engine.GenerateWaveEvent();
-            if (engine.CurrentWaveEvent != null)
+            var header = new System.Collections.Generic.List<string>
             {
-                Console.WriteLine("=== RANDOM EVENT ===");
-                Console.WriteLine($"⚡ {engine.CurrentWaveEvent.Title}");
-                Console.WriteLine($"   {engine.CurrentWaveEvent.Description}");
-                if (engine.CurrentWaveEvent.ProductionMultiplier != 1.0)
-                {
-                    string modifier = engine.CurrentWaveEvent.ProductionMultiplier > 1.0 ? "+" : "";
-                    Console.WriteLine($"   Production: {modifier}{(engine.CurrentWaveEvent.ProductionMultiplier - 1) * 100:F0}%\n");
-                }
-                Console.WriteLine();
-            }
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "          PREPARATION PHASE - RESOURCES & RESEARCH            ",
 
-            Console.WriteLine($"Total Available Time: {(long)engine.AvailableYears} years\n");
+                string.Empty
+            };
 
-            // ===== NEW: Calculate effective production rates with tech & difficulty scaling =====
-            Console.WriteLine("=== RESOURCE PRODUCTION RATES (per year, with tech & difficulty) ===");
-
-            double eventMultiplier = engine.CurrentWaveEvent?.ProductionMultiplier ?? 1.0;
+            // Compute wave event and effective rates BEFORE rendering so the displayed
+            // content and the interactive loop share the same data scope.
+            engine.GenerateWaveEvent();
+            var eventMultiplier = engine.CurrentWaveEvent?.ProductionMultiplier ?? 1.0;
 
             Dictionary<ResourceType, double> effectiveRates = new();
             foreach (ResourceType resource in System.Enum.GetValues(typeof(ResourceType)))
@@ -502,38 +707,73 @@ namespace Spacegun_Simulator
                 }
             }
 
-            Console.WriteLine("Base Materials:");
-            if (effectiveRates.ContainsKey(ResourceType.Steel))
-                Console.WriteLine($"  Steel:                  {effectiveRates[ResourceType.Steel]:F0} tons/year");
-            if (effectiveRates.ContainsKey(ResourceType.Budget))
-                Console.WriteLine($"  Budget:                 {effectiveRates[ResourceType.Budget]:F0} currency/year");
+            // Use RenderBufferedPage to show the initial statistics block (reads engine.CurrentWaveEvent & effectiveRates)
+            RenderBufferedPage("ResourceAllocation", header, () =>
+            {
+                if (engine.CurrentWaveEvent != null)
+                {
+                    Console.WriteLine("=== RANDOM EVENT ===");
+                    Console.WriteLine($"⚡ {engine.CurrentWaveEvent.Title}");
+                    Console.WriteLine($"   {engine.CurrentWaveEvent.Description}");
+                    if (engine.CurrentWaveEvent.ProductionMultiplier != 1.0)
+                    {
+                        string modifier = engine.CurrentWaveEvent.ProductionMultiplier > 1.0 ? "+" : "";
+                        Console.WriteLine($"   Production: {modifier}{(engine.CurrentWaveEvent.ProductionMultiplier - 1) * 100:F0}%\n");
+                    }
+                    Console.WriteLine();
+                }
 
-            Console.WriteLine("\nTier 2 Resources (Mining II+):");
-            if (effectiveRates.ContainsKey(ResourceType.SpecializedAlloys))
-                Console.WriteLine($"  Specialized Alloys:     {effectiveRates[ResourceType.SpecializedAlloys]:F0} tons/year");
-            if (effectiveRates.ContainsKey(ResourceType.RareEarthElements))
-                Console.WriteLine($"  Rare Earth Elements:    {effectiveRates[ResourceType.RareEarthElements]:F0} units/year");
+                Console.WriteLine($"Total Available Time: {(long)engine.AvailableYears} years\n");
 
-            Console.WriteLine("\nTier 3 Resources (Mining III+):");
-            if (effectiveRates.ContainsKey(ResourceType.AdvancedOre))
-                Console.WriteLine($"  Advanced Ore:           {effectiveRates[ResourceType.AdvancedOre]:F0} units/year");
-            if (effectiveRates.ContainsKey(ResourceType.ExoticMaterials))
-                Console.WriteLine($"  Exotic Materials:       {effectiveRates[ResourceType.ExoticMaterials]:F0} units/year");
+                Console.WriteLine("=== RESOURCE PRODUCTION RATES (per year, with tech & difficulty) ===");
 
-            Console.WriteLine("\nOther Systems:");
-            if (effectiveRates.ContainsKey(ResourceType.PowerCells))
-                Console.WriteLine($"  Power Cells:            {effectiveRates[ResourceType.PowerCells]:F0} units/year");
+                Console.WriteLine("Base Materials:");
+                if (effectiveRates.ContainsKey(ResourceType.Steel))
+                    Console.WriteLine($"  Steel:                  {effectiveRates[ResourceType.Steel]:F0} tons/year");
+                if (effectiveRates.ContainsKey(ResourceType.Budget))
+                    Console.WriteLine($"  Budget:                 {effectiveRates[ResourceType.Budget]:F0} currency/year");
+
+                Console.WriteLine("\nTier 2 Resources (Mining II+):");
+                if (effectiveRates.ContainsKey(ResourceType.SpecializedAlloys))
+                    Console.WriteLine($"  Specialized Alloys:     {effectiveRates[ResourceType.SpecializedAlloys]:F0} tons/year");
+                if (effectiveRates.ContainsKey(ResourceType.RareEarthElements))
+                    Console.WriteLine($"  Rare Earth Elements:    {effectiveRates[ResourceType.RareEarthElements]:F0} units/year");
+
+                Console.WriteLine("\nTier 3 Resources (Mining III+):");
+                if (effectiveRates.ContainsKey(ResourceType.AdvancedOre))
+                    Console.WriteLine($"  Advanced Ore:           {effectiveRates[ResourceType.AdvancedOre]:F0} units/year");
+                if (effectiveRates.ContainsKey(ResourceType.ExoticMaterials))
+                    Console.WriteLine($"  Exotic Materials:       {effectiveRates[ResourceType.ExoticMaterials]:F0} units/year");
+
+                Console.WriteLine("\nOther Systems:");
+                if (effectiveRates.ContainsKey(ResourceType.PowerCells))
+                    Console.WriteLine($"  Power Cells:            {effectiveRates[ResourceType.PowerCells]:F0} units/year");
+            });
 
             // ===== FLEXIBLE WORKFLOW: Loop until player is ready for development =====
             bool readyForDevelopment = false;
 
             while (!readyForDevelopment)
             {
-                Console.WriteLine("\n=== PREPARATION OPTIONS ===");
-                Console.WriteLine("[R] Allocate Resources for Gathering");
-                Console.WriteLine("[T] Research New Technology");
-                Console.WriteLine("[S] Show Current Status");
-                Console.WriteLine("[D] Done - Proceed to Development\n");
+                // For each iteration, render the action menu inside its own buffered page to keep layout stable
+                var optionsHeader = new System.Collections.Generic.List<string>
+                {
+                    "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                    "          PREPARATION PHASE - RESOURCES & RESEARCH            ",
+
+                    string.Empty
+                };
+
+                RenderBufferedPage("ResourceOptions", optionsHeader, () =>
+                {
+                    Console.WriteLine("\n=== PREPARATION OPTIONS ===");
+                    Console.WriteLine("[R] Allocate Resources for Gathering");
+                    Console.WriteLine("[T] Research New Technology");
+                    Console.WriteLine("[S] Show Current Status");
+                    Console.WriteLine("[D] Done - Proceed to Development\n");
+                });
 
                 Console.Write("Select action (R/T/S/D): ");
                 string action = Console.ReadLine()?.ToUpper() ?? "D";
@@ -558,42 +798,60 @@ namespace Spacegun_Simulator
 
                     default:
                         Console.WriteLine("Invalid action.\n");
+                        Thread.Sleep(800);
                         break;
                 }
             }
 
             // Final summary
-            Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║           PREPARATION COMPLETE - SUMMARY                  ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+            var summaryHeader = new System.Collections.Generic.List<string>
+            {
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "            PREPARATION COMPLETE - SUMMARY                   ",
 
-            Console.WriteLine("Accumulated Resources:");
-            Console.WriteLine("  Base Materials:");
-            Console.WriteLine($"    Steel:                {engine.AccumulatedResources["Steel"]:F0} tons");
-            Console.WriteLine($"    Budget:               {engine.AccumulatedResources["Budget"]:F0} currency");
-            Console.WriteLine("  Specialized Resources:");
-            Console.WriteLine($"    Specialized Alloys:   {engine.AccumulatedResources["SpecializedAlloys"]:F0} tons");
-            Console.WriteLine($"    Rare Earth Elements:  {engine.AccumulatedResources["RareEarthElements"]:F0} units");
-            Console.WriteLine("  Advanced Systems:");
-            Console.WriteLine($"    Power Cells:          {engine.AccumulatedResources["PowerCells"]:F0} units");
-            Console.WriteLine($"    Exotic Materials:     {engine.AccumulatedResources["Exotic"]:F1} units");
+                string.Empty
+            };
 
-            Console.WriteLine($"\n  Time Remaining: {(long)engine.RemainingYears} years");
+            RenderBufferedPage("PreparationSummary", summaryHeader, () =>
+            {
+                Console.WriteLine("Accumulated Resources:");
+                Console.WriteLine("  Base Materials:");
+                Console.WriteLine($"    Steel:                {engine.AccumulatedResources["Steel"]:F0} tons");
+                Console.WriteLine($"    Budget:               {engine.AccumulatedResources["Budget"]:F0} currency");
+                Console.WriteLine("  Specialized Resources:");
+                Console.WriteLine($"    Specialized Alloys:   {engine.AccumulatedResources["SpecializedAlloys"]:F0} tons");
+                Console.WriteLine($"    Rare Earth Elements:  {engine.AccumulatedResources["RareEarthElements"]:F0} units");
+                Console.WriteLine("  Advanced Systems:");
+                Console.WriteLine($"    Power Cells:          {engine.AccumulatedResources["PowerCells"]:F0} units");
+                Console.WriteLine($"    Exotic Materials:     {engine.AccumulatedResources["Exotic"]:F1} units");
+
+                Console.WriteLine($"\n  Time Remaining: {(long)engine.RemainingYears} years");
+            });
 
             Console.WriteLine("\nPress any key to proceed to Development phase...");
             Console.ReadKey();
-            Console.WriteLine(
-            engine.CurrentPhase = GameState.GamePhase.Development);
+
+            // Transition to development and auto-save
+            engine.CurrentPhase = GameState.GamePhase.Development;
             engine.AutoSaveGame();
         }
 
         private void AllocateResourcesInteractive(Dictionary<ResourceType, double> effectiveRates)
         {
+            var header = new System.Collections.Generic.List<string>
+            {
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "               RESOURCE ALLOCATION MENU                      ",
+
+                string.Empty
+            };
+
             Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║              RESOURCE ALLOCATION MENU                     ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╗\n");
+            RenderPageFrame(header);
 
             Console.WriteLine($"Time Remaining: {engine.RemainingYears} years\n");
             Console.WriteLine("Enter years for each resource. Type 'u' to undo the last input.\n");
@@ -679,14 +937,26 @@ namespace Spacegun_Simulator
 
         private void ResearchTechInteractive()
         {
-            Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║               TECHNOLOGY RESEARCH MENU                    ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+            var header = new System.Collections.Generic.List<string>
+            {
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "                TECHNOLOGY RESEARCH MENU                     ",
 
-            TechUnlock.DisplayAvailableTechs(engine.TechTree, engine.AccumulatedResources);
+                string.Empty
+            };
+
+            Console.Clear();
+            // Buffer the header so it stays aligned with side art, then flush before prompting
+            RenderBufferedPage("ResearchMenu", header, () =>
+            {
+                TechUnlock.DisplayAvailableTechs(engine.TechTree, engine.AccumulatedResources);
+                Console.WriteLine();
+            });
 
             Console.Write("Research tech number (or 0 to skip): ");
+            // Read input after the header has been rendered
             if (int.TryParse(Console.ReadLine() ?? "0", out int techChoice) && techChoice > 0)
             {
                 var availableTechs = TechUnlock.GetAvailableUnlocks(engine.TechTree);
@@ -709,28 +979,37 @@ namespace Spacegun_Simulator
 
         private void DisplayPreparationStatus(Dictionary<ResourceType, double> effectiveRates)
         {
+            var header = new System.Collections.Generic.List<string>
+            {
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "                PREPARATION PHASE STATUS                     ",
+
+                string.Empty
+            };
+
             Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║               PREPARATION PHASE STATUS                    ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+            RenderBufferedPage("PreparationStatus", header, () =>
+            {
+                Console.WriteLine("=== ACCUMULATED RESOURCES ===");
+                Console.WriteLine($"Steel:                {engine.AccumulatedResources["Steel"]:F0} tons");
+                Console.WriteLine($"Budget:               {engine.AccumulatedResources["Budget"]:F0} currency");
+                Console.WriteLine($"Specialized Alloys:   {engine.AccumulatedResources["SpecializedAlloys"]:F0} tons");
+                Console.WriteLine($"Rare Earth Elements:  {engine.AccumulatedResources["RareEarthElements"]:F0} units");
+                Console.WriteLine($"Power Cells:          {engine.AccumulatedResources["PowerCells"]:F0} units");
+                Console.WriteLine($"Exotic Materials:     {engine.AccumulatedResources["Exotic"]:F1} units");
 
-            Console.WriteLine("=== ACCUMULATED RESOURCES ===");
-            Console.WriteLine($"Steel:                {engine.AccumulatedResources["Steel"]:F0} tons");
-            Console.WriteLine($"Budget:               {engine.AccumulatedResources["Budget"]:F0} currency");
-            Console.WriteLine($"Specialized Alloys:   {engine.AccumulatedResources["SpecializedAlloys"]:F0} tons");
-            Console.WriteLine($"Rare Earth Elements:  {engine.AccumulatedResources["RareEarthElements"]:F0} units");
-            Console.WriteLine($"Power Cells:          {engine.AccumulatedResources["PowerCells"]:F0} units");
-            Console.WriteLine($"Exotic Materials:     {engine.AccumulatedResources["Exotic"]:F1} units");
+                Console.WriteLine($"\n=== TIME ===");
+                Console.WriteLine($"Years Remaining: {engine.RemainingYears} / {engine.AvailableYears}");
 
-            Console.WriteLine($"\n=== TIME ===");
-            Console.WriteLine($"Years Remaining: {engine.RemainingYears} / {engine.AvailableYears}");
-
-            Console.WriteLine($"\n=== TECH TREE ===");
-            Console.WriteLine($"Radar:       Level {engine.TechTree.CurrentLevel[TechTree.TechType.Radar]}");
-            Console.WriteLine($"Mining:      Level {engine.TechTree.CurrentLevel[TechTree.TechType.Mining]}");
-            Console.WriteLine($"Production:  Level {engine.TechTree.CurrentLevel[TechTree.TechType.Production]}");
-            Console.WriteLine($"Weapons:     Level {engine.TechTree.CurrentLevel[TechTree.TechType.Weapons]}");
-            Console.WriteLine($"Projectiles: Level {engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles]}");
+                Console.WriteLine($"\n=== TECH TREE ===");
+                Console.WriteLine($"Radar:       Level {engine.TechTree.CurrentLevel[TechTree.TechType.Radar]}");
+                Console.WriteLine($"Mining:      Level {engine.TechTree.CurrentLevel[TechTree.TechType.Mining]}");
+                Console.WriteLine($"Production:  Level {engine.TechTree.CurrentLevel[TechTree.TechType.Production]}");
+                Console.WriteLine($"Weapons:     Level {engine.TechTree.CurrentLevel[TechTree.TechType.Weapons]}");
+                Console.WriteLine($"Projectiles: Level {engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles]}");
+            });
 
             Console.WriteLine("\nPress any key to return to Preparation menu...");
             Console.ReadKey();
@@ -742,68 +1021,74 @@ namespace Spacegun_Simulator
 
             while (!developmentComplete)
             {
+                var header = new System.Collections.Generic.List<string>
+                {
+                    "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                    "               WEAPON DEVELOPMENT PHASE                      ",
+
+                    string.Empty
+                };
+
                 Console.Clear();
-                Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-                Console.WriteLine("║              WEAPON DEVELOPMENT PHASE                     ║");
-                Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
-
-                // ===== RESOURCES SUMMARY =====
-                Console.WriteLine("=== AVAILABLE RESOURCES ===");
-                Console.WriteLine($"  Budget: {engine.AccumulatedResources["Budget"]:F0}");
-                Console.WriteLine($"  Steel:  {engine.AccumulatedResources["Steel"]:F0} tons");
-                Console.WriteLine($"  Exotic: {engine.AccumulatedResources["Exotic"]:F1} units\n");
-
-                // ===== TARGET REQUIREMENT =====
-                if (engine.CurrentWave?.Archetype != null)
+                // Buffer static display, prompt after
+                RenderBufferedPage("WeaponDevelopment", header, () =>
                 {
-                    var archetype = engine.CurrentWave.Archetype;
-                    Console.WriteLine("=== TARGET REQUIREMENT ===");
-                    Console.WriteLine($"  Archetype: {archetype.Name}");
-                    Console.WriteLine($"  Fracture Energy Needed: {archetype.FractureEnergyRange.Min:N0} - {archetype.FractureEnergyRange.Max:N0} MJ\n");
-                }
+                    // ===== RESOURCES SUMMARY =====
+                    Console.WriteLine("=== AVAILABLE RESOURCES ===");
+                    Console.WriteLine($"  Budget: {engine.AccumulatedResources["Budget"]:F0}");
+                    Console.WriteLine($"  Steel:  {engine.AccumulatedResources["Steel"]:F0} tons");
+                    Console.WriteLine($"  Exotic: {engine.AccumulatedResources["Exotic"]:F1} units\n");
 
-                // ===== CURRENT WEAPON TECH STATUS =====
-                Console.WriteLine("=== CURRENT WEAPON TECHNOLOGY ===");
-                Console.WriteLine($"  Weapons Tech:     Level {engine.TechTree.CurrentLevel[TechTree.TechType.Weapons]} - {TechTree.GetTechDescription(TechTree.TechType.Weapons, engine.TechTree.CurrentLevel[TechTree.TechType.Weapons])}");
-                Console.WriteLine($"  Projectiles Tech: Level {engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles]} - {TechTree.GetTechDescription(TechTree.TechType.Projectiles, engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles])}");
+                    // ===== TARGET REQUIREMENT =====
+                    if (engine.CurrentWave?.Archetype != null)
+                    {
+                        var archetype = engine.CurrentWave.Archetype;
+                        Console.WriteLine("=== TARGET REQUIREMENT ===");
+                        Console.WriteLine($"  Archetype: {archetype.Name}");
+                        Console.WriteLine($"  Fracture Energy Needed: {archetype.FractureEnergyRange.Min:N0} - {archetype.FractureEnergyRange.Max:N0} MJ\n");
+                    }
 
-                // ===== CURRENT WEAPON CONFIGURATION =====
-                Console.WriteLine("\n=== CURRENT WEAPON CONFIGURATION ===");
-                if (engine.CraftedProjectile != null)
-                {
-                    var proj = engine.CraftedProjectile;
-                    Console.WriteLine($"  Projectile: {proj.DisplayName}");
-                    Console.WriteLine($"  Mass: {proj.MassKg} kg | Velocity: {proj.MaxVelocityMs:N0} m/s");
-                    Console.WriteLine($"  Kinetic Energy: {proj.EffectiveKineticEnergyMJ:N0} MJ");
-                    if (proj.HitToleranceMultiplier != 1.0)
-                        Console.WriteLine($"  Hit Tolerance Bonus: {(proj.HitToleranceMultiplier - 1) * 100:+0}%");
-                }
-                else
-                {
-                    Console.WriteLine("  Projectile: [NOT CONFIGURED]");
-                    Console.WriteLine("  ⚠ You must develop a projectile before firing!");
-                }
+                    // ===== CURRENT WEAPON TECH STATUS =====
+                    Console.WriteLine("=== CURRENT WEAPON TECHNOLOGY ===");
+                    Console.WriteLine($"  Weapons Tech:     Level {engine.TechTree.CurrentLevel[TechTree.TechType.Weapons]} - {TechTree.GetTechDescription(TechTree.TechType.Weapons, engine.TechTree.CurrentLevel[TechTree.TechType.Weapons])}");
+                    Console.WriteLine($"  Projectiles Tech: Level {engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles]} - {TechTree.GetTechDescription(TechTree.TechType.Projectiles, engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles])}");
 
-                Console.WriteLine($"\n  Gun Configuration:");
-                Console.WriteLine($"    Barrel Integrity: {engine.Gun.BarrelIntegrity:P0}");
-                Console.WriteLine($"    Power Capacity: {engine.Gun.PowerCapacity:F0} MW");
-                Console.WriteLine($"    Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(engine.CurrentWaveNumber).MaxEffectiveGunRange)}");
+                    // ===== CURRENT WEAPON CONFIGURATION =====
+                    Console.WriteLine("\n=== CURRENT WEAPON CONFIGURATION ===");
+                    if (engine.CraftedProjectile != null)
+                    {
+                        var proj = engine.CraftedProjectile;
+                        Console.WriteLine($"  Projectile: {proj.DisplayName}");
+                        Console.WriteLine($"  Mass: {proj.MassKg} kg | Velocity: {proj.MaxVelocityMs:N0} m/s");
+                        Console.WriteLine($"  Kinetic Energy: {proj.EffectiveKineticEnergyMJ:N0} MJ");
+                        if (proj.HitToleranceMultiplier != 1.0)
+                            Console.WriteLine($"  Hit Tolerance Bonus: {(proj.HitToleranceMultiplier - 1) * 100:+0}%");
+                    }
+                    else
+                    {
+                        Console.WriteLine("  Projectile: [NOT CONFIGURED]");
+                        Console.WriteLine("  ⚠ You must develop a projectile before firing!");
+                    }
 
-                // ===== DEVELOPMENT OPTIONS =====
-                Console.WriteLine("\n=== DEVELOPMENT OPTIONS ===");
-                Console.WriteLine("[P] Projectile Development - Craft a new projectile");
-                Console.WriteLine("[G] Gun Development - Upgrade gun systems");
-                Console.WriteLine("[S] Show Detailed Status");
-                
-                if (engine.CraftedProjectile != null)
-                {
-                    Console.WriteLine("[D] Done - Proceed to Firing Phase");
-                }
-                else
-                {
-                    Console.WriteLine("[D] Done - (Requires projectile configuration)");
-                }
+                    Console.WriteLine($"\n  Gun Configuration:");
+                    Console.WriteLine($"    Barrel Integrity: {engine.Gun.BarrelIntegrity:P0}");
+                    Console.WriteLine($"    Power Capacity: {engine.Gun.PowerCapacity:F0} MW");
+                    Console.WriteLine($"    Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(engine.CurrentWaveNumber).MaxEffectiveGunRange)}");
 
+                    // ===== DEVELOPMENT OPTIONS =====
+                    Console.WriteLine("\n=== DEVELOPMENT OPTIONS ===");
+                    Console.WriteLine("[P] Projectile Development - Craft a new projectile");
+                    Console.WriteLine("[G] Gun Development - Upgrade gun systems");
+                    Console.WriteLine("[S] Show Detailed Status");
+                    if (engine.CraftedProjectile != null)
+                        Console.WriteLine("[D] Done - Proceed to Firing Phase");
+                    else
+                        Console.WriteLine("[D] Done - (Requires projectile configuration)");
+                });
+
+                // Interaction loop unchanged (prompts & choices occur after header flush)
                 Console.Write("\nSelect action (P/G/S/D): ");
                 string action = Console.ReadLine()?.ToUpper() ?? "";
 
@@ -812,20 +1097,15 @@ namespace Spacegun_Simulator
                     case "P":
                         RunProjectileDevelopment();
                         break;
-
                     case "G":
                         RunGunDevelopment();
                         break;
-
                     case "S":
                         DisplayDetailedWeaponStatus();
                         break;
-
                     case "D":
                         if (engine.CraftedProjectile != null)
-                        {
                             developmentComplete = true;
-                        }
                         else
                         {
                             Console.WriteLine("\n✗ You must configure a projectile before proceeding!");
@@ -833,7 +1113,6 @@ namespace Spacegun_Simulator
                             Console.ReadKey();
                         }
                         break;
-
                     default:
                         Console.WriteLine("\nInvalid action.");
                         Thread.Sleep(1000);
@@ -854,46 +1133,59 @@ namespace Spacegun_Simulator
         /// </summary>
         private void RunProjectileDevelopment()
         {
-            Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║            PROJECTILE DEVELOPMENT PHASE                   ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+            var header = new System.Collections.Generic.List<string>
+            {
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "             PROJECTILE DEVELOPMENT PHASE                    ",
 
-            Console.WriteLine("=== AVAILABLE RESOURCES ===");
-            Console.WriteLine($"  Budget: {engine.AccumulatedResources["Budget"]:F0}");
-            Console.WriteLine($"  Steel:  {engine.AccumulatedResources["Steel"]:F0} tons");
-            Console.WriteLine($"  Exotic: {engine.AccumulatedResources["Exotic"]:F1} units\n");
+                string.Empty
+            };
 
-            // Display gun base velocity
+            // Prepare data before rendering so interaction after the buffered display can reference it.
             int weaponsTechLevel = engine.TechTree.CurrentLevel[TechTree.TechType.Weapons];
             double gunBaseVelocity = GunConfiguration.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel);
-            Console.WriteLine("=== GUN SPECIFICATIONS ===");
-            Console.WriteLine($"  Weapons Tech Level: {weaponsTechLevel}");
-            Console.WriteLine($"  Base Muzzle Velocity: {gunBaseVelocity:N0} m/s ({gunBaseVelocity / 1000:N0} km/s)");
-            Console.WriteLine($"  Barrel Integrity: {engine.Gun.BarrelIntegrity:P2}\n");
 
-            // Get unlocked components based on tech tree
+            // Ensure we have the difficulty config available for later tutorial messaging/logic.
+            var diffConfig = DifficultyConfig.GetConfig(engine.SelectedDifficulty);
+
             var unlockedCores = CraftedProjectile.GetUnlockedCores(engine.TechTree);
             var unlockedPropulsion = CraftedProjectile.GetUnlockedPropulsion(engine.TechTree);
             var unlockedEnhancements = CraftedProjectile.GetUnlockedEnhancements(engine.TechTree);
 
-            // Step 1: Select Core
-            Console.WriteLine("=== STEP 1: SELECT PROJECTILE CORE ===");
-            Console.WriteLine("(Determines projectile mass)\n");
-
-            for (int i = 0; i < unlockedCores.Count; i++)
-            {
-                var core = unlockedCores[i];
-                // Preview KE with gun base velocity only (no propulsion)
-                double baseKE = BallisticsCalculator.CalculateKineticEnergyMJ(core.MassKg, gunBaseVelocity);
-                Console.WriteLine($"[{i + 1}] {core.Name}");
-                Console.WriteLine($"    Mass: {core.MassKg} kg");
-                Console.WriteLine($"    Base KE (gun only): {baseKE:N0} MJ");
-                Console.WriteLine($"    Cost: {core.Cost.Budget:F0} Budget, {core.Cost.Steel:F0} Steel, {core.Cost.ExoticMaterials:F0} Exotic");
-                Console.WriteLine($"    {core.Description}\n");
-            }
-
             ProjectileCore? selectedCore = null;
+
+            // Buffer the configuration process (we flush before user prompts)
+            RenderBufferedPage("ProjectileDevelopment", header, () =>
+            {
+                Console.WriteLine("=== AVAILABLE RESOURCES ===");
+                Console.WriteLine($"  Budget: {engine.AccumulatedResources["Budget"]:F0}");
+                Console.WriteLine($"  Steel:  {engine.AccumulatedResources["Steel"]:F0} tons");
+                Console.WriteLine($"  Exotic: {engine.AccumulatedResources["Exotic"]:F1} units\n");
+
+                // Display gun base velocity
+                Console.WriteLine("=== GUN SPECIFICATIONS ===");
+                Console.WriteLine($"  Weapons Tech Level: {weaponsTechLevel}");
+                Console.WriteLine($"  Base Muzzle Velocity: {gunBaseVelocity:N0} m/s ({gunBaseVelocity / 1000:N0} km/s)");
+                Console.WriteLine($"  Barrel Integrity: {engine.Gun.BarrelIntegrity:P2}\n");
+
+                Console.WriteLine("=== STEP 1: SELECT PROJECTILE CORE ===");
+                Console.WriteLine("(Determines projectile mass)\n");
+
+                for (int i = 0; i < unlockedCores.Count; i++)
+                {
+                    var core = unlockedCores[i];
+                    double baseKE = BallisticsCalculator.CalculateKineticEnergyMJ(core.MassKg, gunBaseVelocity);
+                    Console.WriteLine($"[{i + 1}] {core.Name}");
+                    Console.WriteLine($"    Mass: {core.MassKg} kg");
+                    Console.WriteLine($"    Base KE (gun only): {baseKE:N0} MJ");
+                    Console.WriteLine($"    Cost: {core.Cost.Budget:F0} Budget, {core.Cost.Steel:F0} Steel, {core.Cost.ExoticMaterials:F0} Exotic");
+                    Console.WriteLine($"    {core.Description}\n");
+                }
+            });
+
+            // Now prompt the user using the precomputed lists
             while (selectedCore == null)
             {
                 Console.Write("Select core (1-" + unlockedCores.Count + "): ");
@@ -913,15 +1205,15 @@ namespace Spacegun_Simulator
             Console.WriteLine("(Provides Delta-V boost during flight - unlocked at Projectiles Tech 2)\n");
 
             bool hasPropulsionOptions = unlockedPropulsion.Count > 1;  // More than just "None"
-            
+
             for (int i = 0; i < unlockedPropulsion.Count; i++)
             {
                 var prop = unlockedPropulsion[i];
-                
+
                 if (prop.Id == "none")
                 {
                     double baseKE = BallisticsCalculator.CalculateKineticEnergyMJ(selectedCore.MassKg, gunBaseVelocity);
-                    Console.WriteLine($"[{i + 1}] {prop.Name}");
+                    Console.WriteLine($"[{i + 1}] {prop.Name} (no boost)");
                     Console.WriteLine($"    Velocity: {gunBaseVelocity:N0} m/s (gun only)");
                     Console.WriteLine($"    KE: {baseKE:N0} MJ");
                     Console.WriteLine($"    Cost: FREE\n");
@@ -932,7 +1224,7 @@ namespace Spacegun_Simulator
                     double maxDeltaV = prop.CalculateEffectiveDeltaV(selectedCore.MassKg, prop.BurnDurationSeconds);
                     double maxVelocity = gunBaseVelocity + maxDeltaV;
                     double maxKE = BallisticsCalculator.CalculateKineticEnergyMJ(selectedCore.MassKg, maxVelocity);
-                    
+
                     Console.WriteLine($"[{i + 1}] {prop.Name}");
                     Console.WriteLine($"    Delta-V: +{prop.DeltaVCapacityMs:N0} m/s over {prop.BurnDurationSeconds:F1}s burn");
                     Console.WriteLine($"    Effective Delta-V (for {selectedCore.MassKg}kg): +{maxDeltaV:N0} m/s");
@@ -993,41 +1285,53 @@ namespace Spacegun_Simulator
             // Create the crafted projectile with gun base velocity
             var craftedProjectile = new CraftedProjectile(selectedCore, selectedPropulsion, selectedEnhancement, gunBaseVelocity);
 
-            // Display final configuration
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║            PROJECTILE CONFIGURATION SUMMARY               ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
-
-            Console.WriteLine($"  Configuration: {craftedProjectile.DisplayName}");
-            Console.WriteLine($"  Projectile Mass: {craftedProjectile.MassKg} kg");
-            Console.WriteLine($"  Gun Base Velocity: {gunBaseVelocity:N0} m/s");
-            
-            if (selectedPropulsion.Id != "none")
+            // Display final configuration (buffered summary)
+            var configHeader = new System.Collections.Generic.List<string>
             {
-                double maxDeltaV = selectedPropulsion.CalculateEffectiveDeltaV(craftedProjectile.MassKg, selectedPropulsion.BurnDurationSeconds);
-                Console.WriteLine($"  Propulsion Delta-V: +{maxDeltaV:N0} m/s (over {selectedPropulsion.BurnDurationSeconds:F1}s)");
-                Console.WriteLine($"  Max Impact Velocity: {craftedProjectile.MaxVelocityMs:N0} m/s");
-                Console.WriteLine($"  ⚠ Note: Actual velocity depends on flight time to target");
-            }
-            
-            Console.WriteLine($"  Max Kinetic Energy: {craftedProjectile.RawKineticEnergyMJ:N0} MJ");
-            
-            if (craftedProjectile.Enhancement.EnergyEfficiencyBonus != 1.0)
-                Console.WriteLine($"  Effective KE (with bonus): {craftedProjectile.EffectiveKineticEnergyMJ:N0} MJ");
-            
-            if (craftedProjectile.HitToleranceMultiplier != 1.0)
-                Console.WriteLine($"  Hit Tolerance Bonus: {(craftedProjectile.HitToleranceMultiplier - 1) * 100:+0}%");
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "             PROJECTILE CONFIGURATION SUMMARY                ",
 
-            Console.WriteLine($"\n  TOTAL COST:");
-            Console.WriteLine($"    Budget: {craftedProjectile.TotalCost.Budget:F0}");
-            Console.WriteLine($"    Steel:  {craftedProjectile.TotalCost.Steel:F0}");
-            Console.WriteLine($"    Exotic: {craftedProjectile.TotalCost.ExoticMaterials:F0}");
+                string.Empty
+            };
+
+            Console.Clear();
+            RenderBufferedPage("ProjectileConfigSummary", configHeader, () =>
+            {
+                Console.WriteLine($"  Configuration: {craftedProjectile.DisplayName}");
+                Console.WriteLine($"  Projectile Mass: {craftedProjectile.MassKg} kg");
+                Console.WriteLine($"  Gun Base Velocity: {craftedProjectile.GunBaseMuzzleVelocityMs:N0} m/s");
+
+                if (selectedPropulsion.Id != "none")
+                {
+                    double maxDeltaV = selectedPropulsion.CalculateEffectiveDeltaV(craftedProjectile.MassKg, selectedPropulsion.BurnDurationSeconds);
+                    Console.WriteLine($"  Propulsion Delta-V: +{maxDeltaV:N0} m/s");
+                    Console.WriteLine($"  Max Velocity: {craftedProjectile.MaxVelocityMs:N0} m/s");
+                }
+
+                Console.WriteLine($"  Max KE: {craftedProjectile.RawKineticEnergyMJ:N0} MJ");
+                Console.WriteLine($"  Effective Kinetic Energy: {craftedProjectile.EffectiveKineticEnergyMJ:N0} MJ");
+                if (craftedProjectile.HitToleranceMultiplier != 1.0)
+                    Console.WriteLine($"  Hit Tolerance: {(craftedProjectile.HitToleranceMultiplier - 1) * 100:+0}%");
+
+                Console.WriteLine($"\n  TOTAL COST:");
+                Console.WriteLine($"    Budget: {craftedProjectile.TotalCost.Budget:F0}");
+                Console.WriteLine($"    Steel:  {craftedProjectile.TotalCost.Steel:F0}");
+                Console.WriteLine($"    Exotic: {craftedProjectile.TotalCost.ExoticMaterials:F0}");
+            });
 
             // Check if meets requirement (using max KE as upper bound)
             if (engine.CurrentWave?.Archetype != null)
             {
                 bool meetsRequirement = craftedProjectile.EffectiveKineticEnergyMJ >= engine.CurrentWave.Archetype.FractureEnergyRange.Min;
                 Console.WriteLine($"\n  Target Requirement: {(meetsRequirement ? "✓ MEETS REQUIREMENT" : "✗ INSUFFICIENT ENERGY")}");
+
+                // Special message for tutorial mode (friendly beachball target)
+                if (diffConfig.IsTutorialMode)
+                {
+                    Console.WriteLine("  Note: Tutorial mode uses a fixed beachball target with known RCS.");
+                }
             }
 
             // Check affordability
@@ -1067,52 +1371,63 @@ namespace Spacegun_Simulator
             Console.WriteLine($"  Steel:  {engine.AccumulatedResources["Steel"]:F0}");
             Console.WriteLine($"  Exotic: {engine.AccumulatedResources["Exotic"]:F1}");
 
-            Console.WriteLine("\nPress any key to return to Weapon Development...");
+            Console.WriteLine("Press any key to return to Weapon Development...");
             Console.ReadKey();
         }
 
         private void RunGunDevelopment()
         {
-            Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║                  GUN DEVELOPMENT                          ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
-
-            Console.WriteLine("=== AVAILABLE RESOURCES ===");
-            Console.WriteLine($"  Budget: {engine.AccumulatedResources["Budget"]:F0}");
-            Console.WriteLine($"  Steel:  {engine.AccumulatedResources["Steel"]:F0} tons");
-            Console.WriteLine($"  Exotic: {engine.AccumulatedResources["Exotic"]:F1} units\n");
-
-            Console.WriteLine("=== CURRENT GUN STATUS ===");
-            Console.WriteLine($"  Barrel Integrity: {engine.Gun.BarrelIntegrity:P0}");
-            Console.WriteLine($"  Power Capacity: {engine.Gun.PowerCapacity:F0} MW");
-            Console.WriteLine($"  Weapons Tech Level: {engine.TechTree.CurrentLevel[TechTree.TechType.Weapons]}\n");
-
-            Console.WriteLine("=== AVAILABLE UPGRADES ===\n");
-
-            // Define available gun upgrades
-            var upgrades = new List<(string Name, string Description, ResourceCost Cost, Action Apply)>
+            var header = new System.Collections.Generic.List<string>
             {
-                ("Barrel Repair", "Restore barrel integrity to 100%", 
-                    new ResourceCost(budget: 100, steel: 50, exotic: 0),
-                    () => engine.Gun.BarrelIntegrity = 1.0),
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "                   GUN DEVELOPMENT                           ",
 
-                ("Power Capacitor Upgrade", "Increase power capacity by 20%",
-                    new ResourceCost(budget: 150, steel: 80, exotic: 20),
-                    () => engine.Gun.PowerCapacity *= 1.2),
-
-                ("Reinforced Barrel", "Reduce barrel degradation per shot by 50%",
-                    new ResourceCost(budget: 200, steel: 120, exotic: 40),
-                    () => { /* Future: implement barrel reinforcement tracking */ })
+                string.Empty
             };
 
+            Console.Clear();
+            // Buffer static display, prompt after
+            RenderBufferedPage("GunDevelopment", header, () =>
+            {
+                Console.WriteLine("=== AVAILABLE RESOURCES ===");
+                Console.WriteLine($"  Budget: {engine.AccumulatedResources["Budget"]:F0}");
+                Console.WriteLine($"  Steel:  {engine.AccumulatedResources["Steel"]:F0} tons");
+                Console.WriteLine($"  Exotic: {engine.AccumulatedResources["Exotic"]:F1} units\n");
+
+                Console.WriteLine("=== CURRENT GUN STATUS ===");
+                Console.WriteLine($"  Barrel Integrity: {engine.Gun.BarrelIntegrity:P0}");
+                Console.WriteLine($"  Power Capacity: {engine.Gun.PowerCapacity:F0} MW");
+                Console.WriteLine($"  Weapons Tech Level: {engine.TechTree.CurrentLevel[TechTree.TechType.Weapons]}\n");
+
+                Console.WriteLine("=== AVAILABLE UPGRADES ===\n");
+            });
+
+            // Define available gun upgrades
+            var upgrades = new List<(string Name, string Description, ResourceCost Cost, Action Apply)>(
+                new (string, string, ResourceCost, Action)[] {
+                    ("Barrel Repair", "Restore barrel integrity to 100%",
+                        new ResourceCost(budget: 100, steel: 50, exotic: 0),
+                        () => engine.Gun.BarrelIntegrity = 1.0),
+
+                    ("Power Capacitor Upgrade", "Increase power capacity by 20%",
+                        new ResourceCost(budget: 150, steel: 80, exotic: 20),
+                        () => engine.Gun.PowerCapacity *= 1.2),
+
+                    ("Reinforced Barrel", "Reduce barrel degradation per shot by 50%",
+                        new ResourceCost(budget: 200, steel: 120, exotic: 40),
+                        () => { /* Future: implement barrel reinforcement tracking */ })
+                });
+
+            // Display upgrade options and costs
             for (int i = 0; i < upgrades.Count; i++)
             {
                 var (name, description, cost, _) = upgrades[i];
                 bool canAfford = engine.AccumulatedResources["Budget"] >= cost.Budget &&
                                  engine.AccumulatedResources["Steel"] >= cost.Steel &&
                                  engine.AccumulatedResources["Exotic"] >= cost.ExoticMaterials;
-                
+
                 string affordMark = canAfford ? "✓" : "✗";
                 Console.WriteLine($"[{i + 1}] {affordMark} {name}");
                 Console.WriteLine($"    {description}");
@@ -1164,189 +1479,129 @@ namespace Spacegun_Simulator
             Console.ReadKey();
         }
 
-        /// <summary>
-        /// Display detailed weapon status information.
-        /// </summary>
-        private void DisplayDetailedWeaponStatus()
-        {
-            Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║              DETAILED WEAPON STATUS                       ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
-
-            // Tech Levels
-            Console.WriteLine("=== TECHNOLOGY LEVELS ===");
-            Console.WriteLine($"  Weapons:     Level {engine.TechTree.CurrentLevel[TechTree.TechType.Weapons]}");
-            Console.WriteLine($"               {TechTree.GetTechDescription(TechTree.TechType.Weapons, engine.TechTree.CurrentLevel[TechTree.TechType.Weapons])}");
-            Console.WriteLine($"  Projectiles: Level {engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles]}");
-            Console.WriteLine($"               {TechTree.GetTechDescription(TechTree.TechType.Projectiles, engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles])}");
-
-            // Gun Base Velocity
-            int weaponsTechLevel = engine.TechTree.CurrentLevel[TechTree.TechType.Weapons];
-            double gunBaseVelocity = GunConfiguration.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel);
-            Console.WriteLine($"\n=== GUN BASE VELOCITY ===");
-            Console.WriteLine($"  Base Muzzle Velocity: {gunBaseVelocity:N0} m/s ({gunBaseVelocity / 1000:N0} km/s)");
-
-            // Unlocked Components
-            Console.WriteLine("\n=== UNLOCKED COMPONENTS ===");
-            
-            var cores = CraftedProjectile.GetUnlockedCores(engine.TechTree);
-            Console.WriteLine($"  Cores ({cores.Count} available):");
-            foreach (var core in cores)
-                Console.WriteLine($"    - {core.Name} ({core.MassKg} kg)");
-
-            var propulsion = CraftedProjectile.GetUnlockedPropulsion(engine.TechTree);
-            Console.WriteLine($"\n  Propulsion ({propulsion.Count} available):");
-            foreach (var prop in propulsion)
-            {
-                if (prop.Id == "none")
-                    Console.WriteLine($"    - {prop.Name} (no boost)");
-                else
-                    Console.WriteLine($"    - {prop.Name} (+{prop.DeltaVCapacityMs / 1000:N0} km/s Delta-V over {prop.BurnDurationSeconds:F1}s)");
-            }
-
-            var enhancements = CraftedProjectile.GetUnlockedEnhancements(engine.TechTree);
-            Console.WriteLine($"\n  Enhancements ({enhancements.Count} available):");
-            foreach (var enh in enhancements)
-                Console.WriteLine($"    - {enh.Name}");
-
-            // Gun Status
-            Console.WriteLine("\n=== GUN CONFIGURATION ===");
-            Console.WriteLine($"  Barrel Integrity: {engine.Gun.BarrelIntegrity:P2}");
-            Console.WriteLine($"  Estimated Shots Remaining: {engine.Gun.EstimatedShotsRemaining()}");
-            Console.WriteLine($"  Barrel Material: {engine.Gun.BarrelMaterial}");
-            Console.WriteLine($"  Barrel Integrity Failure Threshold: {engine.Gun.IntegrityFailureThreshold:P0}");
-
-            // Current Projectile
-            Console.WriteLine("\n=== CURRENT PROJECTILE ===");
-            if (engine.CraftedProjectile != null)
-            {
-                var proj = engine.CraftedProjectile;
-                Console.WriteLine($"  Configuration: {proj.DisplayName}");
-                Console.WriteLine($"  Mass: {proj.MassKg} kg");
-                Console.WriteLine($"  Gun Base Velocity: {proj.GunBaseMuzzleVelocityMs:N0} m/s");
-                
-                if (proj.Propulsion.Id != "none")
-                {
-                    double maxDeltaV = proj.Propulsion.CalculateEffectiveDeltaV(proj.MassKg, proj.Propulsion.BurnDurationSeconds);
-                    Console.WriteLine($"  Propulsion Delta-V: +{maxDeltaV:N0} m/s");
-                    Console.WriteLine($"  Max Velocity: {proj.MaxVelocityMs:N0} m/s");
-                }
-                
-                Console.WriteLine($"  Max KE: {proj.RawKineticEnergyMJ:N0} MJ");
-                Console.WriteLine($"  Effective KE: {proj.EffectiveKineticEnergyMJ:N0} MJ");
-                if (proj.HitToleranceMultiplier != 1.0)
-                    Console.WriteLine($"  Hit Tolerance: {proj.HitToleranceMultiplier:P0}");
-            }
-            else
-            {
-                Console.WriteLine("  [NOT CONFIGURED]");
-            }
-
-            Console.WriteLine("\nPress any key to return to Weapon Development...");
-            Console.ReadKey();
-        }
-
         private void RunFiringPhase()
         {
-            Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║            FIRING SOLUTION & ENGAGEMENT PHASE             ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+            var header = new System.Collections.Generic.List<string>
+            {
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "             FIRING SOLUTION & ENGAGEMENT PHASE              ",
 
+                string.Empty
+            };
+
+            // Compute firing result and dependent state first.
             var firingResult = engine.ExecuteFiringPhase();
+            var diffConfig = DifficultyConfig.GetConfig(engine.SelectedDifficulty);
+            var firingProblem = engine.CurrentFiringProblem;
+            var target = engine.CurrentWave?.Targets.Count > 0 ? engine.CurrentWave.Targets[0] : null;
 
+            // Render and buffer the header + summary using the PageRenderer helper.
+            RenderBufferedPage("Firing", header, () =>
+            {
+                if (!firingResult.CanReachTarget)
+                {
+                    Console.WriteLine("✗ " + firingResult.Message);
+                    Console.WriteLine("\nTarget is beyond effective gun range. Mission failed.");
+                    return;
+                }
+
+                if (target == null)
+                {
+                    Console.WriteLine("✗ No valid target found!");
+                    return;
+                }
+
+                if (engine.CurrentWave == null)
+                {
+                    Console.WriteLine("✗ Critical error: Wave data lost during firing phase!");
+                    return;
+                }
+
+                if (firingProblem == null)
+                {
+                    Console.WriteLine("✗ Critical error: Firing problem not initialized!");
+                    return;
+                }
+
+                if (engine.SelectedGunProjectileSpec == null)
+                {
+                    Console.WriteLine("✗ Critical error: No weapon selected!");
+                    return;
+                }
+
+                double muzzleVelocity = engine.SelectedGunProjectileSpec.MuzzleVelocityMs;
+                double projectileMass = engine.SelectedGunProjectileSpec.ProjectileMassKg;
+
+                var calculator = new FiringSolution(
+                    (float)projectileMass,
+                    (float)target.FractureEnergy,
+                    target.Mass);
+
+                float minVelocity = calculator.CalculateRequiredVelocity();
+                float maxVelocity = (float)muzzleVelocity;
+                double targetRadarCrossSection = target.CrossSection;
+                double displayRCS = targetRadarCrossSection * diffConfig.TargetRcsMultiplier;
+
+                Console.WriteLine($"=== YOUR WEAPON ===");
+                Console.WriteLine($"Projectile Mass: {FiringPhaseFormatter.FormatMass(projectileMass, engine.SelectedDifficulty)} kg");
+                Console.WriteLine($"Max Muzzle Velocity: {FiringPhaseFormatter.FormatVelocity(muzzleVelocity, engine.SelectedDifficulty)} m/s");
+                Console.WriteLine($"Barrel Integrity: {engine.Gun.BarrelIntegrity:P2}");
+                Console.WriteLine($"Has Guidance System: {(engine.Gun.DefaultProjectile.HasGuidance ? "Yes" : "No")}");
+                Console.WriteLine($"Gun Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(engine.CurrentWaveNumber).MaxEffectiveGunRange)}\n");
+
+                Console.WriteLine("=== TARGET DATA FOR CALCULATIONS ===");
+                Console.WriteLine($"Designation: {target.Name}");
+                Console.WriteLine($"Enemy Approach Vector:");
+                Console.WriteLine($"  Elevation: {FiringPhaseFormatter.FormatAngle(firingProblem.ApproachElevation, engine.SelectedDifficulty)}° (in sky)");
+                Console.WriteLine($"  Azimuth: {FiringPhaseFormatter.FormatAngle(firingProblem.ApproachAzimuth, engine.SelectedDifficulty)}° (bearing)");
+                Console.WriteLine($"  Distance: {GameConstants.FormatDistance((double)firingProblem.EngagementDistance)}");
+                Console.WriteLine($"  Cartesian Position: {FiringPhaseFormatter.FormatVector3(firingProblem.EnemyPosition, engine.SelectedDifficulty)}");
+                Console.WriteLine($"Enemy Velocity Vector: ({FiringPhaseFormatter.FormatVelocity(firingProblem.EnemyVelocity.X, engine.SelectedDifficulty)}, {FiringPhaseFormatter.FormatVelocity(firingProblem.EnemyVelocity.Y, engine.SelectedDifficulty)}, {FiringPhaseFormatter.FormatVelocity(firingProblem.EnemyVelocity.Z, engine.SelectedDifficulty)}) m/s");
+                Console.WriteLine($"Approach Speed: {FiringPhaseFormatter.FormatVelocity(firingProblem.ApproachSpeed, engine.SelectedDifficulty)} m/s");
+                Console.WriteLine($"Fracture Energy Required: {FiringPhaseFormatter.FormatEnergy(firingProblem.FractureEnergyRequired, engine.SelectedDifficulty)}");
+
+                if (diffConfig.IsTutorialMode)
+                {
+                    double hitTolerance = DifficultyConfig.TutorialBeachball.RadiusMeters;
+                    Console.WriteLine($"Hit Tolerance: {hitTolerance:F1} m (beachball radius)\n");
+                }
+                else
+                {
+                    Console.WriteLine($"Target Radar Cross-Section: {FiringPhaseFormatter.FormatRadarCrossSection(displayRCS, engine.SelectedDifficulty)} m²\n");
+                }
+            });
+
+            // Handle early failure cases (match previous behavior)
             if (!firingResult.CanReachTarget)
             {
-                Console.WriteLine("✗ " + firingResult.Message);
-                Console.WriteLine("\nTarget is beyond effective gun range. Mission failed.");
+                Console.WriteLine("\nPress any key to continue...");
+                Console.ReadKey();
                 engine.IsGameOver = true;
                 return;
             }
 
-            var target = engine.CurrentWave?.Targets[0];
-            if (target == null)
+            if (target == null || engine.CurrentFiringProblem == null || engine.SelectedGunProjectileSpec == null)
             {
-                Console.WriteLine("✗ No valid target found!");
+                Console.WriteLine("\nPress any key to continue...");
+                Console.ReadKey();
                 engine.IsGameOver = true;
                 return;
             }
 
-            if (engine.CurrentWave == null)
-            {
-                Console.WriteLine("✗ Critical error: Wave data lost during firing phase!");
-                engine.IsGameOver = true;
-                return;
-            }
+            // Interactive workflow continues as before...
+            bool workflowComplete = false;
 
-            // ===== GET DIFFICULTY CONFIG EARLY - needed for RCS multiplier and formatting =====
-            var diffConfig = DifficultyConfig.GetConfig(engine.SelectedDifficulty);
-
-            // ===== CRITICAL: Use the FiringProblem generated by ExecuteFiringPhase() =====
-            if (engine.CurrentFiringProblem == null)
-            {
-                Console.WriteLine("✗ Critical error: Firing problem not initialized!");
-                engine.IsGameOver = true;
-                return;
-            }
-
-            var firingProblem = engine.CurrentFiringProblem;
-            Vector3 enemyPosition = firingProblem.EnemyPosition;
-            Vector3 enemyVelocity = firingProblem.EnemyVelocity;
-
-            var tier = GameConstants.GetTierForWave(engine.CurrentWaveNumber);
-
-            if (engine.SelectedGunProjectileSpec == null)
-            {
-                Console.WriteLine("✗ Critical error: No weapon selected!");
-                engine.IsGameOver = true;
-                return;
-            }
-
-            double muzzleVelocity = engine.SelectedGunProjectileSpec.MuzzleVelocityMs;
-            double projectileMass = engine.SelectedGunProjectileSpec.ProjectileMassKg;
-
-            var calculator = new FiringSolution(
-                (float)projectileMass,
+            // Recompute commonly used locals for the interactive loop
+            var calculatorForLoop = new FiringSolution(
+                (float)engine.SelectedGunProjectileSpec.ProjectileMassKg,
                 (float)target.FractureEnergy,
                 target.Mass);
 
-            float minVelocity = calculator.CalculateRequiredVelocity();
-            double targetRadarCrossSection = target.CrossSection;
-
-            // ===== APPLY RCS MULTIPLIER FOR DISPLAY =====
-            double displayRCS = targetRadarCrossSection * diffConfig.TargetRcsMultiplier;
-
-            Console.WriteLine($"=== YOUR WEAPON ===");
-            Console.WriteLine($"Projectile Mass: {FiringPhaseFormatter.FormatMass(projectileMass, engine.SelectedDifficulty)} kg");
-            Console.WriteLine($"Max Muzzle Velocity: {FiringPhaseFormatter.FormatVelocity(muzzleVelocity, engine.SelectedDifficulty)} m/s");
-            Console.WriteLine($"Barrel Integrity: {engine.Gun.BarrelIntegrity:P2}");
-            Console.WriteLine($"Has Guidance System: {(engine.Gun.DefaultProjectile.HasGuidance ? "Yes" : "No")}");
-            Console.WriteLine($"Gun Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(engine.CurrentWaveNumber).MaxEffectiveGunRange)}\n");
-
-            // ===== TARGET DATA FOR CALCULATIONS =====
-            Console.WriteLine("=== TARGET DATA FOR CALCULATIONS ===");
-            Console.WriteLine($"Designation: {engine.CurrentWave?.Targets[0].Name ?? "Unknown"}");
-            Console.WriteLine($"Enemy Approach Vector:");
-            Console.WriteLine($"  Elevation: {FiringPhaseFormatter.FormatAngle(firingProblem.ApproachElevation, engine.SelectedDifficulty)}° (in sky)");
-            Console.WriteLine($"  Azimuth: {FiringPhaseFormatter.FormatAngle(firingProblem.ApproachAzimuth, engine.SelectedDifficulty)}° (bearing)");
-            Console.WriteLine($"  Distance: {GameConstants.FormatDistance((double)firingProblem.EngagementDistance)}");
-            Console.WriteLine($"  Cartesian Position: {FiringPhaseFormatter.FormatVector3(enemyPosition, engine.SelectedDifficulty)}");
-            Console.WriteLine($"Enemy Velocity Vector: ({FiringPhaseFormatter.FormatVelocity(enemyVelocity.X, engine.SelectedDifficulty)}, {FiringPhaseFormatter.FormatVelocity(enemyVelocity.Y, engine.SelectedDifficulty)}, {FiringPhaseFormatter.FormatVelocity(enemyVelocity.Z, engine.SelectedDifficulty)}) m/s");
-            Console.WriteLine($"Approach Speed: {FiringPhaseFormatter.FormatVelocity(firingProblem.ApproachSpeed, engine.SelectedDifficulty)} m/s");
-            Console.WriteLine($"Fracture Energy Required: {FiringPhaseFormatter.FormatEnergy(firingProblem.FractureEnergyRequired, engine.SelectedDifficulty)}");
-
-            if (diffConfig.IsTutorialMode)
-            {
-                double hitTolerance = DifficultyConfig.TutorialBeachball.RadiusMeters;
-                Console.WriteLine($"Hit Tolerance: {hitTolerance:F1} m (beachball radius)\n");
-            }
-            else
-            {
-                Console.WriteLine($"Target Radar Cross-Section: {FiringPhaseFormatter.FormatRadarCrossSection(displayRCS, engine.SelectedDifficulty)} m²\n");
-            }
-
-            bool workflowComplete = false;
+            float minVelocityLoop = calculatorForLoop.CalculateRequiredVelocity();
+            float maxVelocityLoop = (float)engine.SelectedGunProjectileSpec.MuzzleVelocityMs;
+            double displayRcsLoop = target.CrossSection * diffConfig.TargetRcsMultiplier;
 
             while (!workflowComplete)
             {
@@ -1365,79 +1620,138 @@ namespace Spacegun_Simulator
                 {
                     case "1":
                         Console.Clear();
-                        Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-                        Console.WriteLine("║     STEP 1: PREDICT TARGET POSITION                       ║");
-                        Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
-                        TargetMotionComputer.ShowMotionComputerTool(enemyPosition, enemyVelocity, engine.SelectedDifficulty);
+                        var step1Header = new System.Collections.Generic.List<string>
+                        {
+                            "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                            "      STEP 1: PREDICT TARGET POSITION                        ",
+
+                            string.Empty
+                        };
+                        // Wrap tool in buffered page so header alignment is preserved
+                        RenderBufferedPage("MotionComputer", step1Header, () =>
+                        {
+                            TargetMotionComputer.ShowMotionComputerTool(
+                                firingProblem.EnemyPosition,
+                                firingProblem.EnemyVelocity,
+                                engine.SelectedDifficulty,
+                                screenLayout,
+                                originalConsoleOut,
+                                indentWriter,
+                                indentWriter.IndentLength);
+                        });
                         Console.WriteLine("\n✓ Step 1 complete.\n");
                         System.Threading.Thread.Sleep(1000);
-                        DisplayWorkflowContext(firingProblem, target, minVelocity, muzzleVelocity, targetRadarCrossSection, enemyPosition, enemyVelocity);
+                        DisplayWorkflowContext(firingProblem, target, minVelocityLoop, engine.SelectedGunProjectileSpec.MuzzleVelocityMs, target.CrossSection, firingProblem.EnemyPosition, firingProblem.EnemyVelocity);
                         break;
 
                     case "2":
                         Console.Clear();
-                        Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-                        Console.WriteLine("║     STEP 2: CALCULATE REQUIREMENTS                       ║");
-                        Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+                        var step2Header = new System.Collections.Generic.List<string>
+                        {
+                            "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                            "      STEP 2: CALCULATE REQUIREMENTS                        ",
+
+                            string.Empty
+                        };
+
+                        // Render header raw and then call the ballistics reference tool (non-buffered).
+                        RenderPageFrame(step2Header);
                         BallisticsTablesReference.ShowReferencesMenu(currentTierIndex: engine.CurrentWaveNumber > 0 ? GameConstants.GetTierForWave(engine.CurrentWaveNumber).TierIndex : 0, currentDifficulty: engine.SelectedDifficulty);
+
                         Console.WriteLine("\n✓ Step 2 complete.\n");
                         System.Threading.Thread.Sleep(1000);
-                        DisplayWorkflowContext(firingProblem, target, minVelocity, muzzleVelocity, targetRadarCrossSection, enemyPosition, enemyVelocity);
+                        DisplayWorkflowContext(firingProblem, target, minVelocityLoop, engine.SelectedGunProjectileSpec.MuzzleVelocityMs, target.CrossSection, firingProblem.EnemyPosition, firingProblem.EnemyVelocity);
                         break;
 
                     case "3":
                         Console.Clear();
-                        Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-                        Console.WriteLine("║     STEP 3: PLAN TRAJECTORY                              ║");
-                        Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
-                        TrajectoryPlotter.ShowTrajectoryPlotterTool(engine.SelectedDifficulty);
+                        var step3Header = new System.Collections.Generic.List<string>
+                        {
+                            "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                            "      STEP 3: PLAN TRAJECTORY                               ",
+
+                            string.Empty
+                        };
+                        RenderBufferedPage("TrajectoryPlotter", step3Header, () =>
+                        {
+                            TrajectoryPlotter.ShowTrajectoryPlotterTool(
+                                engine.SelectedDifficulty,
+                                screenLayout,
+                                originalConsoleOut,
+                                indentWriter,
+                                indentWriter.IndentLength);
+                        });
                         Console.WriteLine("\n✓ Step 3 complete.\n");
                         System.Threading.Thread.Sleep(1000);
-                        DisplayWorkflowContext(firingProblem, target, minVelocity, muzzleVelocity, targetRadarCrossSection, enemyPosition, enemyVelocity);
+                        DisplayWorkflowContext(firingProblem, target, minVelocityLoop, engine.SelectedGunProjectileSpec.MuzzleVelocityMs, target.CrossSection, firingProblem.EnemyPosition, firingProblem.EnemyVelocity);
                         break;
 
                     case "4":
                         Console.Clear();
-                        Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-                        Console.WriteLine("║     STEP 4: TEST SOLUTION (TEST MODE)                    ║");
-                        Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
-                        FireSimulator.ShowSimulatorTool(
-                            enemyPosition,
-                            enemyVelocity,
-                            (float)projectileMass,
-                            (float)muzzleVelocity,
-                            engine.SelectedDifficulty);  // Pass difficulty
+                        var step4Header = new System.Collections.Generic.List<string>
+                        {
+                            "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                            "      STEP 4: TEST SOLUTION (TEST MODE)                     ",
+
+                            string.Empty
+                        };
+                        RenderBufferedPage("FireSimulator", step4Header, () =>
+                        {
+                            FireSimulator.ShowSimulatorTool(
+                                firingProblem.EnemyPosition,
+                                firingProblem.EnemyVelocity,
+                                (float)engine.SelectedGunProjectileSpec.ProjectileMassKg,
+                                (float)engine.SelectedGunProjectileSpec.MuzzleVelocityMs,
+                                engine.SelectedDifficulty);
+                        });
                         Console.WriteLine("\n✓ Step 4 complete.\n");
                         System.Threading.Thread.Sleep(1000);
-                        DisplayWorkflowContext(firingProblem, target, minVelocity, muzzleVelocity, targetRadarCrossSection, enemyPosition, enemyVelocity);
+                        DisplayWorkflowContext(firingProblem, target, minVelocityLoop, engine.SelectedGunProjectileSpec.MuzzleVelocityMs, target.CrossSection, firingProblem.EnemyPosition, firingProblem.EnemyVelocity);
                         break;
 
                     case "5":
                         Console.Clear();
-                        Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-                        Console.WriteLine("║     STEP 5: ENTER FINAL SOLUTION                         ║");
-                        Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+                        var step5Header = new System.Collections.Generic.List<string>
+                        {
+                            "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                            "      STEP 5: ENTER FINAL SOLUTION                          ",
 
-                        Console.WriteLine("=== ENTER YOUR FIRING PARAMETERS ===\n");
+                            string.Empty
+                        };
+                        // Buffer header + static label, prompts happen after the buffered header
+                        RenderBufferedPage("EnterFiringParameters", step5Header, () =>
+                        {
+                            Console.WriteLine("=== ENTER YOUR FIRING PARAMETERS ===\n");
+                        });
+
                         float playerLaunchDelayTime = GetPlayerTimeInput("Launch delay time (seconds): ");
                         float playerTargetElevation = GetPlayerElevationInput("Target elevation angle (-90 to 90 degrees): ");
                         float playerTargetAzimuth = GetPlayerAzimuthInput("Target azimuth bearing (0-360 degrees, 0=North): ");
 
-                        var velPrecision = DifficultyConfig.GetConfig(engine.SelectedDifficulty).VelocityPrecision;
                         float playerLaunchVelocity = GetPlayerVelocityInput(
-                            $"Launch velocity (0-{velPrecision.Format(muzzleVelocity)} m/s): ");
+                            $"Launch velocity ({0:N0}-{maxVelocityLoop:N0} m/s): ");
 
                         Console.WriteLine();
 
-                        var solution = calculator.CalculateSolution(
-                            enemyPosition,
-                            enemyVelocity,
+                        var solution = calculatorForLoop.CalculateSolution(
+                            firingProblem.EnemyPosition,
+                            firingProblem.EnemyVelocity,
                             playerLaunchDelayTime,
                             playerTargetElevation,
                             playerTargetAzimuth,
                             playerLaunchVelocity,
-                            (float)muzzleVelocity,
-                            (float)tier.MaxEffectiveGunRange,
+                            (float)engine.SelectedGunProjectileSpec.MuzzleVelocityMs,
+                            (float)GameConstants.GetTierForWave(engine.CurrentWaveNumber).MaxEffectiveGunRange,
                             engine.CurrentWaveNumber,
                             target.Mass,
                             engine.SelectedDifficulty);
@@ -1451,18 +1765,18 @@ namespace Spacegun_Simulator
                         bool hitResult = solution.CanDestroy && solution.CanHit;
 
                         // Show animated visualization
-                        double animFlightTime = enemyPosition.Magnitude / playerLaunchVelocity * 1.5;
+                        double animFlightTime = firingProblem.EnemyPosition.Magnitude / Math.Max(1.0, playerLaunchVelocity) * 1.5;
                         DisplayAnimatedShot(
-                            enemyPosition,
-                            enemyVelocity,
+                            firingProblem.EnemyPosition,
+                            firingProblem.EnemyVelocity,
                             playerLaunchDelayTime,
                             playerTargetElevation,
                             playerTargetAzimuth,
                             playerLaunchVelocity,
-                            Math.Min(animFlightTime, 10.0),  // Cap at 10 seconds for animation
+                            Math.Min(animFlightTime, 10.0),
                             hitResult);
 
-                        DisplayDebugCalculations(solution, projectileMass, playerLaunchVelocity, displayRCS);
+                        DisplayDebugCalculations(solution, engine.SelectedGunProjectileSpec.ProjectileMassKg, playerLaunchVelocity, displayRcsLoop);
 
                         // ===== APPLY BARREL DEGRADATION (GAMEPLAY ONLY) =====
                         if (engine.Gun != null)
@@ -1472,8 +1786,6 @@ namespace Spacegun_Simulator
                             if (!barrelStillOk)
                             {
                                 Console.WriteLine("\n✗ Barrel integrity failed after shot. The gun is unusable until repaired.");
-                                Console.WriteLine("Press any key to continue...");
-                                // Behavior on barrel failure: mark game over to require maintenance/replace in future design.
                                 engine.IsGameOver = true;
                             }
                         }
@@ -1512,9 +1824,16 @@ namespace Spacegun_Simulator
 
                     case "0":
                         Console.Clear();
-                        Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-                        Console.WriteLine("║     DIRECT FIRING SOLUTION ENTRY (SKIP WORKFLOW)         ║");
-                        Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+                        var directHeader = new System.Collections.Generic.List<string>
+                        {
+                            "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                            "      DIRECT FIRING SOLUTION ENTRY (SKIP WORKFLOW)          ",
+
+                            string.Empty
+                        };
+                        RenderPageFrame(directHeader);
 
                         Console.WriteLine("=== ENTER FIRING PARAMETERS ===\n");
                         float directDelayTime = GetPlayerTimeInput("Launch delay time (seconds): ");
@@ -1522,19 +1841,19 @@ namespace Spacegun_Simulator
                         float directAzimuth = GetPlayerAzimuthInput("Target azimuth bearing (0-360 degrees, 0=North): ");
 
                         float directVelocity = GetPlayerVelocityInput(
-                            $"Launch velocity (0-{FiringPhaseFormatter.FormatVelocity(muzzleVelocity, engine.SelectedDifficulty)}): ");
+                            $"Launch velocity ({0:N0}-{maxVelocityLoop:N0} m/s): ");
 
                         Console.WriteLine();
 
-                        var directSolution = calculator.CalculateSolution(
-                            enemyPosition,
-                            enemyVelocity,
+                        var directSolution = calculatorForLoop.CalculateSolution(
+                            firingProblem.EnemyPosition,
+                            firingProblem.EnemyVelocity,
                             directDelayTime,
                             directElevation,
                             directAzimuth,
                             directVelocity,
-                            (float)muzzleVelocity,
-                            (float)tier.MaxEffectiveGunRange,
+                            (float)engine.SelectedGunProjectileSpec.MuzzleVelocityMs,
+                            (float)GameConstants.GetTierForWave(engine.CurrentWaveNumber).MaxEffectiveGunRange,
                             engine.CurrentWaveNumber,
                             target.Mass,
                             engine.SelectedDifficulty);
@@ -1546,7 +1865,7 @@ namespace Spacegun_Simulator
 
                         bool directHitResult = directSolution.CanDestroy && directSolution.CanHit;
 
-                        DisplayDebugCalculations(directSolution, projectileMass, directVelocity, displayRCS);
+                        DisplayDebugCalculations(directSolution, engine.SelectedGunProjectileSpec.ProjectileMassKg, directVelocity, displayRcsLoop);
 
                         // ===== APPLY BARREL DEGRADATION (GAMEPLAY ONLY) =====
                         if (engine.Gun != null)
@@ -1604,6 +1923,181 @@ namespace Spacegun_Simulator
             Console.ReadKey();
         }
 
+        private void RunWaveCompletePhase()
+        {
+            if (engine.IsGameOver)
+                return;
+
+            engine.AdvanceToNextWave();
+        }
+
+        /// <summary>
+        /// Display difficulty selection menu for new game.
+        /// Returns selected difficulty.
+        /// </summary>
+        public static GameDifficulty ShowDifficultySelection()
+        {
+            while (true)
+            {
+                var header = new System.Collections.Generic.List<string>
+                {
+                    "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                    "                         DIFFICULTY                          ",
+
+                    string.Empty
+                };
+
+                Console.Clear();
+                // Render centered header + sides
+                // We can't call instance RenderPageFrame here (static), so simply render header without sides.
+                Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+                Console.WriteLine("                         DIFFICULTY                          ");
+                Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+
+                var configs = DifficultyConfig.GetAllConfigs();
+
+                for (int i = 0; i < configs.Count; i++)
+                {
+                    Console.WriteLine($"\n[{i + 1}] {configs[i].DisplayName}");
+                    Console.WriteLine("────────────────────────────────────────────────────────────");
+                    Console.WriteLine(configs[i].NarrativeDescription);
+                    Console.WriteLine();
+                }
+
+                Console.WriteLine("\n[Q] Quit\n");
+                Console.Write($"Select scenario (1-{configs.Count} or Q): ");
+
+                string input = Console.ReadLine()?.Trim() ?? "";
+
+                if (input.Equals("Q", StringComparison.OrdinalIgnoreCase))
+                {
+                    return GameDifficulty.RealSpacegunSimulator;
+                }
+
+                if (int.TryParse(input, out int choice) && choice >= 1 && choice <= configs.Count)
+                {
+                    return configs[choice - 1].Difficulty;
+                }
+
+                Console.WriteLine("\nInvalid selection. Please try again.");
+                System.Threading.Thread.Sleep(1500);
+            }
+        }
+
+        private void RenderBufferedPage(string pageKey, System.Collections.Generic.IList<string> headerLines, Action contentWriter)
+        {
+            var art = GetPageArtOverrides(pageKey);
+            string? left = art.Left;
+            string? right = art.Right;
+
+            // Use ScreenLayout's BeginBufferedFrame / EndBufferedFrame directly to ensure
+            // the buffered content is flushed at the exact coordinates used for the header/art.
+            // BeginBufferedFrame installs the PageBuffer as Console.Out for us.
+            try
+            {
+                // NOTE: BeginBufferedFrame now returns raw (no-indent) coordinates.
+                (int contentLeftNoOffset, int contentTop) = screenLayout.BeginBufferedFrame(
+                    headerLines,
+                    originalConsoleOut,
+                    indentWriter,
+                    left,
+                    right);
+
+                try
+                {
+                    // Run the content writer while the page buffer is active (Console.Out -> PageBuffer).
+                    contentWriter();
+                }
+                finally
+                {
+                    // Flush buffer into the raw console and restore indented writer.
+                    // EndBufferedFrame now expects the SAME raw content-left coordinate that
+                    // BeginBufferedFrame returned (no additional offset math here).
+                    screenLayout.EndBufferedFrame(contentLeftNoOffset, contentTop);
+                }
+
+                // Position input cursor inside the center frame using the centralized helper.
+                // BeginBufferedFrame returned the raw no-offset column, so pass it directly.
+                PositionPromptCursor_NoOffset(contentLeftNoOffset, contentTop);
+            }
+            catch
+            {
+                // On any failure, ensure Console.Out is the indented writer so UI remains usable.
+                try { Console.SetOut(indentWriter); } catch { }
+            }
+        }
+
+        // Returns optional left/right side-art overrides for known pages.
+        // Keeps default null for pages without overrides; extend this map if you add page-specific art files.
+        private static (string? Left, string? Right) GetPageArtOverrides(string? pageKey)
+        {
+            if (string.IsNullOrEmpty(pageKey))
+                return (null, null);
+
+            // Add page-specific overrides here if needed. Default to no overrides.
+            switch (pageKey)
+            {
+                case "ResourceAllocation":
+                case "ResourceOptions":
+                case "PreparationSummary":
+                case "ProjectileDevelopment":
+                case "ProjectileConfigSummary":
+                case "MotionComputer":
+                case "TrajectoryPlotter":
+                case "BallisticsReference":
+                case "Firing":
+                case "EnterFiringParameters":
+                case "ResearchMenu":
+                case "WeaponDevelopment":
+                case "DetailedWeaponStatus":
+                    return (null, null);
+
+                default:
+                    return (null, null);
+            }
+        }
+
+        private int RenderPageFrame(System.Collections.Generic.IList<string> centerLines, string? leftOverride = null, string? rightOverride = null, string? pageKey = null)
+        {
+            if (!string.IsNullOrEmpty(pageKey))
+            {
+                var art = GetPageArtOverrides(pageKey);
+                leftOverride = leftOverride ?? art.Left;
+                rightOverride = rightOverride ?? art.Right;
+            }
+
+            // Capture start row so we place the prompt relative to the frame top.
+            int startRowNoOffset = 0;
+            try { startRowNoOffset = Console.CursorTop; } catch { startRowNoOffset = 0; }
+
+            try
+            {
+                Console.SetOut(originalConsoleOut ?? Console.Out);
+                screenLayout.RenderWithSides_NoOffset(centerLines, leftOverride, rightOverride);
+
+                int contentLeftNoOffset = screenLayout.CalculateContentLeft_NoOffset(centerLines, leftOverride, rightOverride);
+
+                // Compute the desired prompt row: directly after the center frame content.
+                int promptRowNoOffset = startRowNoOffset + centerLines.Count;
+
+                // Use central helper to position cursor (maps no-offset to indented coordinates).
+                PositionPromptCursor_NoOffset(contentLeftNoOffset, promptRowNoOffset);
+
+                return contentLeftNoOffset + indentWriter.IndentLength;
+            }
+            catch
+            {
+                // On failure, fall back to normal rendering path (indented)
+                try { Console.SetOut(indentWriter); } catch { }
+                screenLayout.RenderWithSides(centerLines, leftOverride, rightOverride);
+                int contentLeft = screenLayout.CalculateContentLeft(centerLines, leftOverride, rightOverride);
+                try { Console.SetCursorPosition(Math.Max(0, contentLeft), Console.CursorTop); } catch { }
+                return contentLeft;
+            }
+        }
+
         // ====================================================================
         // HELPER METHODS FOR FIRING ANALYSIS
         // ====================================================================
@@ -1615,13 +2109,26 @@ namespace Spacegun_Simulator
             var diffConfig = DifficultyConfig.GetConfig(engine.SelectedDifficulty);
             double displayRCS = targetRadarCrossSection * diffConfig.TargetRcsMultiplier;
 
+            var header = new System.Collections.Generic.List<string>
+            {
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "               FIRING SOLUTION & ENGAGEMENT PHASE              ",
+
+                string.Empty
+            };
+
             Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║              FIRING SOLUTION & ENGAGEMENT PHASE             ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+            RenderPageFrame(header);
+
+            // Determine projectile mass from selected spec, crafted projectile, or gun default.
+            double projectileMass = engine.SelectedGunProjectileSpec?.ProjectileMassKg
+                                    ?? engine.CraftedProjectile?.MassKg
+                                    ?? engine.Gun.DefaultProjectile.Mass;
 
             Console.WriteLine("=== YOUR WEAPON ===");
-            Console.WriteLine($"Projectile Mass: {(engine.SelectedGunProjectileSpec?.ProjectileMassKg ?? engine.Gun.DefaultProjectile.Mass):F1} kg");
+            Console.WriteLine($"Projectile Mass: {FiringPhaseFormatter.FormatMass(projectileMass, engine.SelectedDifficulty)} kg");
             Console.WriteLine($"Max Muzzle Velocity: {FiringPhaseFormatter.FormatVelocity(muzzleVelocity, engine.SelectedDifficulty)} m/s");
             Console.WriteLine($"Barrel Integrity: {engine.Gun.BarrelIntegrity:P2}");
             Console.WriteLine($"Has Guidance System: {(engine.Gun.DefaultProjectile.HasGuidance ? "Yes" : "No")}");
@@ -1633,11 +2140,11 @@ namespace Spacegun_Simulator
             Console.WriteLine($"  Elevation: {FiringPhaseFormatter.FormatAngle(firingProblem.ApproachElevation, engine.SelectedDifficulty)}° (in sky)");
             Console.WriteLine($"  Azimuth: {FiringPhaseFormatter.FormatAngle(firingProblem.ApproachAzimuth, engine.SelectedDifficulty)}° (bearing)");
             Console.WriteLine($"  Distance: {GameConstants.FormatDistance((double)firingProblem.EngagementDistance)}");
-            Console.WriteLine($"  Cartesian Position: {FiringPhaseFormatter.FormatVector3(enemyPosition, engine.SelectedDifficulty)}");
-            Console.WriteLine($"Enemy Velocity Vector: ({FiringPhaseFormatter.FormatVelocity(enemyVelocity.X, engine.SelectedDifficulty)}, {FiringPhaseFormatter.FormatVelocity(enemyVelocity.Y, engine.SelectedDifficulty)}, {FiringPhaseFormatter.FormatVelocity(enemyVelocity.Z, engine.SelectedDifficulty)}) m/s");
+            Console.WriteLine($"  Cartesian Position: {FiringPhaseFormatter.FormatVector3(firingProblem.EnemyPosition, engine.SelectedDifficulty)}");
+            Console.WriteLine($"Enemy Velocity Vector: ({FiringPhaseFormatter.FormatVelocity(firingProblem.EnemyVelocity.X, engine.SelectedDifficulty)}, {FiringPhaseFormatter.FormatVelocity(firingProblem.EnemyVelocity.Y, engine.SelectedDifficulty)}, {FiringPhaseFormatter.FormatVelocity(firingProblem.EnemyVelocity.Z, engine.SelectedDifficulty)}) m/s");
             Console.WriteLine($"Approach Speed: {FiringPhaseFormatter.FormatVelocity(firingProblem.ApproachSpeed, engine.SelectedDifficulty)} m/s");
             Console.WriteLine($"Fracture Energy Required: {FiringPhaseFormatter.FormatEnergy(firingProblem.FractureEnergyRequired, engine.SelectedDifficulty)}");
-            
+
             if (diffConfig.IsTutorialMode)
             {
                 double hitTolerance = DifficultyConfig.TutorialBeachball.RadiusMeters;
@@ -1652,14 +2159,26 @@ namespace Spacegun_Simulator
         private void DisplayFiringAnalysis(FiringSolutionResult solution, float delayTime, float elevation,
             float azimuth, float velocity)
         {
-            // Analysis display (can be expanded if needed)
+            // Keep lightweight; the    debug view is in DisplayDebugCalculations.
+            Console.WriteLine("\n=== FIRING ANALYSIS SUMMARY ===");
+            Console.WriteLine($"  Launch Delay: {delayTime:F2}s");
+            Console.WriteLine($"  Elevation: {elevation:F2}°   Azimuth: {azimuth:F2}°");
+            Console.WriteLine($"  Launch Velocity: {velocity:F0} m/s");
+            Console.WriteLine($"  Energy Needed: {solution.FractureEnergyRequired:F0} MJ");
+            Console.WriteLine($"  Can Destroy: {(solution.CanDestroy ? "Yes" : "No")}");
+
+            // Show canHit only if solution is valid (else it will always be "Yes" for untried solutions)
+            Console.WriteLine($"  Can Hit: {(solution.SolutionValid ? (solution.CanHit ? "Yes" : "No") : "N/A")}");
+
+            // Indicate if solution is valid
+            Console.WriteLine($"  Solution Valid: {(solution.SolutionValid ? "Yes" : "No")}\n");
         }
 
         private void DisplayDebugCalculations(FiringSolutionResult solution, double mass, float velocity, double targetRCS)
         {
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║              RESULTS                                      ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+            Console.WriteLine("               RESULTS                                       ");
+            Console.WriteLine("╚═══════════════════════════════════════════════════════════╗\n");
 
             Console.WriteLine("=== ENERGY CALCULATION ===");
             Console.WriteLine($"Formula: KE = 0.5 × mass × velocity²");
@@ -1692,7 +2211,6 @@ namespace Spacegun_Simulator
                 else
                 {
                     // For non-tutorial modes, estimate hit tolerance from RCS
-                    // Keep existing behaviour for display, real calculation lives in FiringSolution.
                     double diameterFromRCS = 2.0 * Math.Sqrt(targetRCS / Math.PI);
                     hitTolerance = diameterFromRCS * 0.5 * diffConfig.HitToleranceMultiplier;
                     Console.WriteLine($"  Hit tolerance: {hitTolerance:F1} m (from {targetRCS:F1} m² RCS)");
@@ -1708,7 +2226,9 @@ namespace Spacegun_Simulator
 
             Console.WriteLine("\n=== OVERALL SOLUTION VALIDITY ===");
             Console.WriteLine($"Energy sufficient: {(solution.CanDestroy ? "✓ Yes" : "✗ No")}");
-            Console.WriteLine($"Accuracy valid: {(solution.CanHit ? "✓ Yes" : "✗ No")}");
+
+            // Show canHit only if solution is valid (else it will always be "Yes" for untried solutions)
+            Console.WriteLine($"Accuracy valid: {(solution.SolutionValid ? (solution.CanHit ? "✓ Yes" : "✗ No") : "N/A")}");
             Console.WriteLine($"Solution valid: {(solution.SolutionValid ? "✓ Yes" : "✗ No")}");
             Console.WriteLine($"Result: {(solution.CanDestroy && solution.CanHit ? "✓ HIT" : "✗ MISS")}\n");
         }
@@ -1724,7 +2244,7 @@ namespace Spacegun_Simulator
             double maxFlightTime,
             bool isHit)
         {
-            const int WIDTH = 60;   // Console width for animation
+            const int WIDTH = 80;   // Console width for animation
             const int HEIGHT = 20;  // Console height for animation
             const double FRAME_DELAY_MS = 50;  // Animation speed
 
@@ -1733,10 +2253,18 @@ namespace Spacegun_Simulator
             double scaleX = (WIDTH - 10) / maxDistance;
             double scaleY = (HEIGHT - 4) / (maxDistance * 0.5);  // Vertical is typically smaller
 
+            var header = new System.Collections.Generic.List<string>
+            {
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "               FIRING VISUALIZATION                          ",
+
+                string.Empty
+            };
+
             Console.Clear();
-            Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║              FIRING VISUALIZATION                         ║");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+            RenderPageFrame(header);
 
             // Pre-calculate positions for smooth animation
             double timeStep = maxFlightTime / 100.0;  // 100 frames max
@@ -1790,7 +2318,7 @@ namespace Spacegun_Simulator
                     if (targetCol >= 0 && targetCol < WIDTH && targetRow >= 0 && targetRow < HEIGHT - 1)
                     {
                         if (i == frame)
-                            buffer[targetRow, targetCol] = '●';  // Current target position
+                            buffer[targetRow, targetCol] = '●'; // Current target position
                         else if (i % 5 == 0)
                             buffer[targetRow, targetCol] = '·';  // Target trail
                     }
@@ -1816,7 +2344,7 @@ namespace Spacegun_Simulator
                 buffer[HEIGHT - 2, 2] = '▲';
 
                 // Render buffer to console
-                Console.SetCursorPosition(0, 4);
+                try { Console.SetCursorPosition(0, 4); } catch { }
                 for (int row = 0; row < HEIGHT; row++)
                 {
                     for (int col = 0; col < WIDTH; col++)
@@ -1842,7 +2370,7 @@ namespace Spacegun_Simulator
             {
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.WriteLine("  ╔═══════════════════════════════════════╗");
-                Console.WriteLine("  ║           ★ DIRECT HIT! ★             ║");
+                Console.WriteLine("              ★ DIRECT HIT! ★              ");
                 Console.WriteLine("  ╚═══════════════════════════════════════╝");
                 Console.ResetColor();
             }
@@ -1850,7 +2378,7 @@ namespace Spacegun_Simulator
             {
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine("  ╔═══════════════════════════════════════╗");
-                Console.WriteLine("  ║              ✗ MISS ✗                 ║");
+                Console.WriteLine("                 ✗ MISS ✗                  ");
                 Console.WriteLine("  ╚═══════════════════════════════════════╝");
                 Console.ResetColor();
             }
@@ -1859,55 +2387,215 @@ namespace Spacegun_Simulator
             Console.ReadKey();
         }
 
-        private void RunWaveCompletePhase()
+        private void DisplayDetailedWeaponStatus()
         {
-            if (engine.IsGameOver)
-                return;
+            var header = new System.Collections.Generic.List<string>
+            {
+                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                "                                                             ",
+                "               DETAILED WEAPON STATUS                        ",
 
-            engine.AdvanceToNextWave();
+                string.Empty
+            };
+
+            Console.Clear();
+            RenderBufferedPage("DetailedWeaponStatus", header, () =>
+            {
+                // Tech Levels
+                Console.WriteLine("=== TECHNOLOGY LEVELS ===");
+                Console.WriteLine($"  Weapons:     Level {engine.TechTree.CurrentLevel[TechTree.TechType.Weapons]}");
+                Console.WriteLine($"               {TechTree.GetTechDescription(TechTree.TechType.Weapons, engine.TechTree.CurrentLevel[TechTree.TechType.Weapons])}");
+                Console.WriteLine($"  Projectiles: Level {engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles]}");
+                Console.WriteLine($"               {TechTree.GetTechDescription(TechTree.TechType.Projectiles, engine.TechTree.CurrentLevel[TechTree.TechType.Projectiles])}");
+
+                // Gun Base Velocity
+                int weaponsTechLevel = engine.TechTree.CurrentLevel[TechTree.TechType.Weapons];
+                double gunBaseVelocity = GunConfiguration.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel);
+                Console.WriteLine($"\n=== GUN BASE VELOCITY ===");
+                Console.WriteLine($"  Base Muzzle Velocity: {gunBaseVelocity:N0} m/s ({gunBaseVelocity / 1000:N0} km/s)");
+
+                // Unlocked Components
+                Console.WriteLine("\n=== UNLOCKED COMPONENTS ===");
+
+                var cores = CraftedProjectile.GetUnlockedCores(engine.TechTree);
+                Console.WriteLine($"  Cores ({cores.Count} available):");
+                foreach (var core in cores)
+                    Console.WriteLine($"    - {core.Name} ({core.MassKg} kg)");
+
+                var propulsion = CraftedProjectile.GetUnlockedPropulsion(engine.TechTree);
+                Console.WriteLine($"\n  Propulsion ({propulsion.Count} available):");
+                foreach (var prop in propulsion)
+                {
+                    if (prop.Id == "none")
+                        Console.WriteLine($"    - {prop.Name} (no boost)");
+                    else
+                        Console.WriteLine($"    - {prop.Name} (+{prop.DeltaVCapacityMs / 1000:N0} km/s Delta-V over {prop.BurnDurationSeconds:F1}s)");
+                }
+
+                var enhancements = CraftedProjectile.GetUnlockedEnhancements(engine.TechTree);
+                Console.WriteLine($"\n  Enhancements ({enhancements.Count} available):");
+                foreach (var enh in enhancements)
+                    Console.WriteLine($"    - {enh.Name}");
+
+                // Gun Status
+                Console.WriteLine("\n=== GUN CONFIGURATION ===");
+                Console.WriteLine($"  Barrel Integrity: {engine.Gun.BarrelIntegrity:P0}");
+                Console.WriteLine($"  Power Capacity: {engine.Gun.PowerCapacity:F0} MW");
+                Console.WriteLine($"  Weapons Tech Level: {engine.TechTree.CurrentLevel[TechTree.TechType.Weapons]}\n");
+
+                // Current Projectile
+                Console.WriteLine("\n=== CURRENT PROJECTILE ===");
+                if (engine.CraftedProjectile != null)
+                {
+                    var proj = engine.CraftedProjectile;
+                    Console.WriteLine($"  Configuration: {proj.DisplayName}");
+                    Console.WriteLine($"  Mass: {proj.MassKg} kg");
+                    Console.WriteLine($"  Gun Base Velocity: {proj.GunBaseMuzzleVelocityMs:N0} m/s");
+
+                    if (proj.Propulsion.Id != "none")
+                    {
+                        double maxDeltaV = proj.Propulsion.CalculateEffectiveDeltaV(proj.MassKg, proj.Propulsion.BurnDurationSeconds);
+                        Console.WriteLine($"  Propulsion Delta-V: +{maxDeltaV:N0} m/s");
+                        Console.WriteLine($"  Max Velocity: {proj.MaxVelocityMs:N0} m/s");
+                    }
+
+                    Console.WriteLine($"  Max KE: {proj.RawKineticEnergyMJ:N0} MJ");
+                    Console.WriteLine($"  Effective KE: {proj.EffectiveKineticEnergyMJ:N0} MJ");
+                    if (proj.HitToleranceMultiplier != 1.0)
+                        Console.WriteLine($"  Hit Tolerance: {(proj.HitToleranceMultiplier - 1) * 100:+0}%");
+                }
+                else
+                {
+                    Console.WriteLine("  [NOT CONFIGURED]");
+                }
+            });
+
+            Console.WriteLine("\nPress any key to return to Weapon Development...");
+            Console.ReadKey();
         }
 
-        /// <summary>
-        /// Display difficulty selection menu for new game.
-        /// Returns selected difficulty.
-        /// </summary>
-        public static GameDifficulty ShowDifficultySelection()
+        // IndentTextWriter class - handles global console indentation.
+        private sealed class IndentTextWriter : TextWriter
         {
-            while (true)
+            private readonly TextWriter _inner;
+            private readonly string _indent;
+            private bool _beginLine = true;
+            private readonly object _lock = new();
+
+            public IndentTextWriter(TextWriter inner, int indentSpaces)
             {
-                Console.Clear();
-                Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-                Console.WriteLine("║             SELECT YOUR SCENARIO                          ║");
-                Console.WriteLine("║         How will you defend against the threat?           ║");
-                Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+                _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+                _indent = new string(' ', Math.Max(0, indentSpaces));
+            }
 
-                var configs = DifficultyConfig.GetAllConfigs();
+            public int IndentLength => _indent.Length;
 
-                for (int i = 0; i < configs.Count; i++)
+            public override Encoding Encoding => _inner.Encoding;
+
+            private bool ShouldIndent()
+            {
+                if (!_beginLine) return false;
+                try
                 {
-                    Console.WriteLine($"\n[{i + 1}] {configs[i].DisplayName}");
-                    Console.WriteLine("────────────────────────────────────────────────────────────");
-                    Console.WriteLine(configs[i].NarrativeDescription);
-                    Console.WriteLine();
+                    return Console.CursorLeft == 0;
                 }
-
-                Console.WriteLine("\n[Q] Quit\n");
-                Console.Write($"Select scenario (1-{configs.Count} or Q): ");
-
-                string input = Console.ReadLine()?.Trim() ?? "";
-
-                if (input.Equals("Q", StringComparison.OrdinalIgnoreCase))
+                catch
                 {
-                    return GameDifficulty.RealSpacegunSimulator;
+                    return true;
                 }
+            }
 
-                if (int.TryParse(input, out int choice) && choice >= 1 && choice <= configs.Count)
+            public override void Write(char value)
+            {
+                lock (_lock)
                 {
-                    return configs[choice - 1].Difficulty;
-                }
+                    if (_beginLine && ShouldIndent())
+                    {
+                        _inner.Write(_indent);
+                        _beginLine = false;
+                    }
 
-                Console.WriteLine("\nInvalid selection. Please try again.");
-                System.Threading.Thread.Sleep(1500);
+                    _inner.Write(value);
+                    _beginLine = value == '\n';
+                }
+            }
+
+            public override void Write(string? value)
+            {
+                if (value == null) return;
+
+                lock (_lock)
+                {
+                    for (int i = 0; i < value.Length; i++)
+                    {
+                        char c = value[i];
+                        if (_beginLine && ShouldIndent())
+                        {
+                            _inner.Write(_indent);
+                            _beginLine = false;
+                        }
+
+                        _inner.Write(c);
+
+                        if (c == '\n')
+                            _beginLine = true;
+                    }
+                }
+            }
+
+            public override void Write(char[] buffer, int index, int count)
+            {
+                if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+                if (index < 0 || count < 0 || index + count > buffer.Length) throw new ArgumentOutOfRangeException();
+
+                lock (_lock)
+                {
+                    for (int i = 0; i < count; i++)
+                    {
+                        char c = buffer[index + i];
+                        if (_beginLine && ShouldIndent())
+                        {
+                            _inner.Write(_indent);
+                            _beginLine = false;
+                        }
+
+                        _inner.Write(c);
+                        if (c == '\n') _beginLine = true;
+                    }
+                }
+            }
+
+            public override void WriteLine()
+            {
+                lock (_lock)
+                {
+                    if (_beginLine && ShouldIndent())
+                    {
+                        _inner.Write(_indent);
+                        _beginLine = false;
+                    }
+                    _inner.WriteLine();
+                    _beginLine = true;
+                }
+            }
+
+            public override void WriteLine(string? value)
+            {
+                lock (_lock)
+                {
+                    Write(value);
+                    _inner.WriteLine();
+                    _beginLine = true;
+                }
+            }
+
+            public override void Flush() => _inner.Flush();
+
+            protected override void Dispose(bool disposing)
+            {
+                // Intentionally don't dispose the inner writer (Console.Out)
+                base.Dispose(disposing);
             }
         }
 
@@ -1916,12 +2604,14 @@ namespace Spacegun_Simulator
             while (true)
             {
                 Console.Write(prompt);
-                string input = Console.ReadLine() ?? "0";
+                string? text = Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(text))
+                    return 0f;
 
-                if (float.TryParse(input, out float time) && time >= 0)
-                    return time;
+                if (float.TryParse(text.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value) && value >= 0f)
+                    return value;
 
-                Console.WriteLine("Invalid input. Please enter a non-negative time value in seconds.\n");
+                Console.WriteLine("Invalid time. Enter a non-negative number (seconds).");
             }
         }
 
@@ -1930,12 +2620,14 @@ namespace Spacegun_Simulator
             while (true)
             {
                 Console.Write(prompt);
-                string input = Console.ReadLine() ?? "0";
+                string? text = Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(text))
+                    return 0f;
 
-                if (float.TryParse(input, out float angle) && angle >= -90 && angle <= 90)
-                    return angle;
+                if (float.TryParse(text.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value) && value >= -90f && value <= 90f)
+                    return value;
 
-                Console.WriteLine("Invalid input. Please enter an angle between -90 and 90 degrees.\n");
+                Console.WriteLine("Invalid elevation. Enter a value between -90 and 90 degrees.");
             }
         }
 
@@ -1944,12 +2636,18 @@ namespace Spacegun_Simulator
             while (true)
             {
                 Console.Write(prompt);
-                string input = Console.ReadLine() ?? "0";
+                string? text = Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(text))
+                    return 0f;
 
-                if (float.TryParse(input, out float bearing) && bearing >= 0 && bearing < 360)
-                    return bearing;
+                if (float.TryParse(text.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value))
+                {
+                    value %= 360f;
+                    if (value < 0f) value += 360f;
+                    return value;
+                }
 
-                Console.WriteLine("Invalid input. Please enter a bearing between 0 and 360 degrees.\n");
+                Console.WriteLine("Invalid azimuth. Enter a number (0-360).");
             }
         }
 
@@ -1958,12 +2656,14 @@ namespace Spacegun_Simulator
             while (true)
             {
                 Console.Write(prompt);
-                string input = Console.ReadLine() ?? "0";
+                string? text = Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(text))
+                    return 0f;
 
-                if (float.TryParse(input, out float velocity) && velocity > 0)
-                    return velocity;
+                if (float.TryParse(text.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value) && value >= 0f)
+                    return value;
 
-                Console.WriteLine("Invalid input. Please enter a positive velocity value in m/s.\n");
+                Console.WriteLine("Invalid velocity. Enter a non-negative number (m/s).");
             }
         }
     }

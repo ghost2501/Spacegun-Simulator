@@ -27,8 +27,17 @@ namespace Spacegun_Simulator.FireControlTools
         /// <summary>
         /// Launch the Trajectory Plotter interactive tool.
         /// Uses DifficultyConfig for all precision formatting.
+        ///
+        /// NOTE: Accepts optional rendering helpers so the caller (ConsoleUI) can supply
+        /// a ScreenLayout and raw/indented writers to render the boxed header consistently.
+        /// If those are not provided the method falls back to the inline boxed header.
         /// </summary>
-        public static void ShowTrajectoryPlotterTool(GameDifficulty difficulty = GameDifficulty.RealSpacegunSimulator)
+        internal static void ShowTrajectoryPlotterTool(
+            GameDifficulty difficulty = GameDifficulty.RealSpacegunSimulator,
+            ScreenLayout? layout = null,
+            TextWriter? originalOut = null,
+            TextWriter? indentWriter = null,
+            int globalIndent = 0)
         {
             var diffConfig = DifficultyConfig.GetConfig(difficulty);
             bool inTool = true;
@@ -56,11 +65,40 @@ namespace Spacegun_Simulator.FireControlTools
 
             while (inTool)
             {
-                Console.Clear();
-                Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-                Console.WriteLine("║          TRAJECTORY PLOTTER - BALLISTIC COMPUTER          ║");
-                Console.WriteLine("║     Calculate projectile position at flight time (T)      ║");
-                Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+                // Prefer centralized layout rendering when provided by caller.
+                if (layout != null)
+                {
+                    var centerLines = new System.Collections.Generic.List<string>
+                    {
+                        "╔═══════════════════════════════════════════════════════════╗",
+                        "║          TRAJECTORY PLOTTER - BALLISTIC COMPUTER          ║",
+                        "║     Calculate projectile position at flight time (T)      ║",
+                        "╚═══════════════════════════════════════════════════════════╝",
+                        string.Empty
+                    };
+
+                    try
+                    {
+                        layout.RenderFrame(centerLines, originalOut, indentWriter ?? Console.Out, globalIndent, noOffset: true);
+                    }
+                    catch
+                    {
+                        // fallback to inline rendering
+                        Console.Clear();
+                        Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+                        Console.WriteLine("║          TRAJECTORY PLOTTER - BALLISTIC COMPUTER          ║");
+                        Console.WriteLine("║     Calculate projectile position at flight time (T)      ║");
+                        Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+                    }
+                }
+                else
+                {
+                    Console.Clear();
+                    Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+                    Console.WriteLine("║          TRAJECTORY PLOTTER - BALLISTIC COMPUTER          ║");
+                    Console.WriteLine("║     Calculate projectile position at flight time (T)      ║");
+                    Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+                }
 
                 Console.WriteLine($"Difficulty: {diffConfig.DisplayName}");
                 Console.WriteLine("PRECISION REQUIREMENTS:");

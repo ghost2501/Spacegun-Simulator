@@ -19,19 +19,57 @@ namespace Spacegun_Simulator.FireControlTools
         /// Launch the Target Motion Computer interactive tool.
         /// Player can test multiple time offsets in a loop.
         /// Uses DifficultyConfig for all precision formatting.
+        ///
+        /// NOTE: accepts optional ScreenLayout + writers to let ConsoleUI render the boxed header
+        /// consistently using the same layout logic. Falls back to inline boxed header otherwise.
         /// </summary>
-        public static void ShowMotionComputerTool(Vector3 currentPosition, Vector3 currentVelocity, GameDifficulty difficulty = GameDifficulty.RealSpacegunSimulator)
+        internal static void ShowMotionComputerTool(
+            Vector3 currentPosition,
+            Vector3 currentVelocity,
+            GameDifficulty difficulty = GameDifficulty.RealSpacegunSimulator,
+            ScreenLayout? layout = null,
+            TextWriter? originalOut = null,
+            TextWriter? indentWriter = null,
+            int globalIndent = 0)
         {
             var diffConfig = DifficultyConfig.GetConfig(difficulty);
             bool inTool = true;
 
             while (inTool)
             {
-                Console.Clear();
-                Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-                Console.WriteLine("║            MOTION COMPUTER - TRAJECTORY SOLVER            ║");
-                Console.WriteLine("║     Predict target position at future times (linear)      ║");
-                Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+                // Use centralized layout when caller provided it
+                if (layout != null)
+                {
+                    var centerLines = new System.Collections.Generic.List<string>
+                    {
+                        "╔═══════════════════════════════════════════════════════════╗",
+                        "║            MOTION COMPUTER - TRAJECTORY SOLVER            ║",
+                        "║     Predict target position at future times (linear)      ║",
+                        "╚═══════════════════════════════════════════════════════════╝",
+                        string.Empty
+                    };
+
+                    try
+                    {
+                        layout.RenderFrame(centerLines, originalOut, indentWriter ?? Console.Out, globalIndent, noOffset: true);
+                    }
+                    catch
+                    {
+                        Console.Clear();
+                        Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+                        Console.WriteLine("║            MOTION COMPUTER - TRAJECTORY SOLVER            ║");
+                        Console.WriteLine("║     Predict target position at future times (linear)      ║");
+                        Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+                    }
+                }
+                else
+                {
+                    Console.Clear();
+                    Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
+                    Console.WriteLine("║            MOTION COMPUTER - TRAJECTORY SOLVER            ║");
+                    Console.WriteLine("║     Predict target position at future times (linear)      ║");
+                    Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+                }
 
                 Console.WriteLine($"Difficulty: {diffConfig.DisplayName}");
                 Console.WriteLine($"Precision: {diffConfig.LaunchDelayPrecision.DecimalPlaces} decimals for time\n");
