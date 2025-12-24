@@ -245,3 +245,12 @@ The universe does not care which.
 
 
 
+## Licensing
+
+Source code is released under the MIT License.
+
+Narrative content, game identity, and non-code assets are not covered by the
+MIT License. Audio assets are included under their respective source licenses
+and attribution requirements.
+
+See `LICENSE` and `ASSETS.md` for details.
