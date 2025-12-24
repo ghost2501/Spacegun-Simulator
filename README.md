@@ -1,6 +1,6 @@
 # 🔫 Spacegun Simulator - pre-alpha
 
-**A command-line engineering simulation game about building the biggest gun in human history — and getting the math right.**
+**A command-line engineering simulation game about building the biggest gun in human history — and getting the maths right.**
 
 ## Playtesting
 
@@ -183,7 +183,7 @@ Difficulty scales **numerically**, not artificially.
   *(bus-sized target at relativistic speed)*
 
 The game does not cheat.  
-The math always works.  
+The maths always works.  
 Failure is always explainable.
 
 ---
