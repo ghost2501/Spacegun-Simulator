@@ -252,7 +252,28 @@ The music functions as **emotional UI**, not background noise.
 When the time comes, the calculations will be correct — or they won’t.  
 The universe does not care which.
 
+---
 
+## Development Notes
+
+Parts of Spacegun Simulator were developed with the assistance of AI tools, particularly during
+early prototyping, refactoring, and exploration of mathematical approaches.
+
+AI is used here as a **productivity and iteration aid**, not as a source of authority or automation.
+All core systems — including physics calculations, game rules, failure conditions, and progression —
+are intentionally designed, reviewed, and constrained.
+
+Nothing in the game relies on opaque decision-making:
+- Calculations are deterministic
+- Failure states are explainable
+- Systems are designed to be understood, not hidden behind abstraction
+
+If something behaves incorrectly, it is considered a bug or a design flaw, not an emergent “AI result”.
+
+This project treats AI in the same way one might treat a calculator, reference text, or compiler:
+useful for accelerating work, but never a substitute for understanding the system being built.
+
+---
 
 ## Licensing
 
