@@ -1,0 +1,36 @@
+https://drumpatterns.onether.com/stevie-wonder-knocks-me-off-my-feet/
+
+Tempo: 91
+Time: 4/4
+Swing: 1
+Order: 1,2
+
+[1] Stevie Wonder - Knocks Me Off My Feet
+CH X--X--XX-X----X-
+OH --X-------X-----
+CY ----------------
+CB ----------------
+CP ----------------
+RS ----------------
+HT ----------------
+MT ----------------
+LT ----------------
+SD ----X-------X---
+BD X-XXX--XX-X-X--X
+AC ----X--X----X-XX
+GH ---X---X-------X
+
+[2] Stevie Wonder - Knocks Me Off My Feet
+CH X-----XX-X----X-
+OH --X-------X-----
+CY ----------------
+CB ----------------
+CP ----------------
+RS ----------------
+HT ----------------
+MT ----------------
+LT ----------------
+SD ----X-------X---
+BD X-X-X--XX-X-X--X
+AC ----X-------X-XX
+GH -------X-------X

@@ -1,0 +1,36 @@
+https://drumpatterns.onether.com/omd-enola-gay-roland-cr-78-pattern/
+
+Tempo: 143
+Time: 4/4
+Swing: 0
+Order: 1,2
+
+[1] OMD - Enola Gay (Roland CR-78, pattern)
+CH X-X-X-X-X-X-X-X-
+OH ----------------
+CY ----------------
+CB ----------------
+MA ----------------
+CL ----------------
+HC ----------------
+MC --X-X-----X-X---
+LC X-----X-X-----X-
+SD ----X-------X---
+BD X-------X-------
+AC ----------------
+GH ----------------
+
+[2] OMD - Enola Gay (Roland CR-78, pattern)
+CH X-X-X-X-X-X-X-X-
+OH ----------------
+CY ----------------
+CB ----------------
+MA ----------------
+CL ----------------
+HC --------XXXXXXXX
+MC --X-X-----X-X---
+LC X-----X-X-----X-
+SD ----X-------X---
+BD X-------X-------
+AC ----------------
+GH ----------------

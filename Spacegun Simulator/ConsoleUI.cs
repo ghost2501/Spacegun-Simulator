@@ -134,10 +134,20 @@ namespace Spacegun_Simulator
         {
             var header = new System.Collections.Generic.List<string>
             {
-                "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
-                "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                "                                                             ",
-                "                     GAME OVER                               ",
+                //"▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                //"░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                //"                                                             ",
+                //"                     GAME OVER                               ",
+                "",
+                "",
+                "",
+                "      (                         ( /(                     ",
+                "      )\\ )      )    )     (    )\\())  )     (  (        ",
+                "     (()/(   ( /(   (     ))\\  ((_)\\  /((   ))\\ )(       ",
+                "      /(_))_ )(_))  )\\  '/((_)   ((_)(_))\\ /((_|()\\      ",
+                "     (_)) __((_)_ _((_))(_))    / _ \\_)((_|_))  ((_)     ",
+                "       | (_ / _` | '  \\() -_)  | (_) \\ V // -_)| '_|     ",
+                "        \\___\\__,_|_|_|_|\\___|   \\___/ \\_/ \\___||_|       ",                                                    
 
                 string.Empty
             };
@@ -241,7 +251,6 @@ namespace Spacegun_Simulator
                         Console.WriteLine($"\nDifficulty: {diffConfig.DisplayName}");
 
                         Console.WriteLine("\n[INITIALIZATION] Pre-generating campaign waves...");
-                        Console.WriteLine("This may take a few seconds on first run.\n");
 
                         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                         engine.GenerateAllCampaignWaves(GameConstants.TotalWaves);
@@ -316,12 +325,14 @@ namespace Spacegun_Simulator
         // then restore the global indent writer so the rest of the UI remains indented.
         private int RenderMainMenuWithSides(bool autoSaveExists)
         {
+            PageMusicSystem.PlayForPage("MainMenu");
+
             var centerLines = new System.Collections.Generic.List<string>
             {
                 "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                 "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                 "                                                             ",
-                "         SPACE GUN DEFENSE SIMULATOR - MAIN MENU             ",
+                "                        MAIN MENU                            ",
 
                 string.Empty
             };
@@ -488,7 +499,7 @@ namespace Spacegun_Simulator
                     "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                     "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                     "                                                             ",
-                    "               TEST MODE - DEBUG TOOLS                      ",
+                    "               TEST MODE - DEBUG TOOLS                       ",
 
                     string.Empty
                 };
@@ -531,7 +542,7 @@ namespace Spacegun_Simulator
                 "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                 "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                 "                                                             ",
-                "             FIRING CHALLENGE MODE (DEBUG)                   ",
+                "               FIRING CHALLENGE MODE (DEBUG)                 ",
 
                 string.Empty
             };
@@ -604,8 +615,8 @@ namespace Spacegun_Simulator
                 "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                 "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                 "                                                             ",
-                "            SPACE GUN DEFENSE SIMULATOR                      ",
-                $"            Wave {engine.CurrentWaveNumber} of {GameConstants.TotalWaves}".PadRight(57) + " ",
+                "               THREAT DETECTED!                              ",
+                $"               Wave {engine.CurrentWaveNumber} of {GameConstants.TotalWaves}".PadRight(57) + " ",
 
                 string.Empty
             };
@@ -709,7 +720,7 @@ namespace Spacegun_Simulator
                 "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                 "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                 "                                                             ",
-                "          PREPARATION PHASE - RESOURCES & RESEARCH            ",
+                "               RESOURCES & RESEARCH                          ",
 
                 string.Empty
             };
@@ -788,18 +799,18 @@ namespace Spacegun_Simulator
                     "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                     "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                     "                                                             ",
-                    "          PREPARATION PHASE - RESOURCES & RESEARCH            ",
+                    "               RESOURCES & RESEARCH                          ",
 
                     string.Empty
                 };
 
                 RenderBufferedPage("ResourceOptions", optionsHeader, () =>
                 {
-                    Console.WriteLine("\n=== PREPARATION OPTIONS ===");
-                    Console.WriteLine("[R] Allocate Resources for Gathering");
-                    Console.WriteLine("[T] Research New Technology");
+                    Console.WriteLine("\n=== OPTIONS ===");
+                    Console.WriteLine("[R] Spend Time on Resources");
+                    Console.WriteLine("[T] Spend Time on Research");
                     Console.WriteLine("[S] Show Current Status");
-                    Console.WriteLine("[D] Done - Proceed to Development\n");
+                    Console.WriteLine("[D] Proceed to Development\n");
                 });
 
                 Console.Write("Select action (R/T/S/D): ");
@@ -836,7 +847,7 @@ namespace Spacegun_Simulator
                 "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                 "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                 "                                                             ",
-                "            PREPARATION COMPLETE - SUMMARY                   ",
+                "               RESOURCES  - SUMMARY                          ",
 
                 string.Empty
             };
@@ -872,7 +883,7 @@ namespace Spacegun_Simulator
                 "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                 "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                 "                                                             ",
-                "               RESOURCE ALLOCATION MENU                      ",
+                "               RESOURCE ALLOCATION                           ",
 
                 string.Empty
             };
@@ -969,7 +980,7 @@ namespace Spacegun_Simulator
                 "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                 "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                 "                                                             ",
-                "                TECHNOLOGY RESEARCH MENU                     ",
+                "               RESEARCH TECHNOLOGY                           ",
 
                 string.Empty
             };
@@ -1011,7 +1022,7 @@ namespace Spacegun_Simulator
                 "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                 "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                 "                                                             ",
-                "                PREPARATION PHASE STATUS                     ",
+                "               PREPARATION PHASE STATUS                      ",
 
                 string.Empty
             };
@@ -1053,7 +1064,7 @@ namespace Spacegun_Simulator
                     "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                     "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                     "                                                             ",
-                    "               WEAPON DEVELOPMENT PHASE                      ",
+                    "               WEAPON DEVELOPMENT                            ",
 
                     string.Empty
                 };
@@ -1074,7 +1085,10 @@ namespace Spacegun_Simulator
                         var archetype = engine.CurrentWave.Archetype;
                         Console.WriteLine("=== TARGET REQUIREMENT ===");
                         Console.WriteLine($"  Archetype: {archetype.Name}");
-                        Console.WriteLine($"  Fracture Energy Needed: {archetype.FractureEnergyRange.Min:N0} - {archetype.FractureEnergyRange.Max:N0} MJ\n");
+                        Console.WriteLine($"  Fracture Energy Needed: {archetype.FractureEnergyRange.Min:N0} - {archetype.FractureEnergyRange.Max:N0} MJ");
+                        Console.WriteLine($"  Mass: {archetype.MassRange.Min:N0} - {archetype.MassRange.Max:N0} metric tons");
+                        Console.WriteLine($"  Difficulty: {BallisticsCalculator.GetDifficultyDescription(archetype.BaseDifficultyRating)}");
+                        Console.WriteLine();
                     }
 
                     // ===== CURRENT WEAPON TECH STATUS =====
@@ -1105,7 +1119,7 @@ namespace Spacegun_Simulator
                     Console.WriteLine($"    Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(engine.CurrentWaveNumber).MaxEffectiveGunRange)}");
 
                     // ===== DEVELOPMENT OPTIONS =====
-                    Console.WriteLine("\n=== DEVELOPMENT OPTIONS ===");
+                    Console.WriteLine("\n=== OPTIONS ===");
                     Console.WriteLine("[P] Projectile Development - Craft a new projectile");
                     Console.WriteLine("[G] Gun Development - Upgrade gun systems");
                     Console.WriteLine("[S] Show Detailed Status");
@@ -1165,12 +1179,12 @@ namespace Spacegun_Simulator
                 "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                 "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                 "                                                             ",
-                "             PROJECTILE DEVELOPMENT PHASE                    ",
+                "               PROJECTILE DEVELOPMENT                        ",
 
                 string.Empty
             };
 
-            // Prepare data before rendering so interaction after the buffered display can reference it.
+            // Prepare data before rendering so interaction after the buffered header can reference it.
             int weaponsTechLevel = engine.TechTree.CurrentLevel[TechTree.TechType.Weapons];
             double gunBaseVelocity = GunConfiguration.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel);
 
@@ -1318,7 +1332,7 @@ namespace Spacegun_Simulator
                 "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                 "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                 "                                                             ",
-                "             PROJECTILE CONFIGURATION SUMMARY                ",
+                "                PROJECTILE CONFIGURATION - SUMMARY           ",
 
                 string.Empty
             };
@@ -1409,7 +1423,7 @@ namespace Spacegun_Simulator
                 "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                 "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                 "                                                             ",
-                "                   GUN DEVELOPMENT                           ",
+                "                GUN DEVELOPMENT                              ",
 
                 string.Empty
             };
@@ -1513,7 +1527,7 @@ namespace Spacegun_Simulator
                 "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                 "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                 "                                                             ",
-                "             FIRING SOLUTION & ENGAGEMENT PHASE              ",
+                "               FIRING SOLUTION                               ",
 
                 string.Empty
             };
@@ -1632,10 +1646,10 @@ namespace Spacegun_Simulator
 
             while (!workflowComplete)
             {
-                Console.WriteLine("=== FIRING SOLUTION WORKFLOW ===\n");
+                Console.WriteLine("=== FIRING SOLUTION & FIRE ASSIST TOOLS ===\n");
                 Console.WriteLine("[1] PREDICT TARGET POSITION (Target Motion Calculator)");
                 Console.WriteLine("[2] CALCULATE REQUIREMENTS (Ballistic Tables)");
-                Console.WriteLine("[3] PLAN TRAJECTORY (Trajectory Plotter)");
+                Console.WriteLine("[3] PLAN TRAJECTORY (Projectile Trajectory Plotter)");
                 Console.WriteLine("[4] TEST SOLUTION (Fire Simulator)");
                 Console.WriteLine("[5] ENTER FINAL SOLUTION (Commit & Fire)");
                 Console.WriteLine("[0] SKIP WORKFLOW (Direct Entry)\n");
@@ -1652,7 +1666,7 @@ namespace Spacegun_Simulator
                             "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                             "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                             "                                                             ",
-                            "      STEP 1: PREDICT TARGET POSITION                        ",
+                            "              PREDICT TARGET POSITION                        ",
 
                             string.Empty
                         };
@@ -1680,7 +1694,7 @@ namespace Spacegun_Simulator
                             "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                             "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                             "                                                             ",
-                            "      STEP 2: CALCULATE REQUIREMENTS                        ",
+                            "               CALCULATE REQUIREMENTS                        ",
 
                             string.Empty
                         };
@@ -1701,7 +1715,7 @@ namespace Spacegun_Simulator
                             "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                             "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                             "                                                             ",
-                            "      STEP 3: PLAN TRAJECTORY                               ",
+                            "               PLAN TRAJECTORY                               ",
 
                             string.Empty
                         };
@@ -1726,7 +1740,7 @@ namespace Spacegun_Simulator
                             "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                             "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                             "                                                             ",
-                            "      STEP 4: TEST SOLUTION (TEST MODE)                     ",
+                            "               SIMULATION (TEST MODE)                        ",
 
                             string.Empty
                         };
@@ -1751,7 +1765,7 @@ namespace Spacegun_Simulator
                             "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                             "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                             "                                                             ",
-                            "      STEP 5: ENTER FINAL SOLUTION                          ",
+                            "               COMMIT FIRING SOLUTION                        ",
 
                             string.Empty
                         };
@@ -1761,9 +1775,9 @@ namespace Spacegun_Simulator
                             Console.WriteLine("=== ENTER YOUR FIRING PARAMETERS ===\n");
                         });
 
-                        float playerLaunchDelayTime = GetPlayerTimeInput("Launch delay time (seconds): ");
-                        float playerTargetElevation = GetPlayerElevationInput("Target elevation angle (-90 to 90 degrees): ");
-                        float playerTargetAzimuth = GetPlayerAzimuthInput("Target azimuth bearing (0-360 degrees, 0=North): ");
+                        float playerLaunchDelayTime = GetPlayerTimeInput("Launch delay (seconds): ");
+                        float playerTargetElevation = GetPlayerElevationInput("Target elevation (-90 to 90 degrees): ");
+                        float playerTargetAzimuth = GetPlayerAzimuthInput("Target azimuth (0-360 degrees, 0=North): ");
 
                         float playerLaunchVelocity = GetPlayerVelocityInput(
                             $"Launch velocity ({0:N0}-{maxVelocityLoop:N0} m/s): ");
@@ -1849,96 +1863,6 @@ namespace Spacegun_Simulator
                         workflowComplete = true;
                         break;
 
-                    case "0":
-                        Console.Clear();
-                        var directHeader = new System.Collections.Generic.List<string>
-                        {
-                            "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
-                            "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                            "                                                             ",
-                            "      DIRECT FIRING SOLUTION ENTRY (SKIP WORKFLOW)          ",
-
-                            string.Empty
-                        };
-                        RenderPageFrame(directHeader);
-
-                        Console.WriteLine("=== ENTER FIRING PARAMETERS ===\n");
-                        float directDelayTime = GetPlayerTimeInput("Launch delay time (seconds): ");
-                        float directElevation = GetPlayerElevationInput("Target elevation angle (-90 to 90 degrees): ");
-                        float directAzimuth = GetPlayerAzimuthInput("Target azimuth bearing (0-360 degrees, 0=North): ");
-
-                        float directVelocity = GetPlayerVelocityInput(
-                            $"Launch velocity ({0:N0}-{maxVelocityLoop:N0} m/s): ");
-
-                        Console.WriteLine();
-
-                        var directSolution = calculatorForLoop.CalculateSolution(
-                            firingProblem.EnemyPosition,
-                            firingProblem.EnemyVelocity,
-                            directDelayTime,
-                            directElevation,
-                            directAzimuth,
-                            directVelocity,
-                            (float)engine.SelectedGunProjectileSpec.MuzzleVelocityMs,
-                            (float)GameConstants.GetTierForWave(engine.CurrentWaveNumber).MaxEffectiveGunRange,
-                            engine.CurrentWaveNumber,
-                            target.Mass,
-                            engine.SelectedDifficulty);
-
-                        DisplayFiringAnalysis(directSolution, directDelayTime, directElevation, directAzimuth, directVelocity);
-
-                        Console.WriteLine("Firing...\n");
-                        System.Threading.Thread.Sleep(1000);
-
-                        bool directHitResult = directSolution.CanDestroy && directSolution.CanHit;
-
-                        DisplayDebugCalculations(directSolution, engine.SelectedGunProjectileSpec.ProjectileMassKg, directVelocity, displayRcsLoop);
-
-                        // ===== APPLY BARREL DEGRADATION (GAMEPLAY ONLY) =====
-                        if (engine.Gun != null)
-                        {
-                            bool barrelStillOk = engine.Gun.RegisterShot();
-                            Console.WriteLine($"\nBarrel Integrity (post-shot): {engine.Gun.BarrelIntegrity:P2}");
-                            if (!barrelStillOk)
-                            {
-                                Console.WriteLine("\n✗ Barrel integrity failed after shot. The gun is unusable until repaired.");
-                                Console.WriteLine("Press any key to continue...");
-                                engine.IsGameOver = true;
-                            }
-                        }
-
-                        if (directHitResult)
-                        {
-                            Console.WriteLine("✓ DIRECT HIT! Enemy destroyed!");
-                            if (firingResult.Reward != null)
-                            {
-                                Console.WriteLine("\n=== VICTORY REWARDS ===");
-                                Console.WriteLine($"  +{firingResult.Reward.Budget:F0} Budget");
-                                Console.WriteLine($"  +{firingResult.Reward.Steel:F0} Steel");
-                                Console.WriteLine($"  +{firingResult.Reward.ExoticMaterials:F0} Exotic Materials");
-                            }
-
-                            if (firingResult.GameOver)
-                            {
-                                Console.WriteLine("\n" + firingResult.Message);
-                                engine.IsGameOver = true;
-                            }
-                            else
-                            {
-                                engine.WavesDefeated++;
-                                engine.CurrentPhase = GameState.GamePhase.WaveComplete;
-                                engine.AutoSaveGame();
-                            }
-                        }
-                        else
-                        {
-                            Console.WriteLine("✗ MISS! Your ballistic solution was inaccurate or lacked sufficient energy.");
-                            engine.IsGameOver = true;
-                        }
-
-                        workflowComplete = true;
-                        break;
-
                     default:
                         Console.WriteLine("Invalid selection. Please try again.\n");
                         System.Threading.Thread.Sleep(1000);
@@ -1964,36 +1888,44 @@ namespace Spacegun_Simulator
         /// </summary>
         public static GameDifficulty ShowDifficultySelection()
         {
+            PageMusicSystem.PlayForPage("Difficulties");
+
             while (true)
             {
                 var header = new System.Collections.Generic.List<string>
-                {
-                    "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
-                    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                    "                                                             ",
-                    "                         DIFFICULTY                          ",
-
-                    string.Empty
-                };
+        {
+            "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+            "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+            "                                                             ",
+            "                         DIFFICULTY                          ",
+            string.Empty
+        };
 
                 Console.Clear();
-                // Render centered header + sides
-                // We can't call instance RenderPageFrame here (static), so simply render header without sides.
-                Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-                Console.WriteLine("                         DIFFICULTY                          ");
-                Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
+
+                // Get page art overrides
+                var (left, right) = PageArtOverrides.Get("Difficulties");
+
+                // Render with sides (you'll need to get the screenLayout instance here)
+                // If this is a static method and you can't access instance members easily,
+                // you can keep the simple rendering but at least make it consistent:
+
+                foreach (var line in header)
+                {
+                    Console.WriteLine(line);
+                }
 
                 var configs = DifficultyConfig.GetAllConfigs();
 
                 for (int i = 0; i < configs.Count; i++)
                 {
-                    Console.WriteLine($"\n[{i + 1}] {configs[i].DisplayName}");
+                    Console.WriteLine($"[{i + 1}] {configs[i].DisplayName}");
                     Console.WriteLine("────────────────────────────────────────────────────────────");
                     Console.WriteLine(configs[i].NarrativeDescription);
                     Console.WriteLine();
                 }
 
-                Console.WriteLine("\n[Q] Quit\n");
+                Console.WriteLine("[Q] Quit\n");
                 Console.Write($"Select scenario (1-{configs.Count} or Q): ");
 
                 string input = Console.ReadLine()?.Trim() ?? "";
@@ -2015,9 +1947,11 @@ namespace Spacegun_Simulator
 
         private void RenderBufferedPage(string pageKey, System.Collections.Generic.IList<string> headerLines, Action contentWriter)
         {
-            var art = GetPageArtOverrides(pageKey);
-            string? left = art.Left;
-            string? right = art.Right;
+            // Start music for this page (only changes if different track)
+            PageMusicSystem.PlayForPage(pageKey);
+
+            // Get overrides from the centralized PageArtOverrides class
+            var (left, right) = PageArtOverrides.Get(pageKey);
 
             // Use ScreenLayout's BeginBufferedFrame / EndBufferedFrame directly to ensure
             // the buffered content is flushed at the exact coordinates used for the header/art.
@@ -2031,7 +1965,6 @@ namespace Spacegun_Simulator
                     indentWriter,
                     left,
                     right);
-
                 try
                 {
                     // Run the content writer while the page buffer is active (Console.Out -> PageBuffer).
@@ -2040,14 +1973,12 @@ namespace Spacegun_Simulator
                 finally
                 {
                     // Flush buffer into the raw console and restore indented writer.
-                    // EndBufferedFrame now expects the SAME raw content-left coordinate that
-                    // BeginBufferedFrame returned (no additional offset math here).
-                    screenLayout.EndBufferedFrame(contentLeftNoOffset, contentTop);
+                    // EndBufferedFrame now returns the first row after the flushed content.
+                    int promptRowAfterContent = screenLayout.EndBufferedFrame(contentLeftNoOffset, contentTop);
+                    // Position input cursor inside the center frame using the centralized helper.
+                    // Pass the first free row so prompts render below all buffered game text.
+                    PositionPromptCursor_NoOffset(contentLeftNoOffset, promptRowAfterContent);
                 }
-
-                // Position input cursor inside the center frame using the centralized helper.
-                // BeginBufferedFrame returned the raw no-offset column, so pass it directly.
-                PositionPromptCursor_NoOffset(contentLeftNoOffset, contentTop);
             }
             catch
             {
@@ -2056,41 +1987,11 @@ namespace Spacegun_Simulator
             }
         }
 
-        // Returns optional left/right side-art overrides for known pages.
-        // Keeps default null for pages without overrides; extend this map if you add page-specific art files.
-        private static (string? Left, string? Right) GetPageArtOverrides(string? pageKey)
-        {
-            if (string.IsNullOrEmpty(pageKey))
-                return (null, null);
-
-            // Add page-specific overrides here if needed. Default to no overrides.
-            switch (pageKey)
-            {
-                case "ResourceAllocation":
-                case "ResourceOptions":
-                case "PreparationSummary":
-                case "ProjectileDevelopment":
-                case "ProjectileConfigSummary":
-                case "MotionComputer":
-                case "TrajectoryPlotter":
-                case "BallisticsReference":
-                case "Firing":
-                case "EnterFiringParameters":
-                case "ResearchMenu":
-                case "WeaponDevelopment":
-                case "DetailedWeaponStatus":
-                    return (null, null);
-
-                default:
-                    return (null, null);
-            }
-        }
-
         private int RenderPageFrame(System.Collections.Generic.IList<string> centerLines, string? leftOverride = null, string? rightOverride = null, string? pageKey = null)
         {
             if (!string.IsNullOrEmpty(pageKey))
             {
-                var art = GetPageArtOverrides(pageKey);
+                var art = PageArtOverrides.Get(pageKey);
                 leftOverride = leftOverride ?? art.Left;
                 rightOverride = rightOverride ?? art.Right;
             }
@@ -2141,7 +2042,7 @@ namespace Spacegun_Simulator
                 "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
                 "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
                 "                                                             ",
-                "             FIRING SOLUTION & ENGAGEMENT PHASE              ",
+                "               FIRING SOLUTION             ",
 
                 string.Empty
             };
@@ -2205,7 +2106,7 @@ namespace Spacegun_Simulator
         {
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
             Console.WriteLine("               RESULTS                                       ");
-            Console.WriteLine("╚═══════════════════════════════════════════════════════════╗\n");
+            Console.WriteLine("╚═══════════════════════════════════════════════════════════╝\n");
 
             Console.WriteLine("=== ENERGY CALCULATION ===");
             Console.WriteLine($"Formula: KE = 0.5 × mass × velocity²");
@@ -2271,7 +2172,7 @@ namespace Spacegun_Simulator
             double maxFlightTime,
             bool isHit)
         {
-            const int WIDTH = 80;   // Console width for animation
+            const int WIDTH = 60;   // Console width for animation
             const int HEIGHT = 20;  // Console height for animation
             const double FRAME_DELAY_MS = 50;  // Animation speed
 
@@ -2290,7 +2191,8 @@ namespace Spacegun_Simulator
                 string.Empty
             };
 
-            Console.Clear();
+
+
             RenderPageFrame(header);
 
             // Pre-calculate positions for smooth animation
@@ -2371,22 +2273,32 @@ namespace Spacegun_Simulator
                 buffer[HEIGHT - 2, 2] = '▲';
 
                 // Render buffer to console
-                try { Console.SetCursorPosition(0, 4); } catch { }
+                const int LEFT_MARGIN_WIDTH = 30;
+
+                // Render buffer to console
+                try { Console.SetCursorPosition(LEFT_MARGIN_WIDTH, 4); } catch { }  // Start at column 30
                 for (int row = 0; row < HEIGHT; row++)
                 {
+                    try { Console.SetCursorPosition(LEFT_MARGIN_WIDTH, 4 + row); } catch { }  // Reset to column 30 each row
                     for (int col = 0; col < WIDTH; col++)
                         Console.Write(buffer[row, col]);
-                    Console.WriteLine();
+                    // Remove Console.WriteLine() - we're manually positioning instead
                 }
 
+                // Display current stats
                 // Display current stats
                 var (time, projDist, projAlt) = projectilePositions[frame];
                 var (_, tgtDist, tgtAlt) = targetPositions[frame];
                 double separation = Math.Sqrt(Math.Pow(projDist - tgtDist, 2) + Math.Pow(projAlt - tgtAlt, 2));
 
-                Console.WriteLine($"\n  Time: {time:F2}s  |  Projectile: {projDist:F0}m @ {projAlt:F1}m alt");
-                Console.WriteLine($"  Target: {tgtDist:F0}m @ {tgtAlt:F1}m alt  |  Separation: {separation:F1}m");
-                Console.WriteLine($"\n  ◆ = Projectile   ● = Target   ▲ = Gun");
+                try { Console.SetCursorPosition(LEFT_MARGIN_WIDTH, 4 + HEIGHT + 1); } catch { }
+                Console.Write($"  Time: {time:F2}s  |  Projectile: {projDist:F0}m @ {projAlt:F1}m alt");
+
+                try { Console.SetCursorPosition(LEFT_MARGIN_WIDTH, 4 + HEIGHT + 2); } catch { }
+                Console.Write($"  Target: {tgtDist:F0}m @ {tgtAlt:F1}m alt  |  Separation: {separation:F1}m");
+
+                try { Console.SetCursorPosition(LEFT_MARGIN_WIDTH, 4 + HEIGHT + 4); } catch { }
+                Console.Write($"  ◆ = Projectile   ● = Target   ▲ = Gun");
 
                 Thread.Sleep((int)FRAME_DELAY_MS);
             }

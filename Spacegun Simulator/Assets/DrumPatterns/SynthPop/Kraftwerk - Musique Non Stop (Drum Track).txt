@@ -1,0 +1,201 @@
+https://drumpatterns.onether.com/kraftwerk-musique-non-stop-drum-track/
+
+Tempo: 108
+Time: 4/4
+Swing: 1
+Order: 1,1,1,1,2,2,2,2,3,4,3,4,3,4,3,4,5,5,5,5,6,6,6,6,7,7,7,7,8,8,8,8,9,9,9,9,10,10,10,10,11,11,12,12,12,12,13,13,13,13,13,13,13,13
+
+[1] Kraftwerk - Musique Non Stop (Drum Track)
+CH ----------------
+OH ----------------
+CY ----------------
+CB ----------------
+MA ----------------
+RS XXX--XXXX-XXXXXX
+HC ----------------
+MC ----------------
+LC ----------------
+SD ----------------
+BD XX----XX--X-----
+AC ----------------
+GH ----------------
+
+[2] Kraftwerk - Musique Non Stop (Drum Track)
+CH X-X-X-X-X-XXX-X-
+OH X-X-X-X-X-XXX-X-
+CY ----------------
+CB ----------------
+MA X-X-X-X-X-XXX-X-
+RS XXX--XXXX-XXXXXX
+HC ----------------
+MC ----------------
+LC ----------------
+SD ----X-------X---
+BD XX----XX--X-----
+AC ----------------
+GH ----------------
+
+[3] Kraftwerk - Musique Non Stop (Drum Track)
+CH X-X-X-X-X-XXX-X-
+OH X-X-X-X-X-XXX-X-
+CY ----------------
+CB ----------------
+MA X-X-X-X-X-XXX-X-
+RS XXX--XXXX-XXXXXX
+HC ----------------
+MC ----------------
+LC ----------------
+SD ----X-------XXX-
+BD XX----XX--X-----
+AC -------------XX-
+GH -------------XX-
+
+[4] Kraftwerk - Musique Non Stop (Drum Track)
+CH X-X-X-X-X-XXX-X-
+OH X-X-X-X-X-XXX-X-
+CY ----------------
+CB ----------------
+MA X-X-X-X-X-XXX-X-
+RS XXX--XXXX-XXXXXX
+HC ----------------
+MC ----------------
+LC ----------------
+SD ----X-------X---
+BD XX----XX--X-----
+AC ----------------
+GH ----------------
+
+[5] Kraftwerk - Musique Non Stop (Drum Track)
+CH XXXXXXXXXXXXXXXX
+OH XXXXXXXXXXXXXXXX
+CY ----------------
+CB ----------------
+MA XXXXXXXXXXXXXXXX
+RS XXX--XXXX-XXXXXX
+HC ----------------
+MC ----------------
+LC ----------------
+SD ----X-------X---
+BD XX----XX--X-----
+AC ----------------
+GH ----------------
+
+[6] Kraftwerk - Musique Non Stop (Drum Track)
+CH XXXXXXXXXXXXXXXX
+OH XXXX-XXX-XXXXXXX
+CY ----------------
+CB ----------------
+MA XXXX-XXX-XXXXXXX
+RS XXX--XXXX-XXXXXX
+HC ----------------
+MC ----------------
+LC ----------------
+SD ------------X---
+BD XX----XX--X-----
+AC ----------------
+GH ----------------
+
+[7] Kraftwerk - Musique Non Stop (Drum Track)
+CH X-X-X-X-X-XXX-X-
+OH X-X-X-X-X-XXX-X-
+CY ----------------
+CB ----------------
+MA X-X-X-X-X-XXX-X-
+RS XXX--XXXX-XXXXXX
+HC ----------------
+MC ----------------
+LC ----------------
+SD ------------X---
+BD XX----XX--X-----
+AC ----------------
+GH ----------------
+
+[8] Kraftwerk - Musique Non Stop (Drum Track)
+CH XXXXXXXXXXXXXXXX
+OH XXXX-XXX-XXXXXXX
+CY ----------------
+CB ----------------
+MA XXXX-XXX-XXXXXXX
+RS XXX--XXXX-XXXXXX
+HC ----------------
+MC ----------------
+LC ----------------
+SD ------------X---
+BD XX----XX--X-----
+AC ----------------
+GH ----------------
+
+[9] Kraftwerk - Musique Non Stop (Drum Track)
+CH X-X-X-X-X-XXX-X-
+OH ----X---X--XX-X-
+CY ----------------
+CB ----------------
+MA X-X-X-X-X-XXX-X-
+RS XXX--XXXX-XXXXXX
+HC ----------------
+MC ----------------
+LC ----------------
+SD ----XX------XX--
+BD XX----XX--X-----
+AC ----XX------XX--
+GH ----------------
+
+[10] Kraftwerk - Musique Non Stop (Drum Track)
+CH ----------------
+OH ----------------
+CY ----------------
+CB ----------------
+MA ----------------
+RS ----------------
+HC ----------------
+MC ----------------
+LC ----------------
+SD ----X-----------
+BD XX----XX--X-----
+AC ----X-----------
+GH ----------------
+
+[11] Kraftwerk - Musique Non Stop (Drum Track)
+CH XXXXXXXXXXXXXXXX
+OH XXXXXXXXXXXXXXXX
+CY ----------------
+CB ----------------
+MA XXXXXXXXXXXXXXXX
+RS --X-XX--X--XXXXX
+HC ----------------
+MC ----------------
+LC ----------------
+SD ----XX------XX--
+BD ----------------
+AC ----XX------XX--
+GH ----------------
+
+[12] Kraftwerk - Musique Non Stop (Drum Track)
+CH XXXXXXXXXXXXXXXX
+OH XXXXXXXXXXXXXXXX
+CY ----------------
+CB ----------------
+MA XXXXXXXXXXXXXXXX
+RS --X-XX--X--XXXXX
+HC ----------------
+MC ----------------
+LC ----------------
+SD ----XX------XX--
+BD XX--------------
+AC XX--XX------XX--
+GH ----------------
+
+[13] Kraftwerk - Musique Non Stop (Drum Track)
+CH X-X-X-X-X-XXX-X-
+OH ----X---X--XX-X-
+CY ----------------
+CB ----------------
+MA X-X-X-X-X--XX-X-
+RS --X-XX--X--XXXXX
+HC ----------------
+MC ----------------
+LC ----------------
+SD ----XX------XX--
+BD XX----XX--X-----
+AC ----------------
+GH ----------------

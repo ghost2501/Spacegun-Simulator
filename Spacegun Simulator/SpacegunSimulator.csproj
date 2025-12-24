@@ -33,4 +33,18 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+  	<PackageReference Include="System.Windows.Extensions" Version="8.0.0" />
+  </ItemGroup>
+
+	<ItemGroup>
+		<None Update="Assets\audio\*.wav">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="NAudio" Version="2.2.1" />
+	</ItemGroup>
+
 </Project>

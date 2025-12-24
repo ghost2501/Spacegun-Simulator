@@ -1,0 +1,186 @@
+https://drumpatterns.onether.com/justin-mullins-quantum-computing-drum-track/
+
+Tempo: 102
+Time: 4/4
+Swing: 2
+Order: 1,2,1,2,3,4,3,4,5,6,5,6,7,8,7,8,9,10,9,10,11,12,11,12
+
+[1] Justin Mullins - Quantum Computing (Drum Track)
+CH X-XXX-XX-X-XXXXX
+OH ----------------
+CY ----------------
+CB ----------------
+CP ----------------
+RS ----------------
+HT ----------------
+MT ----------------
+LT ----------------
+SD ----X-------X---
+BD XX-----X--X-----
+AC ----------------
+GH --------------X-
+
+[2] Justin Mullins - Quantum Computing (Drum Track)
+CH X-X-X-XX-XXXX---
+OH -------------X-X
+CY ----------------
+CB ----------------
+CP ----------------
+RS ----------------
+HT ----------------
+MT ----------------
+LT ----------------
+SD ----X-------X---
+BD X------X--X---X-
+AC ----------------
+GH --------------X-
+
+[3] Justin Mullins - Quantum Computing (Drum Track)
+CH XXXX--XX-X-XXXXX
+OH ----------------
+CY ----------------
+CB ----------------
+CP ----X-------X---
+RS ----------------
+HT ----------------
+MT ----------------
+LT ----------------
+SD ----X-------X---
+BD XX-----X--X-----
+AC ----------------
+GH -------------XXX
+
+[4] Justin Mullins - Quantum Computing (Drum Track)
+CH X-X---XX-X-X-X--
+OH --------------X-
+CY ----------------
+CB ----------------
+CP -X--X-------X---
+RS ----------------
+HT ----------------
+MT ----------------
+LT ----------------
+SD -X--X-------X---
+BD --X----X--X-----
+AC ----------------
+GH ----------------
+
+[5] Justin Mullins - Quantum Computing (Drum Track)
+CH X-XXX-XX-X-X-XXX
+OH ----------------
+CY ----------------
+CB ----------------
+CP ----X-------X---
+RS -XX----X--------
+HT ----------------
+MT ----------------
+LT ----------------
+SD ----X-------X---
+BD XX-----X--X-----
+AC ----------------
+GH --------------XX
+
+[6] Justin Mullins - Quantum Computing (Drum Track)
+CH X-X-X-XX-XXXX---
+OH -------------X-X
+CY --X-------------
+CB ----------X-----
+CP ----X-------X---
+RS ----------------
+HT ----------------
+MT ----------------
+LT ----------------
+SD ----X-------X---
+BD X------X--X---X-
+AC ----------------
+GH ----------------
+
+[7] Justin Mullins - Quantum Computing (Drum Track)
+CH XXXX--XX-X-XXXXX
+OH ----------------
+CY ----------------
+CB ----------------
+CP ----X-------X---
+RS -XX--X-X--------
+HT ----------------
+MT ----------------
+LT ----------------
+SD ----X-------X---
+BD XX-----X--X-----
+AC ----------------
+GH --------------XX
+
+[8] Justin Mullins - Quantum Computing (Drum Track)
+CH X-X-X-XX-X-XXX--
+OH --------------X-
+CY ----------------
+CB ----------------
+CP -X--X-------X---
+RS ----------------
+HT -------------X--
+MT --------------X-
+LT ---------------X
+SD -X--X-------X---
+BD --X----X--X-----
+AC -------------XXX
+GH ----------------
+
+[9] Justin Mullins - Quantum Computing (Drum Track)
+CH X-XXX-XX-X-X-XXX
+OH --------------X-
+CY ----------------
+CB ----------X--X-X
+CP ----X-------X---
+RS -XX--X-X--------
+HT ----------------
+MT ----------------
+LT ----------------
+SD ----X-------X---
+BD XX-----X--X-----
+AC ----------------
+GH ----------------
+
+[10] Justin Mullins - Quantum Computing (Drum Track)
+CH X-X-X-XX-X-XX---
+OH -------------X-X
+CY --X-------------
+CB ----------X-----
+CP ----X-------X---
+RS ----------------
+HT -------------X--
+MT --------------X-
+LT ---------------X
+SD ----X-------X---
+BD X------X--X-----
+AC -------------XXX
+GH ----------------
+
+[11] Justin Mullins - Quantum Computing (Drum Track)
+CH X-XXX-XX-X-X-XXX
+OH --------------X-
+CY ----------------
+CB ----------X--X-X
+CP ----X-------X---
+RS -XX--X-X--------
+HT ----------------
+MT ----------------
+LT ----------------
+SD ----X-------X---
+BD XX-----X--X-----
+AC ----------------
+GH ----------------
+
+[12] Justin Mullins - Quantum Computing (Drum Track)
+CH X-X-X-XX-X-XX---
+OH -------------X-X
+CY --X-------------
+CB ----------X-----
+CP -X--X-------X---
+RS ----------------
+HT -------------X--
+MT --------------X-
+LT ---------------X
+SD ----X---X-X-X---
+BD --X----X--X-----
+AC -------------XXX
+GH ----------------

@@ -1,0 +1,65 @@
+https://drumpatterns.onether.com/stevie-wonder-superstition/
+
+Tempo: 98
+Time: 4/4
+Swing: 3
+
+[1] Stevie Wonder - Superstition
+CH X-X-X-XXXXX-X-XX
+OH ----------------
+CY ----------------
+CB ----------------
+CP ----------------
+RS ----------------
+HT ----------------
+MT ----------------
+LT ----------------
+SD ----X-------X---
+BD X---X---X---X---
+AC --X-X--X-X--X--X
+GH -------X-X-----X
+
+[2] Stevie Wonder - Superstition
+CH X-X-X-XXX-XXXXX-
+OH ----------------
+CY ----------------
+CB ----------------
+CP ----------------
+RS ----------------
+HT ----------------
+MT ----------------
+LT ----------------
+SD ----X-------X---
+BD X---X---X---X---
+AC --X-X--X--XXXX--
+GH -------X---X-X--
+
+[3] Stevie Wonder - Superstition
+CH X-XXX-XXX-XXXXXX
+OH ----------------
+CY ----------------
+CB ----------------
+CP ----------------
+RS ----------------
+HT ----------------
+MT ----------------
+LT ----------------
+SD ----X-------X---
+BD X---X---X---X---
+AC --XXX--X---XXX-X
+GH ---X---X---X-X-X
+
+[4] Stevie Wonder - Superstition
+CH X-X-X-XXX-X-XXXX
+OH ----------------
+CY ----------------
+CB ----------------
+CP ----------------
+RS ----------------
+HT ----------------
+MT ----------------
+LT ----------------
+SD ----X-------X---
+BD X---X---X---X---
+AC --X-X--X--X-XX-X
+GH -------X-----X-X

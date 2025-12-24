@@ -184,6 +184,9 @@ namespace Spacegun_Simulator
         /// </summary>
         public void ShowTitleScreen(TextWriter? originalOut, TextWriter? indentWriter, string? explicitTitlePath = null)
         {
+
+            PageMusicSystem.PlayForPage("TitleScreen");
+
             // Load ASCII art from known locations, fall back to an embedded small art fallback.
             string[] lines = null;
             var candidates = new[]
@@ -662,14 +665,15 @@ namespace Spacegun_Simulator
         /// End the buffered frame by flushing the installed buffer into the raw console
         /// at the provided contentLeft/contentTop and restore the indented writer.
         /// </summary>
-        public void EndBufferedFrame(int contentLeft, int contentTop)
+        public int EndBufferedFrame(int contentLeft, int contentTop)
         {
             var buf = _activeBuffer;
-            if (buf == null) return;
+            if (buf == null) return contentTop;
 
             // Restore raw writer so flush writes at absolute coordinates
             try { Console.SetOut(_stagedOriginalOut ?? Console.Out); } catch { /* ignore */ }
 
+            int linesWritten = 0;
             try
             {
                 // Heuristic flush coordinate (prefer RAW no-offset coordinate when both candidates fit).
@@ -703,7 +707,8 @@ namespace Spacegun_Simulator
                     flushLeft = flushLeftCandidateRaw;
                 }
 
-                buf.FlushToConsole(flushLeft, contentTop);
+                // Flush and capture how many lines the buffer wrote so the caller can position prompts below it.
+                linesWritten = buf.FlushToConsole(flushLeft, contentTop);
             }
             catch
             {
@@ -716,6 +721,9 @@ namespace Spacegun_Simulator
             _activeBuffer = null;
             _stagedOriginalOut = null;
             _stagedIndentWriter = null;
+
+            // Return the row immediately after the last line that was flushed.
+            return contentTop + Math.Max(0, linesWritten);
         }
 
         // Lightweight layout diagnostics helper (reintroduced to avoid CS0103).
@@ -820,7 +828,7 @@ namespace Spacegun_Simulator
         }
 
         // Flush the buffered text to the console at given left/top coordinates.
-        public void FlushToConsole(int left, int top)
+        public int FlushToConsole(int left, int top)
         {
             string text;
             lock (_lock)
@@ -856,6 +864,9 @@ namespace Spacegun_Simulator
 
                 row++;
             }
+
+            // Return how many lines were emitted so callers can position prompts after content.
+            return lines.Length;
         }
     }
 }

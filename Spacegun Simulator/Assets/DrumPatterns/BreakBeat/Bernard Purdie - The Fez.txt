@@ -1,0 +1,35 @@
+https://drumpatterns.onether.com/bernard-purdie-the-fez/
+
+Tempo: 99
+Time: 4/4
+Swing: 0
+
+[1] Bernard Purdie - The Fez
+CH --X---X---X---X-
+OH ----------------
+CY ----------------
+CB ----------------
+CP ----------------
+RS ----------------
+HT ----------------
+MT ----------------
+LT ----------------
+SD -X-XXX-X-X-XXX-X
+BD X-------X-------
+AC X---XX--XX--XX--
+GH -X-X-X-X-X-X-X-X
+
+[2] Bernard Purdie - The Fez
+CH --X---X---X---X-
+OH ----------------
+CY ----------------
+CB ----------------
+CP ----------------
+RS ----------------
+HT ----------------
+MT ----------------
+LT ----------------
+SD -X-XXX-X-X-XXX-X
+BD X-------X--X--X-
+AC X---XX--XX-XXXX-
+GH -X-X-X-X-----X-X

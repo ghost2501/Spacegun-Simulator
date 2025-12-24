@@ -1,0 +1,186 @@
+https://drumpatterns.onether.com/giorgio-moroder-emc%c2%b2-rare-version-drum-cover/
+
+Tempo: 124
+Time: 4/4
+Swing: 0
+Order: 1,2,1,2,1,2,3,4,1,2,1,2,1,2,5,6,1,2,1,2,1,2,7,8,7,8,9,10,9,10,9,10,11,12,11,12
+
+[1] Giorgio Moroder - E=MC² Rare Version (Drum Cover)
+CH XXXX-XXXXXXX--XX
+OH --X---X---X---X-
+CY ----------------
+CB ----------------
+CP ----------------
+RS -----X---X-X----
+HC -----XX---------
+MC --XX------------
+LC -------X--------
+SD ----X-------X---
+BD X---X---X---X---
+AC ----------------
+GH ----------------
+
+[2] Giorgio Moroder - E=MC² Rare Version (Drum Cover)
+CH XXXX-XXXXXXX--XX
+OH --X---X---X---X-
+CY ----------------
+CB ----------------
+CP ----------------
+RS -----X---X-X----
+HC -----XX---------
+MC --XX---------X-X
+LC -------X--------
+SD ----X-------X---
+BD X---X---X---X---
+AC ----------------
+GH ----------------
+
+[3] Giorgio Moroder - E=MC² Rare Version (Drum Cover)
+CH XXXX-XXXXXXX--XX
+OH --X---X---X---X-
+CY ----------------
+CB ----------------
+CP ----------------
+RS -----X---X-XX---
+HC -----XX---------
+MC --XX------------
+LC -------X--------
+SD ----X-------X---
+BD X---X---X---X---
+AC ----------------
+GH ----------------
+
+[4] Giorgio Moroder - E=MC² Rare Version (Drum Cover)
+CH XXXX-XXXXXXX-XXX
+OH --X---X---X---X-
+CY ----------------
+CB ----------------
+CP --------------XX
+RS -----X---X-X----
+HC -----XX---------
+MC --XX---------X-X
+LC -------X--------
+SD ----X-------X---
+BD X---X---X---X---
+AC ----------------
+GH ----------------
+
+[5] Giorgio Moroder - E=MC² Rare Version (Drum Cover)
+CH XXXX-XXXXXXX-XXX
+OH --X---X---X---X-
+CY ----------------
+CB ----------------
+CP ----------------
+RS -----X---X-X----
+HC -----XX---------
+MC --XX------------
+LC -------X--------
+SD ----X-----X---XX
+BD X---X---X---X---
+AC ----------------
+GH ----------------
+
+[6] Giorgio Moroder - E=MC² Rare Version (Drum Cover)
+CH XXXX-XXXXXXX-XXX
+OH --X---X---X---X-
+CY ----------------
+CB ----------------
+CP ----------------
+RS -----X---X-X----
+HC -----XX---------
+MC --XX---------X-X
+LC -------X--------
+SD ----X-------X---
+BD X---X---X---X---
+AC ----------------
+GH ----------------
+
+[7] Giorgio Moroder - E=MC² Rare Version (Drum Cover)
+CH ----------------
+OH ----------------
+CY ----------------
+CB ----------------
+CP ----------------
+RS -----X---X-X----
+HC -----XX---------
+MC --XX------------
+LC -------X--------
+SD ----X-------X---
+BD X---X---X---X---
+AC ----------------
+GH ----------------
+
+[8] Giorgio Moroder - E=MC² Rare Version (Drum Cover)
+CH ----------------
+OH ----------------
+CY ----------------
+CB ----------------
+CP --------------XX
+RS -----X---X-X----
+HC -----XX---------
+MC --XX---------X-X
+LC -------X--------
+SD ----X-------X---
+BD X---X---X---X---
+AC ----------------
+GH ----------------
+
+[9] Giorgio Moroder - E=MC² Rare Version (Drum Cover)
+CH XXXX-XXXXXXX-XXX
+OH -XX---XX-XX---XX
+CY ----------------
+CB ----------------
+CP ----------------
+RS -----X---X-X----
+HC ------XX--X-----
+MC ---------X------
+LC ----------------
+SD ----X-------X---
+BD X---X---X---X---
+AC ----------------
+GH ----------------
+
+[10] Giorgio Moroder - E=MC² Rare Version (Drum Cover)
+CH XXXX-XXXXXXX-XXX
+OH -XX---XX-XX---XX
+CY ----------------
+CB ----------------
+CP ----------------
+RS -----X---X-X----
+HC ------XX--X---X-
+MC ---------X-----X
+LC ----------------
+SD ----X-------X---
+BD X---X---X---X---
+AC ----------------
+GH ----------------
+
+[11] Giorgio Moroder - E=MC² Rare Version (Drum Cover)
+CH XXXX-XXXXXXX-XXX
+OH -XX---XX-XX---XX
+CY ----------------
+CB ----------------
+CP --------------XX
+RS -----X---X-X----
+HC ------XX--X---X-
+MC ---------X------
+LC ----------------
+SD ----X-----X---XX
+BD X---X---X---X---
+AC ----------------
+GH ----------------
+
+[12] Giorgio Moroder - E=MC² Rare Version (Drum Cover)
+CH XXXX-XXXXXXX-XXX
+OH -XX---XX-XX---XX
+CY ----------------
+CB ----------------
+CP ----------------
+RS -----X---X-X----
+HC ------XX--X---X-
+MC ---------X-----X
+LC ----------------
+SD ----X-------X---
+BD X---X---X---X---
+AC ----------------
+GH ----------------
