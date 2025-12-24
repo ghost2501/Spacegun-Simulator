@@ -1,4 +1,4 @@
-# 🔫 Spacegun Simulator
+# 🔫 Spacegun Simulator - pre-alpha
 
 **A command-line engineering simulation game about building the biggest gun in human history — and getting the math right.**
 
