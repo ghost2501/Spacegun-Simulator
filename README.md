@@ -2,6 +2,15 @@
 
 **A command-line engineering simulation game about building the biggest gun in human history — and getting the math right.**
 
+## Playtesting
+
+Actively seeking testers interested in:
+- Physics-based gameplay
+- Engineering challenges
+- Command-line / ASCII games
+
+Feel free to open an issue or start a discussion. Advise or corrections are esspecially valued.
+
 ---
 
 ## 🛰️ Overview
