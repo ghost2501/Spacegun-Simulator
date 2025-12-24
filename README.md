@@ -26,7 +26,7 @@ There is only one option:
 There will be **one shot per wave**.  
 One miscalculation means extinction.
 
-No AI.  
+No Automation.  
 No computers.  
 Just charts, mechanical calculators, and your ability to solve real physics problems under pressure.
 
@@ -70,8 +70,7 @@ When the moment arrives, you will have:
 - Radar thresholds  
 
 You will **not** have:
-
-- AI assistance  
+  
 - Computers  
 - Automated targeting  
 
