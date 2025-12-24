@@ -1,6 +1,15 @@
 # 🔫 Spacegun Simulator - pre-alpha
 
-**A command-line engineering simulation game about building the biggest gun in human history — and getting the math right.**
+**A command-line engineering simulation game about building the biggest gun in human history — and getting the maths right.**
+
+## Playtesting
+
+Actively seeking testers interested in:
+- Physics-based gameplay
+- Engineering challenges
+- Command-line / ASCII games
+
+Feel free to open an issue or start a discussion. Advise or corrections are esspecially valued.
 
 ---
 
@@ -17,7 +26,7 @@ There is only one option:
 There will be **one shot per wave**.  
 One miscalculation means extinction.
 
-No AI.  
+No Automation.  
 No computers.  
 Just charts, mechanical calculators, and your ability to solve real physics problems under pressure.
 
@@ -61,8 +70,7 @@ When the moment arrives, you will have:
 - Radar thresholds  
 
 You will **not** have:
-
-- AI assistance  
+  
 - Computers  
 - Automated targeting  
 
@@ -174,7 +182,7 @@ Difficulty scales **numerically**, not artificially.
   *(bus-sized target at relativistic speed)*
 
 The game does not cheat.  
-The math always works.  
+The maths always works.  
 Failure is always explainable.
 
 ---
@@ -243,5 +251,26 @@ The music functions as **emotional UI**, not background noise.
 When the time comes, the calculations will be correct — or they won’t.  
 The universe does not care which.
 
+---
 
+## Development Notes
 
+AI tools were used during development for prototyping, refactoring, and exploring mathematical
+approaches.
+
+All core systems, rules, and calculations are intentionally designed, reviewed, and constrained.
+The game relies on deterministic, explainable mechanics rather than opaque automation.
+
+AI is treated as a development aid, not an authority.
+
+---
+
+## Licensing
+
+Source code is released under the MIT License.
+
+Narrative content, game identity, and non-code assets are not covered by the
+MIT License. Audio assets are included under their respective source licenses
+and attribution requirements.
+
+See `LICENSE` and `ASSETS.md` for details.
