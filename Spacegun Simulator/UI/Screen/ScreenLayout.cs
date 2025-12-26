@@ -10,7 +10,7 @@ namespace Spacegun_Simulator.UI.Screen
     /// IMPORTANT: This class is referenced broadly by legacy ConsoleUI tooling.
     /// Keep method signatures stable (compat overloads included).
     /// </summary>
-    internal sealed class ScreenLayout
+    public sealed class ScreenLayout
     {
         public int Offset { get; }
         public int FrameWidth { get; }
@@ -295,7 +295,25 @@ namespace Spacegun_Simulator.UI.Screen
             try { startRow = Console.CursorTop; } catch { startRow = 0; }
 
             // Legacy buffered rendering expects the "no-offset" frame
-            RenderWithSides_NoOffset(frameLines, leftOverride, rightOverride);
+            // Pad out the draw height to the full window height so side panels extend
+            // down to meet pinned footer art rendered later by PageBase.
+            int targetRows;
+            try
+            {
+                targetRows = Math.Max(0, (Console.WindowHeight - 2) - startRow);
+            }
+            catch
+            {
+                targetRows = frameLines.Count;
+            }
+
+            var drawLines = new List<string>(frameLines);
+            while (drawLines.Count < targetRows)
+                drawLines.Add("");
+
+            // Draw padded frame so left/right panels extend to full window height.
+            RenderWithSides_NoOffset(drawLines, leftOverride, rightOverride);
+
 
             // contentTop must account for side art height if requested
             int renderedRows = frameLines.Count;

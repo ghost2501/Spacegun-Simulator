@@ -1,10 +1,11 @@
-using System;
-using System.IO;
-using System.Text;
 using Spacegun_Simulator;
 using Spacegun_Simulator.FireControlTools;
 using Spacegun_Simulator.UI;
 using Spacegun_Simulator.UI.Screen;
+using System;
+using System.IO;
+using System.Text;
+using static Spacegun_Simulator.GameState;
 using PageBuffer = Spacegun_Simulator.UI.Screen.PageBuffer;
 
 namespace Spacegun_Simulator
@@ -13,6 +14,7 @@ namespace Spacegun_Simulator
     {
         private readonly GameState engine;
         private const string SaveDirectory = "Saves";
+        private bool _returnToMenuRequested;
 
         private readonly ScreenLayout screenLayout;
         private readonly TextWriter? originalConsoleOut;
@@ -85,6 +87,43 @@ namespace Spacegun_Simulator
             catch { /* non-fatal */ }
         }
 
+        // Bridge into NEW UI system for the detection phase.
+        private void RunDetectionPhase_NewUi()
+        {
+            // Create a UiContext that reuses the SAME ScreenLayout + writers ConsoleUI uses
+            var ui = new UiContext(
+                layout: screenLayout,
+                originalOut: originalConsoleOut ?? Console.Out,
+                indentWriter: indentWriter,
+                globalIndent: indentWriter.IndentLength
+            )
+            {
+                Game = engine
+            };
+
+            var controller = new UiController(ui, PageId.Detection);
+
+            // Register ONLY the detection page (it phase-advances then Exit’s)
+            controller.Register(new DetectionPage());
+
+            controller.Run();
+
+            if (ui.RequestReturnToMenu)
+            {
+                engine.AutoSaveGame();
+                _returnToMenuRequested = true;
+                return;
+            }
+
+
+
+
+            // Mirror legacy behavior:
+            // Legacy saves after detection only when detection succeeded (it returns early on failure). :contentReference[oaicite:4]{index=4}
+            if (!engine.IsGameOver)
+                engine.AutoSaveGame();
+        }
+
         private void EnsureSaveDirectory()
         {
             if (!Directory.Exists(SaveDirectory))
@@ -96,12 +135,12 @@ namespace Spacegun_Simulator
         public void Run()
         {
             // Single session: assumes engine has already been initialized (new game or autosave loaded).
-            while (!engine.IsGameOver)
+            while (!engine.IsGameOver && !_returnToMenuRequested)
             {
                 switch (engine.CurrentPhase)
                 {
-                    case GameState.GamePhase.Detection:
-                        RunDetectionPhase();
+                    case GamePhase.Detection:
+                        RunDetectionPhase_NewUi();
                         break;
 
                     case GameState.GamePhase.ResourceAllocation:
@@ -123,8 +162,21 @@ namespace Spacegun_Simulator
                 }
             }
 
+            if (_returnToMenuRequested)
+                return; // return to Program → Main Menu
+
             DisplayGameOverScreen();
 
+        }
+
+
+        /// <summary>
+        /// Public entry for the legacy diagnostics/test mode menu.
+        /// This preserves the existing playtester workflow while the new UI pages are migrated.
+        /// </summary>
+        public void RunDiagnosticsMenu()
+        {
+            RunTestModeMenu();
         }
 
         /// <summary>

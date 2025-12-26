@@ -80,18 +80,18 @@ namespace Spacegun_Simulator.UI.Pages.Core
 
         private static string[]? LoadTitleArtLines()
         {
-            // User stated: ./assets/ascii-art/TitleScreen.txt
+            // User stated: ./Assets/ascii-art/TitleScreen.txt
             // Also support prior: ./Assets/ascii-art/TitleScreen.txt and AppContext paths.
             string cwd = Directory.GetCurrentDirectory();
             string baseDir = AppContext.BaseDirectory;
 
             string[] candidates =
             {
-                Path.Combine(cwd, "assets", "ascii-art", "TitleScreen.txt"),
                 Path.Combine(cwd, "Assets", "ascii-art", "TitleScreen.txt"),
-                Path.Combine(baseDir, "assets", "ascii-art", "TitleScreen.txt"),
+                Path.Combine(cwd, "Assets", "ascii-art", "TitleScreen.txt"),
                 Path.Combine(baseDir, "Assets", "ascii-art", "TitleScreen.txt"),
-                Path.GetFullPath(Path.Combine(baseDir, "..", "assets", "ascii-art", "TitleScreen.txt")),
+                Path.Combine(baseDir, "Assets", "ascii-art", "TitleScreen.txt"),
+                Path.GetFullPath(Path.Combine(baseDir, "..", "Assets", "ascii-art", "TitleScreen.txt")),
                 Path.GetFullPath(Path.Combine(baseDir, "..", "Assets", "ascii-art", "TitleScreen.txt")),
             };
 

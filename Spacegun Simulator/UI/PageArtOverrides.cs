@@ -115,7 +115,10 @@ namespace Spacegun_Simulator
         /// </summary>
         public static readonly Dictionary<string, (string? Left, string? Right)> Overrides = new()
         {
-            ["Detection"] = (null, null),
+            [PageId.Title] = (null, null),
+            [PageId.MainMenu] = (null, null),
+            [PageId.DifficultySelection] = (null, null),
+            [PageId.Detection] = (null, null),
             ["GameOver"] = ("GameOver.txt", "GameOver.txt"),
             ["ResourceAllocation"] = (null, null),
             ["ResourceOptions"] = (null, null),
@@ -132,11 +135,6 @@ namespace Spacegun_Simulator
             ["FireSimulator"] = (null, null),
             ["EnterFiringParameters"] = (null, null),
             ["DetailedWeaponStatus"] = (null, null),
-
-            // Examples (just use filenames):
-            // ["Detection"]             = ("DetectionLeft.txt", "DetectionRight.txt"),
-            // ["WeaponDevelopment"]     = ("WeaponDevLeft.txt", null),
-            // ["Firing"]                = (null, "FiringRight.txt"),
         };
 
         /// <summary>

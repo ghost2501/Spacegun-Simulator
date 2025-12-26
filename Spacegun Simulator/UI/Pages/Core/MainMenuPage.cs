@@ -10,8 +10,8 @@ namespace Spacegun_Simulator.UI.Pages.Core
         public override string Title => "MAIN MENU";
 
         public override PageChrome Chrome { get; } = new(
-            ShowStatusBar: false,
-            ShowSidePanels: false,
+            ShowStatusBar: true,
+            ShowSidePanels: true,
             FooterHint: "1=New  2=Resume/Test  3=Test/Exit  4=Exit (if Resume exists)"
         );
 
@@ -27,37 +27,25 @@ namespace Spacegun_Simulator.UI.Pages.Core
             _autoSaveTimestamp = _autoSaveExists ? GameState.GetAutoSaveTimestamp() : "";
         }
 
-        public override void Render(UiContext ui)
+        protected override void RenderBody(UiContext ui)
         {
-            // No generic PageBase frame here; render menu cleanly.
-            Console.Clear();
-
-            Console.WriteLine("SPACEGUN SIMULATOR");
-            Console.WriteLine();
+            ui.WriteLine("Select an option:");
+            ui.WriteLine();
 
             if (_autoSaveExists)
             {
-                Console.WriteLine($"Auto-save found (last saved: {_autoSaveTimestamp})");
-                Console.WriteLine();
-                Console.WriteLine("[1] Start New Game");
-                Console.WriteLine("[2] Resume Game");
-                Console.WriteLine("[3] Test Mode (Debug Tools)");
-                Console.WriteLine("[4] Exit");
+                ui.WriteLine("  1) New Game");
+                ui.WriteLine($"  2) Resume {_autoSaveTimestamp}");
+                ui.WriteLine("  3) Test Mode");
+                ui.WriteLine("  4) Exit");
             }
             else
             {
-                Console.WriteLine("No auto-save found.");
-                Console.WriteLine();
-                Console.WriteLine("[1] Start New Game");
-                Console.WriteLine("[2] Test Mode (Debug Tools)");
-                Console.WriteLine("[3] Exit");
+                ui.WriteLine("  1) New Game");
+                ui.WriteLine("  2) Test Mode");
+                ui.WriteLine("  3) Exit");
             }
-
-            Console.WriteLine();
-            Console.Write("Select option: ");
         }
-
-        protected override void RenderBody(UiContext ui) { /* unused; Render overridden */ }
 
         protected override PageResult HandleInputBody(UiContext ui, ConsoleKeyInfo key)
         {
@@ -77,7 +65,7 @@ namespace Spacegun_Simulator.UI.Pages.Core
             {
                 switch (n.Value)
                 {
-                    case 1: Choice = MainMenuChoice.NewGame; return PageResult.Exit;
+                    case 1: Choice = MainMenuChoice.NewGame; return PageResult.Go(PageId.DifficultySelection);
                     case 2: Choice = MainMenuChoice.Resume; return PageResult.Exit;
                     case 3: Choice = MainMenuChoice.TestMode; return PageResult.Exit;
                     case 4: Choice = MainMenuChoice.Exit; return PageResult.Exit;
@@ -87,7 +75,7 @@ namespace Spacegun_Simulator.UI.Pages.Core
             {
                 switch (n.Value)
                 {
-                    case 1: Choice = MainMenuChoice.NewGame; return PageResult.Exit;
+                    case 1: Choice = MainMenuChoice.NewGame; return PageResult.Go(PageId.DifficultySelection);
                     case 2: Choice = MainMenuChoice.TestMode; return PageResult.Exit;
                     case 3: Choice = MainMenuChoice.Exit; return PageResult.Exit;
                 }
@@ -95,6 +83,8 @@ namespace Spacegun_Simulator.UI.Pages.Core
 
             return PageResult.Stay;
         }
+
+
     }
 
     public enum MainMenuChoice

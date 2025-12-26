@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Spacegun_Simulator.UI;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Media;
@@ -45,29 +46,24 @@ namespace Spacegun_Simulator
             [DEFAULT_KEY] = null,
 
             // Page-specific tracks
-            ["TitleScreen"] = "Zarathustra.wav",
-            ["Detection"] = null,  // Use default (generator)
+            // Page-specific tracks (legacy keys + new UI PageId keys)
+            [ PageId.Title] = "Zarathustra.wav",
+            [ PageId.MainMenu] = null,
+            [ PageId.DifficultySelection] = null,
             ["GameOver"] = "GameOverMusic.wav",
+            ["Detection"] = null,  // Use default (generator)
             ["ResourceAllocation"] = null,
             ["ResourceOptions"] = null,
             ["PreparationSummary"] = null,
             ["ResearchMenu"] = null,
             ["PreparationStatus"] = null,
+
             ["WeaponDevelopment"] = null,
             ["ProjectileDevelopment"] = null,
             ["ProjectileConfigSummary"] = null,
-            ["ProjectileDevelopmentStatus"] = null,
-            ["AmmoDevelopment"] = null,
-            ["AmmoConfigSummary"] = null,
-            ["AmmoDevelopmentStatus"] = null,
             ["GunDevelopment"] = null,
-            ["GunConfigSummary"] = null,
-            ["GunDevelopmentStatus"] = null,
-            ["GunsmithingMenu"] = null,
-            ["GunsmithingSummary"] = null,
-            ["GunsmithingStatus"] = null,
 
-            // ["Silence"] = "", // Empty string for no music
+                        // ["Silence"] = "", // Empty string for no music
         };
 
         private const string DEFAULT_KEY = "_default";

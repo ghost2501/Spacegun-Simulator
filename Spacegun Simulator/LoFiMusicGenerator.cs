@@ -264,7 +264,7 @@ public class LoFiMusicGenerator
         _allProgressions.Add(new int[][] { new[] { 0, 3, 7 }, new[] { 2, 5, 9 }, new[] { 5, 8, 12 }, new[] { 9, 12, 16 } });
 
         // Select a drum style folder for the session
-        var drumRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "assets", "DrumPatterns");
+        var drumRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "DrumPatterns");
         if (Directory.Exists(drumRoot))
         {
             var styleFolders = Directory.GetDirectories(drumRoot);
