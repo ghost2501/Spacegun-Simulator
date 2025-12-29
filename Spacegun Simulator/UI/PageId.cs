@@ -22,6 +22,7 @@
         public const string PreparationStatus = "PreparationStatus";
 
         // Development
+        public const string Development = "Development";
         public const string WeaponDevelopment = "WeaponDevelopment";
         public const string ProjectileDevelopment = "ProjectileDevelopment";
         public const string ProjectileConfigSummary = "ProjectileConfigSummary";
@@ -29,17 +30,24 @@
 
         // Firing Flow / Fire Control Tools
         public const string Firing = "Firing";
+        public const string WaveComplete = "WaveComplete";
         public const string MotionComputer = "MotionComputer";
+        public const string BallisticsTables = "BallisticsTables";
         public const string TrajectoryPlotter = "TrajectoryPlotter";
         public const string FireSimulator = "FireSimulator";
         public const string EnterFiringParameters = "EnterFiringParameters";
         public const string CommitFiringSolution = "CommitFiringSolution"; // if you separate from EnterFiringParameters
         public const string FiringVisualization = "FiringVisualization";
+        public const string FiringResults = "FiringResults";
         public const string DetailedWeaponStatus = "DetailedWeaponStatus";
 
         // Diagnostics / Debug
         public const string TestModeMenu = "TestModeMenu";
         public const string FiringChallenge = "FiringChallenge";
         public const string SimulationTestMode = "SimulationTestMode";
+
+        // UI-based diagnostics pages (migrated out of ConsoleUI.Diagnostics)
+        public const string DiagnosticsUiPageLauncher = "DiagnosticsUiPageLauncher";
+        public const string DiagnosticsTestHarness = "DiagnosticsTestHarness";
     }
 }

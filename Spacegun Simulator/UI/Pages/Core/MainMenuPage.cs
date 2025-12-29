@@ -84,7 +84,18 @@ namespace Spacegun_Simulator.UI.Pages.Core
             return PageResult.Stay;
         }
 
+        protected override PageResult HandleQuit(UiContext ui, ConsoleKeyInfo key)
+        {
+            ui.RequestExitGame = true;
+            Choice = MainMenuChoice.Exit;
+            return PageResult.Exit;
+        }
 
+        protected override PageResult HandleEscape(UiContext ui, ConsoleKeyInfo key)
+        {
+            Choice = MainMenuChoice.Exit;
+            return PageResult.Exit;
+        }
     }
 
     public enum MainMenuChoice

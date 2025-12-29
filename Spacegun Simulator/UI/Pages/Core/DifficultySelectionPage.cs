@@ -13,10 +13,18 @@ namespace Spacegun_Simulator.UI.Pages.Core
         public override string Id => PageId.DifficultySelection;
         public override string Title => "DIFFICULTY SELECTION";
 
-        public override PageChrome Chrome { get; } = new(
+        /// <summary>
+        /// Default behavior matches the boot flow: Esc navigates to the Main Menu page.
+        /// Diagnostic callers can set this to false to make Esc simply exit the page.
+        /// </summary>
+        public bool EscapeNavigatesToMainMenu { get; init; } = true;
+
+        public override PageChrome Chrome => new(
             ShowStatusBar: true,
             ShowSidePanels: true,
-            FooterHint: "1-4 = Select difficulty   Esc = Menu/Back"
+            FooterHint: EscapeNavigatesToMainMenu
+                ? "1-4 = Select difficulty   Esc = Menu/Back"
+                : "1-4 = Select difficulty   Esc = Back"
         );
 
         private IReadOnlyList<DifficultyConfig> _configs = Array.Empty<DifficultyConfig>();
@@ -41,7 +49,6 @@ namespace Spacegun_Simulator.UI.Pages.Core
                 ui.WriteLine($"[{i + 1}] {c.DisplayName}");
                 if (!string.IsNullOrWhiteSpace(c.NarrativeDescription))
                 {
-                    // Indent narrative bullets
                     var lines = c.NarrativeDescription.Replace("\r", "").Split('\n');
                     foreach (var line in lines)
                         ui.WriteLine($"     {line}");
@@ -73,5 +80,8 @@ namespace Spacegun_Simulator.UI.Pages.Core
             SelectedDifficulty = _configs[idx].Difficulty;
             return PageResult.Exit;
         }
+
+        protected override PageResult HandleEscape(UiContext ui, ConsoleKeyInfo key)
+            => EscapeNavigatesToMainMenu ? PageResult.Go(PageId.MainMenu) : PageResult.Exit;
     }
 }

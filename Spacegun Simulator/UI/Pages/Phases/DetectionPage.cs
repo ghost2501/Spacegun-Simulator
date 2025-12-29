@@ -12,8 +12,8 @@ public sealed class DetectionPage : PageBase
 
     public override PageChrome Chrome { get; } = new(
         ShowStatusBar: true,
-        ShowSidePanels: true
-        // FooterHint: ""
+        ShowSidePanels: true,
+        FooterHint: "Any key=Continue   Esc=Menu  Q=Quit   ↑/↓/PgUp/PgDn=Scroll"
     );
 
     private GameState.DetectionPhaseResult? _result;

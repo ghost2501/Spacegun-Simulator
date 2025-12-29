@@ -10,6 +10,9 @@ namespace Spacegun_Simulator.UI.Pages
     /// </summary>
     public abstract class PageBase : IPage
     {
+		protected const int DefaultFrameWidth = 60;
+		protected const int DefaultScrollPageStep = 6;
+
         public abstract string Id { get; }
         public abstract string Title { get; }
 
@@ -32,6 +35,33 @@ namespace Spacegun_Simulator.UI.Pages
             return text.Length > width ? text.Substring(0, width) : text;
         }
 
+        protected static string Clamp60(string text)
+            => ClampToWidth(text, DefaultFrameWidth);
+
+        protected static string Center60(string text)
+            => CenterToWidth(text, DefaultFrameWidth);
+
+        protected static int GetViewportHeight(UiContext ui, int fallback = 18)
+            => ui.ContentViewportHeight > 0 ? ui.ContentViewportHeight : fallback;
+
+        protected static void ClampScroll(ref int scroll, int lineCount, int viewportHeight)
+        {
+            int maxScroll = Math.Max(0, lineCount - Math.Max(0, viewportHeight));
+            scroll = Math.Clamp(scroll, 0, maxScroll);
+        }
+
+        protected static bool TryHandleScrollKeys(ConsoleKeyInfo key, ref int scroll, int lineStep = 1, int pageStep = DefaultScrollPageStep)
+        {
+            switch (key.Key)
+            {
+                case ConsoleKey.UpArrow: scroll -= lineStep; return true;
+                case ConsoleKey.DownArrow: scroll += lineStep; return true;
+                case ConsoleKey.PageUp: scroll -= pageStep; return true;
+                case ConsoleKey.PageDown: scroll += pageStep; return true;
+                default: return false;
+            }
+        }
+
         // Limits lines written so the pinned footer cannot be pushed off-screen.
         private sealed class LineLimitedWriter : System.IO.TextWriter
         {
@@ -47,7 +77,6 @@ namespace Spacegun_Simulator.UI.Pages
             }
 
             public int LinesWritten => _linesWritten;
-
             public override System.Text.Encoding Encoding => _inner.Encoding;
 
             public override void Write(char value)
@@ -126,6 +155,9 @@ namespace Spacegun_Simulator.UI.Pages
                     rightOverride,
                     respectSideArtHeight: false);
 
+                ui.FrameContentLeftNoOffset = contentLeft;
+                ui.FrameContentTopNoOffset = contentTop;
+
                 try
                 {
                     // ---- pinned footer computation ----
@@ -140,7 +172,7 @@ namespace Spacegun_Simulator.UI.Pages
                     try { winH = Console.WindowHeight; }
                     catch { winH = 30; }
 
-                    // IMPORTANT: -1 to avoid console scrolling when writing the last line
+                    // IMPORTANT: subtract 2 to avoid console scroll at bottom (your current tuned value)
                     int available = Math.Max(0, (winH - 2) - contentTop);
                     int viewportHeight = Math.Max(0, available - reservedFooterLines);
 
@@ -166,7 +198,7 @@ namespace Spacegun_Simulator.UI.Pages
                         Console.WriteLine(ClampToWidth(footerBar!, 60));
 
                     // Pinned footer hint (always one line)
-                    var hint = Chrome.FooterHint ?? "↑/↓ scroll  Any key continue  [Esc] Menu  [Q] Quit.";
+                    var hint = Chrome.FooterHint ?? "Press [Esc] for Menu, [Q] to quit.";
                     Console.WriteLine(ClampToWidth(hint, 60));
 
                     // Pinned footer art (optional)
@@ -175,6 +207,7 @@ namespace Spacegun_Simulator.UI.Pages
                 }
                 catch (Exception ex)
                 {
+                    // Debug Page Migration
                     ui.DebugLog($"ERROR Render failed on page '{Id}': {ex}");
                     throw;
                 }
@@ -201,16 +234,29 @@ namespace Spacegun_Simulator.UI.Pages
         public virtual PageResult HandleInput(UiContext ui, ConsoleKeyInfo key)
         {
             if (key.Key == ConsoleKey.Q)
-                return PageResult.Exit;
+                return HandleQuit(ui, key);
 
             if (key.Key == ConsoleKey.Escape)
-            {
-                ui.RequestReturnToMenu = true;
-                return PageResult.Exit;
-            }
-
+                return HandleEscape(ui, key);
 
             return HandleInputBody(ui, key);
+        }
+
+        protected virtual PageResult HandleQuit(UiContext ui, ConsoleKeyInfo key)
+        {
+            ui.RequestExitGame = true;
+            return PageResult.Exit;
+        }
+
+        protected virtual PageResult HandleEscape(UiContext ui, ConsoleKeyInfo key)
+        {
+            // Default behavior:
+            // - During gameplay, ESC requests a session-level return-to-menu.
+            // - During boot UI, ESC simply exits the UI flow.
+            if (ui.Game != null)
+                ui.RequestReturnToMenu = true;
+
+            return PageResult.Exit;
         }
 
         protected virtual PageResult HandleInputBody(UiContext ui, ConsoleKeyInfo key)

@@ -44,10 +44,10 @@ namespace Spacegun_Simulator.UI
             {
                 // If a page requested a session-level return-to-menu (ESC intent),
                 // exit this controller immediately. Caller decides autosave + menu flow.
-                if (_ui.RequestReturnToMenu)
+                if (_ui.RequestReturnToMenu || _ui.RequestExitGame)
                 {
                     // Debug Page Migration
-                    _ui.DebugLog("RUN exit: RequestReturnToMenu=true");
+                    _ui.DebugLog($"RUN exit: RequestReturnToMenu={_ui.RequestReturnToMenu} RequestExitGame={_ui.RequestExitGame}");
                     break;
                 }
 
@@ -59,10 +59,10 @@ namespace Spacegun_Simulator.UI
                 current.Render(_ui);
 
                 // Re-check after render (a page could set intent during render in future)
-                if (_ui.RequestReturnToMenu)
+                if (_ui.RequestReturnToMenu || _ui.RequestExitGame)
                 {
                     // Debug Page Migration
-                    _ui.DebugLog("RUN exit after render: RequestReturnToMenu=true");
+                    _ui.DebugLog($"RUN exit after render: RequestReturnToMenu={_ui.RequestReturnToMenu} RequestExitGame={_ui.RequestExitGame}");
                     break;
                 }
 
@@ -71,18 +71,31 @@ namespace Spacegun_Simulator.UI
                 var result = current.HandleInput(_ui, key);
 
                 // Debug Page Migration
-                _ui.DebugLog($"INPUT page='{_currentPageId}' key={key.Key} -> exit={result.ExitRequested} stay={result.StayOnPage} next='{result.NextPageId}'");
+                _ui.DebugLog($"INPUT page='{_currentPageId}' key={key.Key} -> exit={result.ExitRequested} back={result.BackRequested} stay={result.StayOnPage} next='{result.NextPageId}'");
 
-                // If ESC happened, PageBase will have set RequestReturnToMenu and returned Exit.
-                if (_ui.RequestReturnToMenu)
+                // If ESC/Q happened, PageBase will have set the session-level intent and returned Exit.
+                if (_ui.RequestReturnToMenu || _ui.RequestExitGame)
                 {
                     // Debug Page Migration
-                    _ui.DebugLog("RUN exit: RequestReturnToMenu=true (after input)");
+                    _ui.DebugLog($"RUN exit: RequestReturnToMenu={_ui.RequestReturnToMenu} RequestExitGame={_ui.RequestExitGame} (after input)");
                     break;
                 }
 
                 if (result.ExitRequested)
                     break;
+
+                if (result.BackRequested)
+                {
+                    if (!TryNavigateBack())
+                    {
+                        if (!string.IsNullOrWhiteSpace(result.BackFallbackPageId))
+                            NavigateTo(result.BackFallbackPageId!);
+                        else
+                            break;
+                    }
+
+                    continue;
+                }
 
                 if (result.StayOnPage || string.IsNullOrWhiteSpace(result.NextPageId))
                     continue;

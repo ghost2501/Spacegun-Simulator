@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Spacegun_Simulator.UI.Screen;
 using Spacegun_Simulator.UI.Pages.Core;
 
@@ -15,7 +16,7 @@ namespace Spacegun_Simulator.UI
             GameDifficulty? Difficulty
         );
 
-        public static Result Run()
+        public static Result Run(string startPageId = PageId.Title)
         {
             // ✅ Create layout once for the whole UI session (title -> menu -> difficulty)
             var layout = new ScreenLayout();
@@ -23,7 +24,7 @@ namespace Spacegun_Simulator.UI
             // ✅ Create UiContext once, so pages share the same layout + settings
             var ui = new UiContext(layout);
 
-            // Write Log 
+            // Write Log
             // Debug Page Migration
             ui.Log = msg =>
             {
@@ -39,7 +40,7 @@ namespace Spacegun_Simulator.UI
             };
 
             // ✅ Create controller using the shared context
-            var controller = new UiController(ui, PageId.Title);
+            var controller = new UiController(ui, startPageId);
 
             // Pages we need for boot flow
             var title = new TitleScreenPage();
@@ -50,19 +51,25 @@ namespace Spacegun_Simulator.UI
             controller.Register(menu);
             controller.Register(difficulty);
 
-            // Run Title -> Menu (Menu exits controller)
             controller.Run();
+
+            // If the boot UI ended due to ESC/Q, treat it as Exit (don’t fall through as None).
+            if (ui.RequestReturnToMenu || ui.RequestExitGame)
+                return new Result(MainMenuChoice.Exit, Difficulty: null);
 
             var choice = menu.Choice;
 
+            // Any non-NewGame choice just returns directly.
             if (choice != MainMenuChoice.NewGame)
                 return new Result(choice, Difficulty: null);
 
-            // Difficulty was selected inside the same controller
+            // NewGame was chosen, but difficulty must be selected.
+            // If difficulty is null, the player likely ESC/Q'd out of difficulty selection.
+            // Treat this as "return to main menu" by clearing the choice and re-running the UI in Program.
+            if (difficulty.SelectedDifficulty is null)
+                return new Result(MainMenuChoice.None, Difficulty: null);
+
             return new Result(choice, difficulty.SelectedDifficulty);
-
-
         }
-
     }
 }

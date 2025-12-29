@@ -44,6 +44,12 @@ namespace Spacegun_Simulator.UI
         /// </summary>
         public bool RequestReturnToMenu { get; set; }
 
+        /// <summary>
+        /// Set by pages when Q is pressed.
+        /// Caller (ConsoleUI / Program) decides how to terminate the app.
+        /// </summary>
+        public bool RequestExitGame { get; set; }
+
         // ============================================================
         // Layout / rendering
         // ============================================================
@@ -63,6 +69,17 @@ namespace Spacegun_Simulator.UI
         /// Scrollable pages should respect this value.
         /// </summary>
         public int ContentViewportHeight { get; internal set; }
+
+        /// <summary>
+        /// Computed per frame by PageBase. Raw (no-indent) column where the center content starts.
+        /// Useful for aligning legacy prompts (Console.ReadLine) to the left edge of the center frame.
+        /// </summary>
+        public int FrameContentLeftNoOffset { get; internal set; }
+
+        /// <summary>
+        /// Computed per frame by PageBase. Raw (no-indent) row where buffered content begins.
+        /// </summary>
+        public int FrameContentTopNoOffset { get; internal set; }
 
         // ============================================================
         // Output helpers
@@ -113,6 +130,12 @@ namespace Spacegun_Simulator.UI
         // ============================================================
 
         public Action<string>? TryAutoSave { get; set; }
+
+        /// <summary>
+        /// Optional one-shot message to show on the next page render (typically the hub page).
+        /// Pages may set this before navigating back.
+        /// </summary>
+        public string? FlashMessage { get; set; }
 
         // ============================================================
         // Construction

@@ -69,6 +69,18 @@ namespace Spacegun_Simulator.UI.Pages.Core
 
         protected override void RenderBody(UiContext ui) { /* unused; Render overridden */ }
 
+        public override PageResult HandleInput(UiContext ui, ConsoleKeyInfo key)
+        {
+            if (key.Key == ConsoleKey.Q)
+            {
+                ui.RequestExitGame = true;
+                return PageResult.Exit;
+            }
+
+            // Title screen: ESC behaves like "any key" (continue).
+            return PageResult.Go(PageId.MainMenu);
+        }
+
         protected override PageResult HandleInputBody(UiContext ui, ConsoleKeyInfo key)
             => PageResult.Go(PageId.MainMenu);
 
@@ -80,19 +92,15 @@ namespace Spacegun_Simulator.UI.Pages.Core
 
         private static string[]? LoadTitleArtLines()
         {
-            // User stated: ./Assets/ascii-art/TitleScreen.txt
-            // Also support prior: ./Assets/ascii-art/TitleScreen.txt and AppContext paths.
             string cwd = Directory.GetCurrentDirectory();
             string baseDir = AppContext.BaseDirectory;
 
             string[] candidates =
             {
                 Path.Combine(cwd, "Assets", "ascii-art", "TitleScreen.txt"),
-                Path.Combine(cwd, "Assets", "ascii-art", "TitleScreen.txt"),
-                Path.Combine(baseDir, "Assets", "ascii-art", "TitleScreen.txt"),
                 Path.Combine(baseDir, "Assets", "ascii-art", "TitleScreen.txt"),
                 Path.GetFullPath(Path.Combine(baseDir, "..", "Assets", "ascii-art", "TitleScreen.txt")),
-                Path.GetFullPath(Path.Combine(baseDir, "..", "Assets", "ascii-art", "TitleScreen.txt")),
+                Path.GetFullPath(Path.Combine(baseDir, "..", "..", "Assets", "ascii-art", "TitleScreen.txt")),
             };
 
             foreach (var p in candidates)
@@ -102,7 +110,7 @@ namespace Spacegun_Simulator.UI.Pages.Core
                     if (File.Exists(p))
                         return File.ReadAllLines(p);
                 }
-                catch { /* ignore */ }
+                catch { }
             }
 
             return null;
