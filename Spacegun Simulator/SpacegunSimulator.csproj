@@ -49,6 +49,12 @@
 		</None>
 	</ItemGroup>
 
+  <ItemGroup>
+    <None Include="Assets\DrumPatterns\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 	<ItemGroup>
 		<PackageReference Include="NAudio" Version="2.2.1" />
 	</ItemGroup>
