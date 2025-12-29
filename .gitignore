@@ -48,6 +48,7 @@ ui.log
 *.zip
 
 # Allow checked-in release bundles
+!Releases/
 !Releases/*.zip
 
 # Accidental snapshot folder
