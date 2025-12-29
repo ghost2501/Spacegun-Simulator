@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, linux-x64, linux-arm64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install zip
+        run: sudo apt-get update && sudo apt-get install -y zip
+
+      - name: Restore
+        run: dotnet restore "Spacegun Simulator/SpacegunSimulator.csproj"
+
+      - name: Publish (${{ matrix.rid }})
+        run: |
+          dotnet publish "Spacegun Simulator/SpacegunSimulator.csproj" \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:DebugType=None \
+            -p:DebugSymbols=false \
+            -o "artifacts/${{ matrix.rid }}"
+
+      - name: Zip (${{ matrix.rid }})
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          ZIP_NAME="SpacegunSimulator_${VERSION}_${{ matrix.rid }}.zip"
+          (cd "artifacts/${{ matrix.rid }}" && zip -r "../../${ZIP_NAME}" .)
+
+      - name: Upload build artifact (${{ matrix.rid }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: zips-${{ matrix.rid }}
+          path: SpacegunSimulator_*.zip
+          if-no-files-found: error
+
+  publish-release:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: zips-*
+          merge-multiple: true
+
+      - name: Create SHA256SUMS
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum SpacegunSimulator_*.zip > SHA256SUMS.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            SpacegunSimulator_*.zip
+            SHA256SUMS.txt
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
