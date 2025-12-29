@@ -51,6 +51,9 @@ ui.log
 !Releases/
 !Releases/*.zip
 
+# Local scratch space for verifying release zips
+Releases/_verify/
+
 # Accidental snapshot folder
 New folder/
 # Uncomment if you have tasks that create the project's static files in wwwroot
