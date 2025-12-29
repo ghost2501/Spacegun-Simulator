@@ -195,42 +195,17 @@ Failure is always explainable.
 - No save scumming  
 - Game over deletes the save  
 
-This enforces:
-
-- Careful planning  
-- Respect for time  
-- Emotional weight behind each decision  
-
 ---
 
 ## 🎧 Audio
 
-Spacegun Simulator includes a **procedural, lo-fi soundscape**:
+Spacegun Simulator includes a deeply customisable **procedural, lo-fi soundscape** generator:
 
-- Non-looping  (ish)
-- Reactive to game state  (not yet implemented)
-- Designed to pace thinking, not distract  (Your milage may vary)
-- Drums and mechanical rhythms dominate  
-- Harmony is atmospheric, not melodic  
-
-The music functions as **emotional UI**, not background noise.
-
----
-
-## 🧪 What This Game Is (and Isn’t)
-
-**This is not:**
-
-- A text adventure  
-- A visual simulation  
-- A twitch-based game  
-
-**This *is*:**
-
-- An engineering puzzle  
-- A physics simulator  
-- A high-stakes planning game  
-- A command-line game that treats the terminal as a strength  
+- Non-repeating  (mostly)
+- Drum loops and procedural, mechanical rhythms  
+- Melody seed editor
+- Customisable drumloop library
+- Many filters
 
 ---
 
@@ -244,15 +219,6 @@ The music functions as **emotional UI**, not background noise.
 
 ---
 
-## 🧭 Final Note
-
-**Spacegun Simulator** is about responsibility.
-
-When the time comes, the calculations will be correct — or they won’t.  
-The universe does not care which.
-
----
-
 ## Development Notes
 
 AI tools were used during development for prototyping, refactoring, and exploring mathematical
@@ -260,8 +226,6 @@ approaches.
 
 All core systems, rules, and calculations are intentionally designed, reviewed, and constrained.
 The game relies on deterministic, explainable mechanics rather than opaque automation.
-
-AI is treated as a development aid, not an authority.
 
 ---
 
