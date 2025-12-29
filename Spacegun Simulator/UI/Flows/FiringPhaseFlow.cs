@@ -1,7 +1,6 @@
-using System;
-using Spacegun_Simulator.UI.Pages;
 using Spacegun_Simulator.UI.Pages.FireControl;
-using Spacegun_Simulator.UI.Flows;
+using Spacegun_Simulator.Ballistics;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.UI.Flows
 {
@@ -87,6 +86,8 @@ namespace Spacegun_Simulator.UI.Flows
                             if (result.RequestReturnToMenu)
                                 ui.RequestReturnToMenu = true;
 
+                            GamePhaseRouter.ApplyAfterFiringCommit(ui, result.Outcome);
+
                             workflowComplete = true;
                         }
                         break;
@@ -102,10 +103,7 @@ namespace Spacegun_Simulator.UI.Flows
         private static void RunFireControlTool(UiContext ui, string startPageId, bool propagateSessionExitFromTools)
         {
             var controller = new UiController(ui, startPageId);
-            controller.Register(new MotionComputerPage());
-            controller.Register(new BallisticsTablesPage());
-            controller.Register(new TrajectoryPlotterPage());
-            controller.Register(new FireSimulatorPage());
+            PageCatalog.RegisterFireControlTools(controller);
             controller.Run();
 
             if (!propagateSessionExitFromTools)

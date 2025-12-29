@@ -1,7 +1,10 @@
+using Spacegun_Simulator.Ballistics;
+using Spacegun_Simulator.Core;
+
 namespace Spacegun_Simulator.FireControlTools
 {
     /// <summary>
-    /// BALLISTIC TABLES & REFERENCE CHARTS (TIER & DIFFICULTY-LINKED)
+    /// BALLISTIC TABLES &amp; REFERENCE CHARTS (TIER &amp; DIFFICULTY-LINKED)
     /// 
     /// Provides dynamically-generated lookup tables for ballistic calculations.
     /// Tables adapt to:
@@ -467,7 +470,7 @@ namespace Spacegun_Simulator.FireControlTools
         // ====================================================================
 
         /// <summary>
-        /// Display reference charts menu with tier & difficulty context.
+        /// Display reference charts menu with tier &amp; difficulty context.
         /// </summary>
         public static void ShowReferencesMenu(int? currentTierIndex = null, GameDifficulty? currentDifficulty = null)
         {

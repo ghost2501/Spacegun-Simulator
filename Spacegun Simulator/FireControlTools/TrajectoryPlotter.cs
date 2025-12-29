@@ -1,5 +1,6 @@
-using Spacegun_Simulator.UI;
 using Spacegun_Simulator.UI.Screen;
+using Spacegun_Simulator.Ballistics;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.FireControlTools
 {
@@ -31,7 +32,7 @@ namespace Spacegun_Simulator.FireControlTools
         /// Launch the Trajectory Plotter interactive tool.
         /// Uses DifficultyConfig for all precision formatting.
         ///
-        /// NOTE: Accepts optional rendering helpers so the caller (ConsoleUI) can supply
+        /// NOTE: Accepts optional rendering helpers so the caller can supply
         /// a ScreenLayout and raw/indented writers to render the boxed header consistently.
         /// If those are not provided the method falls back to the inline boxed header.
         /// </summary>

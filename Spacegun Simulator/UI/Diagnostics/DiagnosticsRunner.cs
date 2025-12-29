@@ -1,6 +1,8 @@
-using System;
 using Spacegun_Simulator.Tests;
-using Spacegun_Simulator.UI.Pages;
+using Spacegun_Simulator.UI.Pages.Core;
+using Spacegun_Simulator.UI.Pages.Development;
+using Spacegun_Simulator.Enemies;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.UI.Diagnostics
 {
@@ -31,7 +33,7 @@ namespace Spacegun_Simulator.UI.Diagnostics
         {
             if (ui == null) throw new ArgumentNullException(nameof(ui));
 
-            var page = new Spacegun_Simulator.UI.Pages.Core.DifficultySelectionPage
+            var page = new DifficultySelectionPage
             {
                 EscapeNavigatesToMainMenu = false
             };
@@ -64,9 +66,7 @@ namespace Spacegun_Simulator.UI.Diagnostics
             var page = new DevelopmentPage();
             var controller = new UiController(ui, PageId.WeaponDevelopment);
             controller.Register(page);
-            controller.Register(new DetailedWeaponStatusPage());
-            controller.Register(new GunDevelopmentPage());
-            controller.Register(new ProjectileDevelopmentPage());
+            PageCatalog.RegisterDevelopmentSubpages(controller);
             controller.Run();
 
             ui.RequestReturnToMenu = false;
@@ -87,10 +87,7 @@ namespace Spacegun_Simulator.UI.Diagnostics
             ui.Game = game;
 
             var controller = new UiController(ui, startPageId);
-            controller.Register(new Spacegun_Simulator.UI.Pages.FireControl.MotionComputerPage());
-            controller.Register(new Spacegun_Simulator.UI.Pages.FireControl.BallisticsTablesPage());
-            controller.Register(new Spacegun_Simulator.UI.Pages.FireControl.TrajectoryPlotterPage());
-            controller.Register(new Spacegun_Simulator.UI.Pages.FireControl.FireSimulatorPage());
+            PageCatalog.RegisterFireControlTools(controller);
             controller.Run();
 
             ui.RequestReturnToMenu = false;
@@ -108,23 +105,9 @@ namespace Spacegun_Simulator.UI.Diagnostics
             ui.Game = game;
 
             var controller = new UiController(ui, startPageId);
-            controller.Register(new Spacegun_Simulator.UI.Pages.Core.TitleScreenPage());
-            controller.Register(new Spacegun_Simulator.UI.Pages.Core.MainMenuPage());
-            controller.Register(new Spacegun_Simulator.UI.Pages.Core.DifficultySelectionPage());
-
-            controller.Register(new DetectionPage());
-            controller.Register(new ResourceAllocationPage());
-            controller.Register(new ResourceOptionsPage());
-            controller.Register(new ResearchMenuPage());
-            controller.Register(new PreparationStatusPage());
-            controller.Register(new PreparationSummaryPage());
-            controller.Register(new DevelopmentPage());
-            controller.Register(new DetailedWeaponStatusPage());
-            controller.Register(new GunDevelopmentPage());
-            controller.Register(new ProjectileDevelopmentPage());
-            controller.Register(new FiringPhasePage());
-            controller.Register(new WaveCompletePage());
-            controller.Register(new Spacegun_Simulator.UI.Pages.Core.GameOverPage());
+            PageCatalog.RegisterCore(controller, includeGameOver: true);
+            PageCatalog.RegisterGamePhasePages(controller);
+            PageCatalog.RegisterFireControlTools(controller);
 
             controller.Run();
 

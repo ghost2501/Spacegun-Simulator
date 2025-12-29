@@ -1,8 +1,5 @@
 using Spacegun_Simulator.UI;
 using Spacegun_Simulator.UI.Screen;
-using System;
-using System.Collections.Generic;
-using System.IO;
 
 namespace Spacegun_Simulator
 {

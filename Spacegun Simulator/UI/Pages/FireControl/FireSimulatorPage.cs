@@ -1,9 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using Spacegun_Simulator;
-using Spacegun_Simulator.UI;
-using Spacegun_Simulator.UI.Pages;
-using Spacegun_Simulator.UI.Theme;
+﻿using Spacegun_Simulator.UI.Theme;
+using Spacegun_Simulator.Ballistics;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.UI.Pages.FireControl
 {
@@ -36,7 +33,6 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 		private static double s_lastElevation = 30.0;
 		private static double s_lastAzimuth = 0.0;
 		private static double s_lastVelocity = -1.0; // -1 means "use max"
-		private static bool s_hasLast;
 
 		private Mode _mode;
 		private DifficultyConfig? _diff;
@@ -311,7 +307,6 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 						s_lastElevation = _elevation;
 						s_lastAzimuth = _azimuth;
 						s_lastVelocity = _velocity;
-						s_hasLast = true;
 
 						_resultLines = BuildSimulationLines(_diff!, _enemyPos, _enemyVel, _delayTime, _elevation, _azimuth, _velocity, _projectileMassKg);
 						_mode = Mode.Result;

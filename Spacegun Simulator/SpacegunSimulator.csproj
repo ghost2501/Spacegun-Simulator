@@ -6,12 +6,13 @@
     <RootNamespace>Spacegun_Simulator</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
     <!-- Versioning (SemVer). Still pre-alpha. -->
-    <Version>0.0.4-pre-alpha.1</Version>
+    <Version>0.0.4-pre-alpha.3</Version>
     <AssemblyVersion>0.0.4.0</AssemblyVersion>
-    <FileVersion>0.0.4.0</FileVersion>
-    <InformationalVersion>0.0.4-pre-alpha.1</InformationalVersion>
+    <FileVersion>0.0.4.3</FileVersion>
+    <InformationalVersion>0.0.4-pre-alpha.3</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -58,5 +59,9 @@
 	<ItemGroup>
 		<PackageReference Include="NAudio" Version="2.2.1" />
 	</ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenTK" Version="4.8.2" />
+  </ItemGroup>
 
 </Project>

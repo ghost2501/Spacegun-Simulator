@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-
 namespace Spacegun_Simulator.UI.Screen
 {
     /// <summary>
@@ -134,7 +131,7 @@ namespace Spacegun_Simulator.UI.Screen
 
         /// <summary>
         /// TextWriter that indents at the start of each line.
-        /// Similar to ConsoleUI's internal IndentTextWriter, but reusable from UI code.
+        /// Similar to the old legacy console UI's IndentTextWriter, but reusable from page-based UI code.
         /// </summary>
         private sealed class FrameIndentWriter : TextWriter
         {

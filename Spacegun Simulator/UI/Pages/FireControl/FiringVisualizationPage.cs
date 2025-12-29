@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading;
-using Spacegun_Simulator.UI.Theme;
+﻿using Spacegun_Simulator.UI.Theme;
+using Spacegun_Simulator.Ballistics;
 
 namespace Spacegun_Simulator.UI.Pages.FireControl
 {
@@ -104,8 +102,11 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 			try
 			{
 				priorOut = Console.Out;
-				try { priorCursorVisible = Console.CursorVisible; } catch { priorCursorVisible = true; }
-				try { Console.CursorVisible = false; } catch { }
+				if (OperatingSystem.IsWindows())
+				{
+					try { priorCursorVisible = Console.CursorVisible; } catch { priorCursorVisible = true; }
+					try { Console.CursorVisible = false; } catch { }
+				}
 
 				// IMPORTANT: do NOT use BeginBufferedFrame here.
 				// It installs a PageBuffer, which would buffer every animation frame and flush them at the end.
@@ -244,7 +245,10 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 			finally
 			{
 				try { Console.SetOut(priorOut ?? (ui.IndentWriter ?? Console.Out)); } catch { }
-				try { Console.CursorVisible = priorCursorVisible; } catch { }
+				if (OperatingSystem.IsWindows())
+				{
+					try { Console.CursorVisible = priorCursorVisible; } catch { }
+				}
 			}
 		}
 

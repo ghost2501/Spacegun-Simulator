@@ -1,6 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using Spacegun_Simulator.UI.Pages;
+﻿using Spacegun_Simulator.UI.Pages;
+using Spacegun_Simulator.Audio;
 
 namespace Spacegun_Simulator.UI
 {
@@ -35,6 +34,10 @@ namespace Spacegun_Simulator.UI
             if (!_pages.ContainsKey(_currentPageId))
                 throw new InvalidOperationException($"Start page '{_currentPageId}' is not registered.");
 
+            // Reset navigation trace for this run.
+            _ui.LastPageId = null;
+            _ui.LastPageResult = null;
+
             // Debug Page Migration
             _ui.DebugLog($"RUN startPage='{_currentPageId}'");
 
@@ -48,6 +51,9 @@ namespace Spacegun_Simulator.UI
                 {
                     // Debug Page Migration
                     _ui.DebugLog($"RUN exit: RequestReturnToMenu={_ui.RequestReturnToMenu} RequestExitGame={_ui.RequestExitGame}");
+
+                    _ui.LastPageId = _currentPageId;
+                    _ui.LastPageResult = PageResult.Exit;
                     break;
                 }
 
@@ -63,6 +69,9 @@ namespace Spacegun_Simulator.UI
                 {
                     // Debug Page Migration
                     _ui.DebugLog($"RUN exit after render: RequestReturnToMenu={_ui.RequestReturnToMenu} RequestExitGame={_ui.RequestExitGame}");
+
+                    _ui.LastPageId = _currentPageId;
+                    _ui.LastPageResult = PageResult.Exit;
                     break;
                 }
 
@@ -78,11 +87,18 @@ namespace Spacegun_Simulator.UI
                 {
                     // Debug Page Migration
                     _ui.DebugLog($"RUN exit: RequestReturnToMenu={_ui.RequestReturnToMenu} RequestExitGame={_ui.RequestExitGame} (after input)");
+
+                    _ui.LastPageId = _currentPageId;
+                    _ui.LastPageResult = result;
                     break;
                 }
 
                 if (result.ExitRequested)
+                {
+                    _ui.LastPageId = _currentPageId;
+                    _ui.LastPageResult = result;
                     break;
+                }
 
                 if (result.BackRequested)
                 {
@@ -91,7 +107,11 @@ namespace Spacegun_Simulator.UI
                         if (!string.IsNullOrWhiteSpace(result.BackFallbackPageId))
                             NavigateTo(result.BackFallbackPageId!);
                         else
+                        {
+                            _ui.LastPageId = _currentPageId;
+                            _ui.LastPageResult = result;
                             break;
+                        }
                     }
 
                     continue;

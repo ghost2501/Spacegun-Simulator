@@ -1,5 +1,4 @@
-﻿json Spacegun Simulator\Config\GameConfig.schema.json
-{
+﻿{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Spacegun Simulator GameConfig",
   "type": "object",
@@ -13,7 +12,6 @@
     "SteelRewardPerWave": { "type": "number" },
     "ExoticRewardBase": { "type": "number" },
     "ExoticRewardPerWave": { "type": "number" },
-    "BudgetLossPerSurvivor": { "type": "number" },
     "MinBudgetToContinue": { "type": "number" },
     "TargetCountBase": { "type": "integer" },
     "TargetCountTierBonus": { "type": "integer" },

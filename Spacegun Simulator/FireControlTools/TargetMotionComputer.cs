@@ -1,5 +1,6 @@
-using Spacegun_Simulator.UI;
 using Spacegun_Simulator.UI.Screen;
+using Spacegun_Simulator.Ballistics;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.FireControlTools
 {
@@ -23,7 +24,7 @@ namespace Spacegun_Simulator.FireControlTools
         /// Player can test multiple time offsets in a loop.
         /// Uses DifficultyConfig for all precision formatting.
         ///
-        /// NOTE: accepts optional ScreenLayout + writers to let ConsoleUI render the boxed header
+        /// NOTE: accepts optional ScreenLayout + writers to let the caller render the boxed header
         /// consistently using the same layout logic. Falls back to inline boxed header otherwise.
         /// </summary>
         internal static void ShowMotionComputerTool(

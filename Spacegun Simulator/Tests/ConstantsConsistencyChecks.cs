@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Spacegun_Simulator.Core;
+using Spacegun_Simulator.Development.Weapons;
 
 namespace Spacegun_Simulator.Tests
 {

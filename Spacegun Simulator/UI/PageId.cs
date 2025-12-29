@@ -9,12 +9,12 @@
         // Title / Meta
         public const string Title = "Title";
         public const string MainMenu = "MainMenu";
+        public const string MusicConfiguration = "MusicConfiguration";
         public const string DifficultySelection = "DifficultySelection";
         public const string GameOver = "GameOver";
 
         // Detection / Resource Phase
         public const string Detection = "Detection";
-        public const string ResourceHub = "ResourceHub"; // "RESOURCES & RESEARCH" hub/wrapper
         public const string ResourceAllocation = "ResourceAllocation"; // "RESOURCE ALLOCATION"
         public const string ResourceOptions = "ResourceOptions";
         public const string PreparationSummary = "PreparationSummary";
@@ -46,7 +46,7 @@
         public const string FiringChallenge = "FiringChallenge";
         public const string SimulationTestMode = "SimulationTestMode";
 
-        // UI-based diagnostics pages (migrated out of ConsoleUI.Diagnostics)
+        // UI-based diagnostics pages
         public const string DiagnosticsUiPageLauncher = "DiagnosticsUiPageLauncher";
         public const string DiagnosticsTestHarness = "DiagnosticsTestHarness";
     }

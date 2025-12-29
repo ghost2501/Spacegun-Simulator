@@ -1,4 +1,4 @@
-using System;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.Tests
 {

@@ -1,0 +1,11 @@
+root = true
+
+# Keep this file intentionally minimal: we only want "remove unused usings"
+# without reformatting or applying other style opinions.
+
+[*.cs]
+# Remove unused usings
+dotnet_remove_unnecessary_imports = true
+
+# Ensure the fixer runs but avoid pushing other style changes
+dotnet_diagnostic.IDE0005.severity = warning

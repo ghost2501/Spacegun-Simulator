@@ -1,7 +1,7 @@
-using System;
-using System.IO;
 using Spacegun_Simulator.UI.Screen;
 using Spacegun_Simulator.UI.Pages.Core;
+using Spacegun_Simulator.UI.Pages.Audio;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.UI
 {
@@ -45,10 +45,12 @@ namespace Spacegun_Simulator.UI
             // Pages we need for boot flow
             var title = new TitleScreenPage();
             var menu = new MainMenuPage();
+            var musicConfig = new MusicConfigurationPage();
             var difficulty = new DifficultySelectionPage();
 
             controller.Register(title);
             controller.Register(menu);
+            controller.Register(musicConfig);
             controller.Register(difficulty);
 
             controller.Run();

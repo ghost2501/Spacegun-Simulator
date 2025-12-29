@@ -7,7 +7,6 @@
   "SteelRewardPerWave": 5,
   "ExoticRewardBase": 5,
   "ExoticRewardPerWave": 2,
-  "BudgetLossPerSurvivor": 50,
   "MinBudgetToContinue": 100,
   "TargetCountBase": 2,
   "TargetCountTierBonus": 1,

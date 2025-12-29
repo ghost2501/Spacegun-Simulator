@@ -1,3 +1,6 @@
+using Spacegun_Simulator.Ballistics;
+using Spacegun_Simulator.Core;
+
 namespace Spacegun_Simulator.FireControlTools
 {
     /// <summary>

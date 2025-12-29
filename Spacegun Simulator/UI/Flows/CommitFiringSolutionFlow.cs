@@ -1,17 +1,22 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using Spacegun_Simulator.UI;
-using Spacegun_Simulator.UI.Pages;
 using Spacegun_Simulator.UI.Pages.FireControl;
-using Spacegun_Simulator.UI.Pages.Phases;
 using Spacegun_Simulator.UI.Screen;
+using Spacegun_Simulator.Enemies;
+using Spacegun_Simulator.Ballistics;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.UI.Flows
 {
+    public enum CommitFiringOutcome
+    {
+        None = 0,
+        Hit = 1,
+        Miss = 2
+    }
+
     public readonly record struct CommitFiringSolutionFlowResult(
         bool RequestExitGame,
-        bool RequestReturnToMenu
+        bool RequestReturnToMenu,
+        CommitFiringOutcome Outcome
     );
 
     public static class CommitFiringSolutionFlow
@@ -52,10 +57,10 @@ namespace Spacegun_Simulator.UI.Flows
             controller.Run();
 
             if (ui.RequestExitGame)
-                return new CommitFiringSolutionFlowResult(RequestExitGame: true, RequestReturnToMenu: false);
+                return new CommitFiringSolutionFlowResult(RequestExitGame: true, RequestReturnToMenu: false, Outcome: CommitFiringOutcome.None);
 
             if (ui.RequestReturnToMenu)
-                return new CommitFiringSolutionFlowResult(RequestExitGame: false, RequestReturnToMenu: true);
+                return new CommitFiringSolutionFlowResult(RequestExitGame: false, RequestReturnToMenu: true, Outcome: CommitFiringOutcome.None);
 
             if (!paramPage.Submitted)
                 return default;
@@ -164,10 +169,10 @@ namespace Spacegun_Simulator.UI.Flows
             vizController.Run();
 
             if (vizUi.RequestExitGame)
-                return new CommitFiringSolutionFlowResult(RequestExitGame: true, RequestReturnToMenu: false);
+                return new CommitFiringSolutionFlowResult(RequestExitGame: true, RequestReturnToMenu: false, Outcome: CommitFiringOutcome.None);
 
             if (vizUi.RequestReturnToMenu)
-                return new CommitFiringSolutionFlowResult(RequestExitGame: false, RequestReturnToMenu: true);
+                return new CommitFiringSolutionFlowResult(RequestExitGame: false, RequestReturnToMenu: true, Outcome: CommitFiringOutcome.None);
 
             // Step 4: Build results (keeps existing game logic order), then show as a framed page.
             string? barrelLine1 = null;
@@ -187,14 +192,10 @@ namespace Spacegun_Simulator.UI.Flows
             if (hitResult)
             {
                 outcomeLine = "✓ DIRECT HIT! Enemy destroyed!";
-                game.WavesDefeated++;
-                game.CurrentPhase = GameState.GamePhase.WaveComplete;
-                game.AutoSaveGame();
             }
             else
             {
                 outcomeLine = "✗ MISS! Your ballistic solution was inaccurate or lacked sufficient energy.";
-                game.IsGameOver = true;
             }
 
             var resultsLines = BuildResultsLines(
@@ -222,14 +223,17 @@ namespace Spacegun_Simulator.UI.Flows
             resultsController.Run();
 
             if (resultsUi.RequestExitGame)
-                return new CommitFiringSolutionFlowResult(RequestExitGame: true, RequestReturnToMenu: false);
+                return new CommitFiringSolutionFlowResult(RequestExitGame: true, RequestReturnToMenu: false, Outcome: CommitFiringOutcome.None);
 
             if (resultsUi.RequestReturnToMenu)
-                return new CommitFiringSolutionFlowResult(RequestExitGame: false, RequestReturnToMenu: true);
+                return new CommitFiringSolutionFlowResult(RequestExitGame: false, RequestReturnToMenu: true, Outcome: CommitFiringOutcome.None);
 
             try { Console.SetOut(indentWriter); } catch { }
 
-            return default;
+            return new CommitFiringSolutionFlowResult(
+                RequestExitGame: false,
+                RequestReturnToMenu: false,
+                Outcome: hitResult ? CommitFiringOutcome.Hit : CommitFiringOutcome.Miss);
         }
 
         private static void DisplayFiringAnalysis(FiringSolutionResult solution, float delayTime, float elevation, float azimuth, float velocity)

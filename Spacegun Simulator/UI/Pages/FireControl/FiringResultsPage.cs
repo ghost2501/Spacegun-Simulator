@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using Spacegun_Simulator.UI;
-using Spacegun_Simulator.UI.Pages;
 using Spacegun_Simulator.UI.Theme;
 
 namespace Spacegun_Simulator.UI.Pages.FireControl

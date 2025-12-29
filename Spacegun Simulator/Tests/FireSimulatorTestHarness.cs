@@ -1,8 +1,5 @@
-using System;
-using System.Diagnostics;
-using System.IO;
 using System.Text;
-using Spacegun_Simulator;
+using Spacegun_Simulator.Ballistics;
 
 namespace Spacegun_Simulator.Tests
 {
@@ -129,7 +126,7 @@ namespace Spacegun_Simulator.Tests
             Console.ReadKey();
         }
 
-        // Add this public RunAllTests method to the partial class so callers (ConsoleUI) can invoke the test harness.
+        // Add this public RunAllTests method so callers can invoke the test harness.
         // Minimal menu implemented — keeps focus on the Tech Audit option which the UI relies on.
 
         public void RunAllTests()

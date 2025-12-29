@@ -1,13 +1,10 @@
-using System;
-using System.IO;
-using System.Collections.Generic;
 using System.Text;
 
 namespace Spacegun_Simulator.UI.Screen
 {
     /// <summary>
     /// Layout helper: side art + frame rendering + buffered content placement.
-    /// IMPORTANT: This class is referenced broadly by legacy ConsoleUI tooling.
+    /// Layout helper: side art + frame rendering + buffered content placement.
     /// Keep method signatures stable (compat overloads included).
     /// </summary>
     public sealed class ScreenLayout
@@ -259,7 +256,7 @@ namespace Spacegun_Simulator.UI.Screen
         public PageBuffer CreatePageBuffer(int indentLength) => new PageBuffer(indentLength);
 
         /// <summary>
-        /// ConsoleUI calls a 5-arg overload.
+        /// Back-compat overload used by older tooling.
         /// </summary>
         public (int contentLeft, int contentTop) BeginBufferedFrame(
             IList<string> frameLines,

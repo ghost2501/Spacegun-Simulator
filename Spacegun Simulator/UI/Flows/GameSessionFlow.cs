@@ -1,9 +1,6 @@
-using System;
-using System.IO;
-using Spacegun_Simulator.UI.Pages;
-using Spacegun_Simulator.UI.Pages.Core;
-using Spacegun_Simulator.UI.Pages.FireControl;
+using Spacegun_Simulator.UI.Pages.Development;
 using Spacegun_Simulator.UI.Screen;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.UI.Flows
 {
@@ -104,7 +101,7 @@ namespace Spacegun_Simulator.UI.Flows
             var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null.");
 
             var controller = new UiController(ui, PageId.Detection);
-            controller.Register(new DetectionPage());
+            PageCatalog.RegisterDetection(controller);
             controller.Run();
 
             if (!ui.RequestExitGame && !ui.RequestReturnToMenu && !game.IsGameOver)
@@ -114,12 +111,10 @@ namespace Spacegun_Simulator.UI.Flows
         private static void RunResourceAllocation(UiContext ui)
         {
             var controller = new UiController(ui, PageId.ResourceAllocation);
-            controller.Register(new ResourceAllocationPage());
-            controller.Register(new ResourceOptionsPage());
-            controller.Register(new ResearchMenuPage());
-            controller.Register(new PreparationStatusPage());
-            controller.Register(new PreparationSummaryPage());
+            PageCatalog.RegisterResourcePhasePages(controller);
             controller.Run();
+
+            GamePhaseRouter.ApplyAfterPhaseControllerRun(ui, GameState.GamePhase.ResourceAllocation);
         }
 
         private static void RunDevelopment(UiContext ui)
@@ -129,26 +124,25 @@ namespace Spacegun_Simulator.UI.Flows
             var page = new DevelopmentPage();
             var controller = new UiController(ui, PageId.WeaponDevelopment);
             controller.Register(page);
-            controller.Register(new DetailedWeaponStatusPage());
-            controller.Register(new GunDevelopmentPage());
-            controller.Register(new ProjectileDevelopmentPage());
+            PageCatalog.RegisterDevelopmentSubpages(controller);
             controller.Run();
 
-            if (!ui.RequestExitGame && !ui.RequestReturnToMenu && page.Action == DevelopmentPage.DevelopmentMenuAction.Done)
-                game.CurrentPhase = GameState.GamePhase.Firing;
+            GamePhaseRouter.ApplyAfterDevelopmentRun(ui, page);
         }
 
         private static void RunWaveComplete(UiContext ui)
         {
             var controller = new UiController(ui, PageId.WaveComplete);
-            controller.Register(new WaveCompletePage());
+            PageCatalog.RegisterWaveComplete(controller);
             controller.Run();
+
+            GamePhaseRouter.ApplyAfterPhaseControllerRun(ui, GameState.GamePhase.WaveComplete);
         }
 
         private static void ShowGameOver(UiContext ui)
         {
             var controller = new UiController(ui, PageId.GameOver);
-            controller.Register(new GameOverPage());
+            PageCatalog.RegisterGameOver(controller);
             controller.Run();
 
             // GameOverPage treats any key as "continue"; don't propagate intents.

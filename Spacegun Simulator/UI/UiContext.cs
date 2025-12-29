@@ -1,7 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using Spacegun_Simulator.UI.Screen;
+﻿using Spacegun_Simulator.UI.Screen;
+using Spacegun_Simulator.UI.Pages;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.UI
 {
@@ -40,13 +39,13 @@ namespace Spacegun_Simulator.UI
 
         /// <summary>
         /// Set by pages when ESC is pressed.
-        /// Caller (ConsoleUI / Program) decides how to autosave and return to menu.
+        /// Caller (session flow / Program) decides how to autosave and return to menu.
         /// </summary>
         public bool RequestReturnToMenu { get; set; }
 
         /// <summary>
         /// Set by pages when Q is pressed.
-        /// Caller (ConsoleUI / Program) decides how to terminate the app.
+        /// Caller (session flow / Program) decides how to terminate the app.
         /// </summary>
         public bool RequestExitGame { get; set; }
 
@@ -136,6 +135,22 @@ namespace Spacegun_Simulator.UI
         /// Pages may set this before navigating back.
         /// </summary>
         public string? FlashMessage { get; set; }
+
+        // ============================================================
+        // Navigation trace (set by UiController)
+        // ============================================================
+
+        /// <summary>
+        /// The last page id that was active when a UiController exited.
+        /// Used by higher-level flows/routers to decide what to do next.
+        /// </summary>
+        public string? LastPageId { get; internal set; }
+
+        /// <summary>
+        /// The last PageResult returned by the last page before a UiController exited.
+        /// Null if the controller hasn't processed any input yet.
+        /// </summary>
+        public PageResult? LastPageResult { get; internal set; }
 
         // ============================================================
         // Construction

@@ -1,7 +1,4 @@
-﻿using System;
-using Spacegun_Simulator;
-using System.Collections.Generic;
-using Spacegun_Simulator.UI.Theme;
+﻿using Spacegun_Simulator.UI.Theme;
 
 namespace Spacegun_Simulator.UI.Pages
 {
@@ -10,7 +7,8 @@ namespace Spacegun_Simulator.UI.Pages
     /// </summary>
     public abstract class PageBase : IPage
     {
-		protected const int DefaultFrameWidth = 60;
+		// Must match ScreenLayout.FrameWidth (default 60) to avoid a visible 1-column seam.
+        protected const int DefaultFrameWidth = 60;
 		protected const int DefaultScrollPageStep = 6;
 
         public abstract string Id { get; }
@@ -33,6 +31,85 @@ namespace Spacegun_Simulator.UI.Pages
         {
             text ??= "";
             return text.Length > width ? text.Substring(0, width) : text;
+        }
+
+        private static string FormatFooterHint(string hint, int width)
+        {
+            hint ??= "";
+            hint = hint.Trim();
+            if (hint.Length == 0) return hint;
+
+            // If the page already used manual spacing, respect it.
+            if (hint.Contains("  "))
+                return hint;
+
+            // Split on whitespace that precedes a new key=value token.
+            var items = new List<string>();
+            int len = hint.Length;
+            int start = 0;
+            while (start < len && char.IsWhiteSpace(hint[start])) start++;
+            int i = start;
+            while (i < len)
+            {
+                if (char.IsWhiteSpace(hint[i]))
+                {
+                    int j = i;
+                    while (j < len && char.IsWhiteSpace(hint[j])) j++;
+                    if (j >= len) break;
+
+                    // Determine whether the next token looks like key=value.
+                    bool hasEq = false;
+                    int k = j;
+                    while (k < len && !char.IsWhiteSpace(hint[k]))
+                    {
+                        if (hint[k] == '=') { hasEq = true; break; }
+                        k++;
+                    }
+
+                    if (hasEq)
+                    {
+                        var part = hint.Substring(start, i - start).Trim();
+                        if (part.Length > 0) items.Add(part);
+                        start = j;
+                        i = j;
+                        continue;
+                    }
+                }
+
+                i++;
+            }
+
+            var last = hint.Substring(start).Trim();
+            if (last.Length > 0) items.Add(last);
+
+            // Only justify when we have enough options for it to matter.
+            if (items.Count < 3)
+                return hint;
+
+            int gaps = items.Count - 1;
+            int itemsLen = 0;
+            foreach (var it in items) itemsLen += it.Length;
+
+            int minSpaces = gaps; // 1 space per gap
+            int remaining = width - (itemsLen + minSpaces);
+            if (remaining <= 0)
+                return string.Join(' ', items);
+
+            int extraEach = remaining / gaps;
+            int extraRemainder = remaining % gaps;
+
+            var sb = new System.Text.StringBuilder(width);
+            for (int idx = 0; idx < items.Count; idx++)
+            {
+                sb.Append(items[idx]);
+                if (idx < gaps)
+                {
+                    int spaces = 1 + extraEach + (idx < extraRemainder ? 1 : 0);
+                    sb.Append(' ', spaces);
+                }
+            }
+
+            return sb.ToString();
         }
 
         protected static string Clamp60(string text)
@@ -114,9 +191,106 @@ namespace Spacegun_Simulator.UI.Pages
             }
         }
 
+        private sealed class WordWrapWriter : System.IO.TextWriter
+        {
+            private readonly System.IO.TextWriter _inner;
+            private readonly int _width;
+            private readonly System.Text.StringBuilder _line = new();
+
+            public WordWrapWriter(System.IO.TextWriter inner, int width)
+            {
+                _inner = inner;
+                _width = Math.Max(10, width);
+            }
+
+            public override System.Text.Encoding Encoding => _inner.Encoding;
+
+            private void FlushLine(bool emitNewline)
+            {
+                if (_line.Length > 0)
+                {
+                    _inner.Write(_line.ToString());
+                    _line.Clear();
+                }
+
+                if (emitNewline)
+                    _inner.Write('\n');
+            }
+
+            private void WrapIfNeeded()
+            {
+                while (_line.Length > _width)
+                {
+                    int breakAt = -1;
+                    for (int i = Math.Min(_width, _line.Length - 1); i >= 0; i--)
+                    {
+                        if (_line[i] == ' ')
+                        {
+                            breakAt = i;
+                            break;
+                        }
+                    }
+
+                    if (breakAt <= 0)
+                        breakAt = _width;
+
+                    string head = _line.ToString(0, breakAt).TrimEnd();
+                    _inner.Write(head);
+                    _inner.Write('\n');
+
+                    int remove = breakAt;
+                    while (remove < _line.Length && _line[remove] == ' ') remove++;
+                    _line.Remove(0, remove);
+                }
+            }
+
+            public override void Write(char value)
+            {
+                if (value == '\r')
+                    return;
+
+                if (value == '\n')
+                {
+                    WrapIfNeeded();
+                    FlushLine(emitNewline: true);
+                    return;
+                }
+
+                _line.Append(value);
+                WrapIfNeeded();
+            }
+
+            public override void Write(string? value)
+            {
+                if (string.IsNullOrEmpty(value))
+                    return;
+
+                foreach (var ch in value)
+                    Write(ch);
+            }
+
+            public override void WriteLine(string? value)
+            {
+                Write(value);
+                Write('\n');
+            }
+
+            public override void WriteLine()
+                => Write('\n');
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing)
+                    FlushLine(emitNewline: false);
+                base.Dispose(disposing);
+            }
+        }
+
         public virtual void Render(UiContext ui)
         {
             ui.Clear();
+
+            int frameWidth = ui.Layout.FrameWidth > 0 ? ui.Layout.FrameWidth : DefaultFrameWidth;
 
             if (Chrome.ShowSidePanels)
             {
@@ -132,14 +306,14 @@ namespace Spacegun_Simulator.UI.Pages
 
                 // Optional title (blank title suppresses it)
                 if (!string.IsNullOrWhiteSpace(Title))
-                    header.Add(CenterToWidth(Title, 60));
+                    header.Add(CenterToWidth(Title, frameWidth));
 
                 // Optional single-line status (below title)
                 if (Chrome.ShowStatusBar)
                 {
                     var status = ui.BuildStatusBar?.Invoke();
                     if (!string.IsNullOrWhiteSpace(status))
-                        header.Add(ClampToWidth(status, 60));
+                        header.Add(ClampToWidth(status, frameWidth));
                 }
 
                 header.Add("");
@@ -181,7 +355,8 @@ namespace Spacegun_Simulator.UI.Pages
                     // Render BODY into a line-limited writer so it cannot push footer away.
                     var pageBufferWriter = Console.Out;
                     var limited = new LineLimitedWriter(pageBufferWriter, viewportHeight);
-                    Console.SetOut(limited);
+                    var wrapped = new WordWrapWriter(limited, frameWidth);
+                    Console.SetOut(wrapped);
 
                     RenderBody(ui);
 
@@ -195,15 +370,16 @@ namespace Spacegun_Simulator.UI.Pages
 
                     // Pinned footer bar (optional)
                     if (hasFooterBar)
-                        Console.WriteLine(ClampToWidth(footerBar!, 60));
+                        Console.WriteLine(ClampToWidth(footerBar!, frameWidth).PadRight(frameWidth));
 
                     // Pinned footer hint (always one line)
                     var hint = Chrome.FooterHint ?? "Press [Esc] for Menu, [Q] to quit.";
-                    Console.WriteLine(ClampToWidth(hint, 60));
+                    hint = FormatFooterHint(hint, frameWidth);
+                    Console.WriteLine(ClampToWidth(hint, frameWidth).PadRight(frameWidth));
 
                     // Pinned footer art (optional)
                     foreach (var line in footerArt)
-                        Console.WriteLine(ClampToWidth(line ?? "", 60));
+                        Console.WriteLine(ClampToWidth(line ?? "", frameWidth).PadRight(frameWidth));
                 }
                 catch (Exception ex)
                 {
@@ -226,7 +402,9 @@ namespace Spacegun_Simulator.UI.Pages
             ui.WriteLine();
             RenderBody(ui);
             ui.WriteLine();
-            ui.WriteLine(Chrome.FooterHint ?? "Press [Esc] for Menu, [Q] to quit.");
+            var hint2 = Chrome.FooterHint ?? "Press [Esc] for Menu, [Q] to quit.";
+			hint2 = FormatFooterHint(hint2, frameWidth);
+			ui.WriteLine(ClampToWidth(hint2, frameWidth));
         }
 
         protected abstract void RenderBody(UiContext ui);

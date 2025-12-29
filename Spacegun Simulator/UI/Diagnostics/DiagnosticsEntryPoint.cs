@@ -1,6 +1,5 @@
-using System;
-using Spacegun_Simulator.UI.Diagnostics.Pages;
 using Spacegun_Simulator.UI.Screen;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.UI.Diagnostics
 {
@@ -27,10 +26,7 @@ namespace Spacegun_Simulator.UI.Diagnostics
             };
 
             var controller = new UiController(ui, PageId.TestModeMenu);
-            controller.Register(new TestModeMenuPage());
-            controller.Register(new FiringChallengePage());
-            controller.Register(new DiagnosticsTestHarnessPage());
-            controller.Register(new DiagnosticsUiPageLauncherPage());
+            PageCatalog.RegisterDiagnosticsMenu(controller);
             controller.Run();
         }
     }

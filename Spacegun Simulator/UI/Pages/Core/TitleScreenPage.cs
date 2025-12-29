@@ -1,7 +1,4 @@
-﻿using System;
-using System.IO;
-using Spacegun_Simulator.UI.Pages;
-using Spacegun_Simulator.UI.Theme;
+﻿using Spacegun_Simulator.UI.Theme;
 
 namespace Spacegun_Simulator.UI.Pages.Core
 {
