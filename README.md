@@ -80,14 +80,11 @@ Hitting an object the size of a bus, moving at thousands of kilometers per hour,
 
 ## 🖥️ Aesthetic
 
-- **Dieselpunk / 1940s retro-futurism**
+- **retro-futurism**
 - Benign dystopia
 - Heavy industry, rivets, steel, slide rules
 - Stark ASCII diagrams and schematic-style layouts
 - Functional, utilitarian UI — nothing ornamental
-
-The terminal is not a limitation.  
-It is the control room.
 
 ---
 
