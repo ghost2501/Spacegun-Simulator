@@ -14,7 +14,7 @@ public sealed class DetailedWeaponStatusPage : PageBase
 	public override PageChrome Chrome { get; } = new(
 		ShowStatusBar: true,
 		ShowSidePanels: true,
-		FooterHint: "Arrows=Scroll  Any key=Back  Esc=Menu  Q=Quit"
+		FooterHint: "Press Any Key to Return. (M)enu (Q)uit"
 	);
 
 	private readonly List<string> _lines = new();

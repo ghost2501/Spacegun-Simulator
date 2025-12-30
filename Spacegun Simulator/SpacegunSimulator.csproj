@@ -9,10 +9,10 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
     <!-- Versioning (SemVer). Still pre-alpha. -->
-    <Version>0.0.4-pre-alpha.3</Version>
+    <Version>0.0.4-pre-alpha.4</Version>
     <AssemblyVersion>0.0.4.0</AssemblyVersion>
-    <FileVersion>0.0.4.3</FileVersion>
-    <InformationalVersion>0.0.4-pre-alpha.3</InformationalVersion>
+    <FileVersion>0.0.4.4</FileVersion>
+    <InformationalVersion>0.0.4-pre-alpha.4</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

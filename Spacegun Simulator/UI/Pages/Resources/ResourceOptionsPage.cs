@@ -12,7 +12,7 @@ public sealed class ResourceOptionsPage : PageBase
 	public override PageChrome Chrome { get; } = new(
 		ShowStatusBar: true,
 		ShowSidePanels: true,
-		FooterHint: "Digits+Enter=Input  U=Undo  B=Back   Esc=Menu  Q=Quit   ↑/↓/PgUp/PgDn=Scroll"
+		FooterHint: "Digits+↩=Input (U)ndo (B)ack (M)enu (Q)uit"
 	);
 
 	private readonly List<string> _lines = new();

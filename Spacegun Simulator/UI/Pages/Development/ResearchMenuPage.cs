@@ -12,11 +12,13 @@ public sealed class ResearchMenuPage : PageBase
 	public override PageChrome Chrome { get; } = new(
 		ShowStatusBar: true,
 		ShowSidePanels: true,
-		FooterHint: "Number=Research  B=Back  Esc=Menu  Q=Quit   ↑/↓/PgUp/PgDn=Scroll"
+		FooterHint: "Select(↩)  (B)ack (M)enu (Q)uit"
 	);
 
 	private readonly List<string> _lines = new();
+	private readonly List<(int StartLine, int EndLineExclusive)> _techLineRanges = new();
 	private int _scroll;
+	private int _selectedIndex;
 	private string _message = "";
 	private List<TechUnlock> _availableTechs = new();
 
@@ -24,6 +26,7 @@ public sealed class ResearchMenuPage : PageBase
 	{
 		var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (ResearchMenuPage requires GameState). ");
 		_scroll = 0;
+		_selectedIndex = 0;
 		_message = "";
 		_availableTechs = TechUnlock.GetAvailableUnlocks(game.TechTree);
 		BuildLines(ui);
@@ -32,6 +35,7 @@ public sealed class ResearchMenuPage : PageBase
 	private void BuildLines(UiContext ui)
 	{
 		_lines.Clear();
+		_techLineRanges.Clear();
 		var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (ResearchMenuPage requires GameState). ");
 
 		_lines.Add("=== AVAILABLE TECH RESEARCH ===");
@@ -48,20 +52,53 @@ public sealed class ResearchMenuPage : PageBase
 			_lines.Add("✗ No techs available for research.");
 			_lines.Add("");
 			_lines.Add("Press B to return.");
+			_selectedIndex = 0;
 			return;
 		}
+
+		_selectedIndex = Math.Clamp(_selectedIndex, 0, _availableTechs.Count - 1);
 
 		for (int i = 0; i < _availableTechs.Count; i++)
 		{
 			var unlock = _availableTechs[i];
 			bool canAfford = TechUnlock.CanAffordResearch(unlock, game.AccumulatedResources);
 			string affordMark = canAfford ? "✓" : "✗";
+			string selectMark = i == _selectedIndex ? ">" : " ";
+			int startLine = _lines.Count;
 
-			_lines.Add($"{affordMark} [{i + 1}] {unlock.TechType} ({unlock.FromLevel} → {unlock.ToLevel})");
+			_lines.Add($"{affordMark} {selectMark} [{i + 1}] {unlock.TechType} ({unlock.FromLevel} → {unlock.ToLevel})");
 			_lines.Add($"    {unlock.Description}");
 			_lines.Add($"    Cost: {unlock.ResearchCost.Budget:F0} Budget, {unlock.ResearchCost.Steel:F0} Steel, {unlock.ResearchCost.ExoticMaterials:F0} Exotic");
 			_lines.Add("");
+
+			int endLineExclusive = _lines.Count;
+			_techLineRanges.Add((startLine, endLineExclusive));
 		}
+
+		EnsureSelectedVisible(ui);
+	}
+
+	private void EnsureSelectedVisible(UiContext ui)
+	{
+		if (_availableTechs.Count == 0) return;
+		if (_selectedIndex < 0 || _selectedIndex >= _availableTechs.Count) return;
+		if (_techLineRanges.Count != _availableTechs.Count) return;
+
+		int viewport = ui.ContentViewportHeight > 0 ? ui.ContentViewportHeight : 18;
+		viewport = Math.Max(1, viewport);
+
+		var (startLine, endLineExclusive) = _techLineRanges[_selectedIndex];
+		int viewTop = _scroll;
+		int viewBottomExclusive = _scroll + viewport;
+
+		if (startLine < viewTop)
+		{
+			_scroll = startLine;
+			return;
+		}
+
+		if (endLineExclusive > viewBottomExclusive)
+			_scroll = Math.Max(0, endLineExclusive - viewport);
 	}
 
 	protected override void RenderBody(UiContext ui)
@@ -82,42 +119,54 @@ public sealed class ResearchMenuPage : PageBase
 	{
 		var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (ResearchMenuPage requires GameState). ");
 
-		const int lineStep = 1;
 		const int pageStep = 6;
 
 		switch (key.Key)
 		{
-			case ConsoleKey.UpArrow: _scroll -= lineStep; return PageResult.Stay;
-			case ConsoleKey.DownArrow: _scroll += lineStep; return PageResult.Stay;
-			case ConsoleKey.PageUp: _scroll -= pageStep; return PageResult.Stay;
-			case ConsoleKey.PageDown: _scroll += pageStep; return PageResult.Stay;
+			case ConsoleKey.UpArrow:
+				if (_availableTechs.Count > 0)
+				{
+					_selectedIndex = Math.Clamp(_selectedIndex - 1, 0, _availableTechs.Count - 1);
+					BuildLines(ui);
+				}
+				return PageResult.Stay;
+
+			case ConsoleKey.DownArrow:
+				if (_availableTechs.Count > 0)
+				{
+					_selectedIndex = Math.Clamp(_selectedIndex + 1, 0, _availableTechs.Count - 1);
+					BuildLines(ui);
+				}
+				return PageResult.Stay;
+
+			case ConsoleKey.PageUp:
+				if (_availableTechs.Count > 0)
+				{
+					_selectedIndex = Math.Clamp(_selectedIndex - pageStep, 0, _availableTechs.Count - 1);
+					BuildLines(ui);
+				}
+				return PageResult.Stay;
+
+			case ConsoleKey.PageDown:
+				if (_availableTechs.Count > 0)
+				{
+					_selectedIndex = Math.Clamp(_selectedIndex + pageStep, 0, _availableTechs.Count - 1);
+					BuildLines(ui);
+				}
+				return PageResult.Stay;
 		}
 
 		if (key.Key is ConsoleKey.B)
 			return PageResult.Back();
 
-		int? n = key.Key switch
-		{
-			ConsoleKey.D1 or ConsoleKey.NumPad1 => 1,
-			ConsoleKey.D2 or ConsoleKey.NumPad2 => 2,
-			ConsoleKey.D3 or ConsoleKey.NumPad3 => 3,
-			ConsoleKey.D4 or ConsoleKey.NumPad4 => 4,
-			ConsoleKey.D5 or ConsoleKey.NumPad5 => 5,
-			ConsoleKey.D6 or ConsoleKey.NumPad6 => 6,
-			ConsoleKey.D7 or ConsoleKey.NumPad7 => 7,
-			ConsoleKey.D8 or ConsoleKey.NumPad8 => 8,
-			ConsoleKey.D9 or ConsoleKey.NumPad9 => 9,
-			_ => null
-		};
-
-		if (n is null)
+		if (key.Key is not ConsoleKey.Enter)
 			return PageResult.Stay;
 
-		int idx = n.Value - 1;
-		if (idx < 0 || idx >= _availableTechs.Count)
+		if (_availableTechs.Count == 0)
 			return PageResult.Stay;
 
-		var unlock = _availableTechs[idx];
+		_selectedIndex = Math.Clamp(_selectedIndex, 0, _availableTechs.Count - 1);
+		var unlock = _availableTechs[_selectedIndex];
 		if (!TechUnlock.CanAffordResearch(unlock, game.AccumulatedResources))
 		{
 			_message = "✗ Cannot afford this research.";
@@ -130,6 +179,7 @@ public sealed class ResearchMenuPage : PageBase
 			_message = $"✓ Tech research complete: {unlock.TechType} → Level {unlock.ToLevel}";
 			ui.FlashMessage = _message;
 			_availableTechs = TechUnlock.GetAvailableUnlocks(game.TechTree);
+			_selectedIndex = Math.Clamp(_selectedIndex, 0, Math.Max(0, _availableTechs.Count - 1));
 		}
 		else
 		{

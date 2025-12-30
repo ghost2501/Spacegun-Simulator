@@ -13,7 +13,7 @@ public sealed class FiringPhasePage : PageBase
     public override PageChrome Chrome { get; } = new(
         ShowStatusBar: true,
         ShowSidePanels: true,
-        FooterHint: "1=Motion  2=Tables  3=Trajectory  4=Sim  5=Commit   Esc=Menu  Q=Quit   ↑/↓/PgUp/PgDn=Scroll"
+        FooterHint: "1=Motion 2=Tables 3=Trajectory 4=Sim 5=Commit (M)enu (Q)uit"
     );
 
     public enum FiringMenuAction

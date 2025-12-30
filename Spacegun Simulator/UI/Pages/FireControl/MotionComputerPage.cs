@@ -15,7 +15,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 			ShowSidePanels: true,
 			AutoSaveOnEnter: false,
 			AutoSaveOnExit: false,
-			FooterHint: "Seconds+Enter  Enter(empty)/B=Back  R=Timeline  Esc=Menu  Q=Quit"
+			FooterHint: "Seconds+↩ ↩(empty)/(B)ack (R)Timeline (M)enu (Q)uit"
 		);
 
 		private enum Mode

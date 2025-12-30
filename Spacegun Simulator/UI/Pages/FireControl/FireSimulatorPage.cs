@@ -14,7 +14,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 			ShowSidePanels: true,
 			AutoSaveOnEnter: false,
 			AutoSaveOnExit: false,
-			FooterHint: "Digits+Enter=Accept  B=Back  Enter(Result)=Back  T=New  M=Modify  Esc=Menu  Q=Quit"
+			FooterHint: "Digits+↩ (E)Edit (R)eset (B)ack (M)enu (Q)uit"
 		);
 
 		private enum Mode
@@ -147,7 +147,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 					foreach (var l in _resultLines)
 						_lines.Add(Clamp60(l));
 					_lines.Add("");
-					_lines.Add("[Enter]=Back  [T]=New  [M]=Modify  Arrows=Scroll".PadRight(60));
+					_lines.Add("[↩]=Back  [R]=Reset  [E]=Edit".PadRight(60));
 					break;
 			}
 		}
@@ -191,8 +191,12 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 				if (key.Key == ConsoleKey.Enter)
 					return PageResult.Back();
 
-				if (key.Key == ConsoleKey.T)
+				if (key.Key == ConsoleKey.R)
 				{
+					_delayTime = s_lastDelayTime;
+					_elevation = s_lastElevation;
+					_azimuth = s_lastAzimuth;
+					_velocity = s_lastVelocity;
 					_mode = Mode.InputDelay;
 					_inputBuffer = "";
 					_message = "";
@@ -201,7 +205,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 					BuildLines();
 					return PageResult.Stay;
 				}
-				if (key.Key == ConsoleKey.M)
+				if (key.Key == ConsoleKey.E)
 				{
 					_mode = Mode.InputDelay;
 					_inputBuffer = "";

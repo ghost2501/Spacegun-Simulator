@@ -12,7 +12,7 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
         public override PageChrome Chrome { get; } = new(
             ShowStatusBar: true,
             ShowSidePanels: true,
-            FooterHint: "Enter=Run  B=Back  Esc=Menu  Q=Quit"
+			FooterHint: "Run(↩) (B)ack (M)enu (Q)uit"
         );
 
         private readonly List<string> _lines = new();

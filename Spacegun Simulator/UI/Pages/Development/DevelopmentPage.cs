@@ -13,7 +13,7 @@ public sealed class DevelopmentPage : PageBase
     public override PageChrome Chrome { get; } = new(
         ShowStatusBar: true,
         ShowSidePanels: true,
-        FooterHint: "P=Projectile  G=Gun  S=Status  D=Done   ↑/↓/PgUp/PgDn=Scroll  Esc=Menu  Q=Quit"
+        FooterHint: "(P)rojectile (G)un (S)tatus (D)one (M)enu (Q)uit"
     );
 
     public enum DevelopmentMenuAction

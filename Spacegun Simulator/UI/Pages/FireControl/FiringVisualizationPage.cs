@@ -13,7 +13,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 			ShowSidePanels: true,
 			AutoSaveOnEnter: false,
 			AutoSaveOnExit: false,
-			FooterHint: "Any key=Continue  Esc=Menu  Q=Quit"
+			FooterHint: "Any key=Continue (M)enu (Q)uit"
 		);
 
 		private readonly Vector3 _enemyPosition;

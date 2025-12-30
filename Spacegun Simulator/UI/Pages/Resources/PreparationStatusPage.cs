@@ -12,7 +12,7 @@ public sealed class PreparationStatusPage : PageBase
 	public override PageChrome Chrome { get; } = new(
 		ShowStatusBar: true,
 		ShowSidePanels: true,
-		FooterHint: "B=Back  Esc=Menu  Q=Quit   ↑/↓/PgUp/PgDn=Scroll"
+		FooterHint: "(B)ack (M)enu (Q)uit"
 	);
 
 	private readonly List<string> _lines = new();

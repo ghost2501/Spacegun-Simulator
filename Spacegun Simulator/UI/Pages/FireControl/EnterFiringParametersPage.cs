@@ -17,7 +17,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
             ShowSidePanels: true,
             AutoSaveOnEnter: false,
             AutoSaveOnExit: false,
-            FooterHint: "Digits+[Enter]=Accept  B=Back  Backspace=Edit  Esc=Menu  Q=Quit"
+            FooterHint: "Digits+↩=Accept Backspace=Edit (B)ack (M)enu (Q)uit"
         );
 
         private enum Mode

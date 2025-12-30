@@ -11,7 +11,7 @@ public sealed class MusicConfigurationPage : PageBase
     public override PageChrome Chrome { get; } = new(
         ShowStatusBar: true,
         ShowSidePanels: true,
-        FooterHint: "Enter=Edit Instrument Space=ON/OFF S=Save L=Load B=Back"
+		FooterHint: "Edit(↩) Space=ON/OFF (S)ave (L)oad (B)ack"
     );
 
     private enum Mode
@@ -91,6 +91,15 @@ public sealed class MusicConfigurationPage : PageBase
         _statusMessage = string.Empty;
     }
 
+	private int GetListRowCount()
+		=> Items.Length + 1; // +1 for Master Volume
+
+	private bool IsMasterRowSelected()
+		=> _selected == 0;
+
+	private Item GetSelectedItem()
+		=> Items[Math.Clamp(_selected - 1, 0, Items.Length - 1)];
+
     protected override void RenderBody(UiContext ui)
     {
         switch (_mode)
@@ -132,21 +141,33 @@ public sealed class MusicConfigurationPage : PageBase
         int viewport = ui.ContentViewportHeight > 0 ? ui.ContentViewportHeight - 4 : 14;
         viewport = Math.Max(8, viewport);
 
-        int maxScroll = Math.Max(0, Items.Length - viewport);
+        int rows = GetListRowCount();
+        int maxScroll = Math.Max(0, rows - viewport);
         _scroll = Math.Clamp(_scroll, 0, maxScroll);
 
         if (_selected < _scroll) _scroll = _selected;
         if (_selected >= _scroll + viewport) _scroll = _selected - viewport + 1;
 
-        int end = Math.Min(Items.Length, _scroll + viewport);
-        for (int i = _scroll; i < end; i++)
+        int end = Math.Min(rows, _scroll + viewport);
+        var snapshot = PageMusicSystem.GetTuningSnapshot();
+        for (int row = _scroll; row < end; row++)
         {
-            var item = Items[i];
-            bool enabled = TryGetEnabled(item);
+			if (row == 0)
+			{
+				string cursor = (row == _selected) ? ">" : " ";
+                float master = Math.Clamp(snapshot.Master, 0.0f, 4.0f);
+                int pct = (int)MathF.Round(master / 4.0f * 100.0f);
+                string bar = RenderBar(master, 0.0f, 4.0f, 12);
+                ui.WriteLine($"{cursor} Master Volume {bar} {pct}%");
+				continue;
+			}
 
-            string cursor = (i == _selected) ? ">" : " ";
-            string mark = enabled ? "[x]" : "[ ]";
-            ui.WriteLine($"{cursor} {mark} {item.Label}");
+			var item = Items[row - 1];
+			bool enabled = TryGetEnabled(item);
+
+			string cursorItem = (row == _selected) ? ">" : " ";
+			string mark = enabled ? "[x]" : "[ ]";
+			ui.WriteLine($"{cursorItem} {mark} {item.Label}");
         }
     }
 
@@ -164,19 +185,31 @@ public sealed class MusicConfigurationPage : PageBase
 
     private void RenderEdit(UiContext ui)
     {
-        var item = Items[Math.Clamp(_selected, 0, Items.Length - 1)];
-        bool enabled = TryGetEnabled(item);
-
         var snapshot = PageMusicSystem.GetTuningSnapshot();
-        var parameters = BuildParams(item, snapshot);
+        ParamDef[] parameters;
 
-        ui.WriteLine(item.Label);
-        ui.WriteLine();
-        ui.WriteLine($"Enabled: {(enabled ? "ON" : "OFF")} (Space to toggle)");
-        ui.WriteLine();
+        if (IsMasterRowSelected())
+        {
+            ui.WriteLine("MASTER VOLUME");
+            ui.WriteLine();
+            ui.WriteLine("Sliders:");
+            ui.WriteLine();
+            parameters = BuildMasterParams(snapshot);
+        }
+        else
+        {
+            var item = GetSelectedItem();
+            bool enabled = TryGetEnabled(item);
 
-        ui.WriteLine("Sliders:");
-        ui.WriteLine();
+            parameters = BuildParams(item, snapshot);
+
+            ui.WriteLine(item.Label);
+            ui.WriteLine();
+            ui.WriteLine($"Enabled: {(enabled ? "ON" : "OFF")} (Space to toggle)");
+            ui.WriteLine();
+            ui.WriteLine("Sliders:");
+            ui.WriteLine();
+        }
 
         // Each parameter consumes 2 lines (label + bar/value), so viewport must be computed in PARAMS, not lines.
         int viewportLines = ui.ContentViewportHeight > 0 ? ui.ContentViewportHeight - 8 : 10;
@@ -211,11 +244,15 @@ public sealed class MusicConfigurationPage : PageBase
         ui.WriteLine("Up/Down=Select  Left/Right=Adjust  PgUp/PgDn=Coarse");
         ui.WriteLine("B=Back  S=Save Preset  L=Load Preset");
 
-        if (item.Kind == ItemKind.Layer && ParseLayer(item.Id) == LoFiMusicGenerator.MusicLayer.LeadMelody)
-            ui.WriteLine("E=Edit Seed (step sequencer)");
+		if (!IsMasterRowSelected())
+		{
+			var item = GetSelectedItem();
+			if (item.Kind == ItemKind.Layer && ParseLayer(item.Id) == LoFiMusicGenerator.MusicLayer.LeadMelody)
+				ui.WriteLine("E=Edit Seed (step sequencer)");
 
-        if (item.Kind == ItemKind.Layer && ParseLayer(item.Id) == LoFiMusicGenerator.MusicLayer.Bass)
-            ui.WriteLine("E=Edit Bass Pattern (step sequencer)");
+			if (item.Kind == ItemKind.Layer && ParseLayer(item.Id) == LoFiMusicGenerator.MusicLayer.Bass)
+				ui.WriteLine("E=Edit Bass Pattern (step sequencer)");
+		}
     }
 
     private void RenderMelodySeed(UiContext ui)
@@ -354,7 +391,7 @@ public sealed class MusicConfigurationPage : PageBase
         }
 
         ui.WriteLine();
-        ui.WriteLine("Enter=Load  B=Back");
+		ui.WriteLine("↩=Load  (B)ack");
     }
 
     protected override PageResult HandleInputBody(UiContext ui, ConsoleKeyInfo key)
@@ -555,7 +592,10 @@ public sealed class MusicConfigurationPage : PageBase
 
                 case ConsoleKey.E:
                     {
-                        var item = Items[Math.Clamp(_selected, 0, Items.Length - 1)];
+                        if (IsMasterRowSelected())
+                            return PageResult.Stay;
+
+                        var item = GetSelectedItem();
                         if (item.Kind == ItemKind.Layer && ParseLayer(item.Id) == LoFiMusicGenerator.MusicLayer.LeadMelody)
                         {
                             _seedIndex = 0;
@@ -621,15 +661,40 @@ public sealed class MusicConfigurationPage : PageBase
         {
             case ConsoleKey.UpArrow:
             case ConsoleKey.DownArrow:
-            case ConsoleKey.PageUp:
-            case ConsoleKey.PageDown:
+                        case ConsoleKey.PageUp:
+                        case ConsoleKey.PageDown:
+				if (IsMasterRowSelected())
+				{
+					float delta = key.Key == ConsoleKey.PageUp ? 0.10f : -0.10f;
+					PageMusicSystem.AdjustGlobal("Master", delta);
+					return PageResult.Stay;
+				}
                 return HandleListNavigation(key);
+
+            case ConsoleKey.LeftArrow:
+                if (IsMasterRowSelected())
+                {
+                    PageMusicSystem.AdjustGlobal("Master", -0.02f);
+                    return PageResult.Stay;
+                }
+                return PageResult.Stay;
+
+            case ConsoleKey.RightArrow:
+                if (IsMasterRowSelected())
+                {
+                    PageMusicSystem.AdjustGlobal("Master", 0.02f);
+                    return PageResult.Stay;
+                }
+                return PageResult.Stay;
 
             case ConsoleKey.Spacebar:
                 ToggleSelected();
                 return PageResult.Stay;
 
             case ConsoleKey.Enter:
+				if (IsMasterRowSelected())
+					return PageResult.Stay;
+
                 _mode = Mode.Edit;
                 _editParamIndex = 0;
                 _editParamScroll = 0;
@@ -667,7 +732,7 @@ public sealed class MusicConfigurationPage : PageBase
             _ => 0
         };
 
-        _selected = Math.Clamp(_selected + step, 0, Items.Length - 1);
+        _selected = Math.Clamp(_selected + step, 0, GetListRowCount() - 1);
         return PageResult.Stay;
     }
 
@@ -720,7 +785,10 @@ public sealed class MusicConfigurationPage : PageBase
 
     private void ToggleSelected()
     {
-        var item = Items[Math.Clamp(_selected, 0, Items.Length - 1)];
+        if (IsMasterRowSelected())
+            return;
+
+        var item = GetSelectedItem();
         bool enabled = TryGetEnabled(item);
 
         if (item.Kind == ItemKind.Layer)
@@ -850,11 +918,20 @@ public sealed class MusicConfigurationPage : PageBase
         return list.ToArray();
     }
 
+    private ParamDef[] BuildMasterParams(LoFiMusicGenerator.AudioTuningSettings snapshot)
+    {
+        return
+        [
+            new ParamDef("Master Volume", 0.0f, 4.0f, s => s.Master, d => PageMusicSystem.AdjustGlobal("Master", d), 0.02f, 0.10f)
+        ];
+    }
+
     private void AdjustSelectedParam(int sign, bool coarse)
     {
-        var item = Items[Math.Clamp(_selected, 0, Items.Length - 1)];
         var snapshot = PageMusicSystem.GetTuningSnapshot();
-        var parameters = BuildParams(item, snapshot);
+		var parameters = IsMasterRowSelected()
+			? BuildMasterParams(snapshot)
+			: BuildParams(GetSelectedItem(), snapshot);
         if (parameters.Length == 0) return;
 
         _editParamIndex = Math.Clamp(_editParamIndex, 0, parameters.Length - 1);

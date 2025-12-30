@@ -15,7 +15,7 @@ public sealed class ProjectileDevelopmentPage : PageBase
     public override PageChrome Chrome { get; } = new(
         ShowStatusBar: true,
         ShowSidePanels: true,
-        FooterHint: "Arrows=Select  PgUp/PgDn=Scroll  Enter=Choose  B=Back  Esc=Menu  Q=Quit"
+		FooterHint: "Select(↩)   (B)ack (M)enu (Q)uit"
     );
 
     private enum Step

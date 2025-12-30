@@ -14,7 +14,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 			ShowSidePanels: true,
 			AutoSaveOnEnter: false,
 			AutoSaveOnExit: false,
-			FooterHint: "[1-4]=Tables  [5]=All  Enter/B=Back  Arrows=Scroll  Esc=Menu  Q=Quit"
+			FooterHint: "1-4=Tables 5=All ↩/(B)ack (M)enu (Q)uit"
 		);
 
 		private enum Mode

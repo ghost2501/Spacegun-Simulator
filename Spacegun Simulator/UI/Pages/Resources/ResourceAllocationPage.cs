@@ -12,7 +12,7 @@ public sealed class ResourceAllocationPage : PageBase
 	public override PageChrome Chrome { get; } = new(
 		ShowStatusBar: true,
 		ShowSidePanels: true,
-		FooterHint: "R=Resources  T=Research  S=Status  D=Done   Esc=Back/Menu  Q=Quit   ↑/↓/PgUp/PgDn=Scroll"
+		FooterHint: "(R)esources (T)ech (S)tatus (D)one (M)enu (Q)uit"
 	);
 
 	private readonly List<string> _lines = new();

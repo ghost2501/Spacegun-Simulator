@@ -13,7 +13,7 @@ namespace Spacegun_Simulator.UI.Pages.Core
 		public override PageChrome Chrome { get; } = new(
 			ShowStatusBar: false,
 			ShowSidePanels: true,
-			FooterHint: "Press any key to return to main menu..."
+			FooterHint: "Any key=Continue"
 		);
 
 		private static IReadOnlyList<string> BuildHeader()
@@ -52,7 +52,7 @@ namespace Spacegun_Simulator.UI.Pages.Core
 			{
 				RenderBody(ui);
 				ui.WriteLine();
-				ui.WriteLine(Chrome.FooterHint ?? "Press any key to return to main menu...");
+				ui.WriteLine(Chrome.FooterHint ?? "Any key=Continue");
 			}
 			finally
 			{

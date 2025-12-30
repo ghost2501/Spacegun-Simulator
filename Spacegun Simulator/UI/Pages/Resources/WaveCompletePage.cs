@@ -11,7 +11,7 @@ public sealed class WaveCompletePage : PageBase
     public override PageChrome Chrome { get; } = new(
         ShowStatusBar: true,
         ShowSidePanels: true,
-        FooterHint: "Any key=Continue   Esc=Back/Menu   Q=Quit"
+        FooterHint: "Any key=Continue (M)enu (Q)uit"
     );
 
     private readonly List<string> _lines = new();

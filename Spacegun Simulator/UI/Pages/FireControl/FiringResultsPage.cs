@@ -12,7 +12,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 			ShowSidePanels: true,
 			AutoSaveOnEnter: false,
 			AutoSaveOnExit: false,
-			FooterHint: "Any key=Continue  Arrows=Scroll  Esc=Menu  Q=Quit"
+			FooterHint: "Press Any Key to Continue. (M)enu (Q)uit"
 		);
 
 		private readonly List<string> _lines;

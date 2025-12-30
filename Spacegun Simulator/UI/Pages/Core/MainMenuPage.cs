@@ -11,7 +11,7 @@ namespace Spacegun_Simulator.UI.Pages.Core
         public override PageChrome Chrome { get; } = new(
             ShowStatusBar: true,
             ShowSidePanels: true,
-            FooterHint: "1=New  2=Resume/Test  3=Test  4=Music  5=Exit"
+            FooterHint: "1=New 2=Resume 3=Test 4=Music 5=Exit"
         );
 
         private bool _autoSaveExists;

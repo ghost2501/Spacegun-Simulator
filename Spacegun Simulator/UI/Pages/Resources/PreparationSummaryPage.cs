@@ -10,7 +10,7 @@ public sealed class PreparationSummaryPage : PageBase
 	public override PageChrome Chrome { get; } = new(
 		ShowStatusBar: true,
 		ShowSidePanels: true,
-		FooterHint: "Any key=Proceed  B=Back  Esc=Menu  Q=Quit   ↑/↓/PgUp/PgDn=Scroll"
+		FooterHint: "Press Any Key to Continue. (M)enu (Q)uit"
 	);
 
 	private readonly List<string> _lines = new();

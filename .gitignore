@@ -49,7 +49,7 @@ ui.log
 
 # Allow checked-in release bundles
 !Releases/
-!Releases/*.zip
+
 
 # Local scratch space for verifying release zips
 Releases/_verify/

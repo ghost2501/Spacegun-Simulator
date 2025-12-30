@@ -39,11 +39,8 @@ namespace Spacegun_Simulator.UI.Pages
             hint = hint.Trim();
             if (hint.Length == 0) return hint;
 
-            // If the page already used manual spacing, respect it.
-            if (hint.Contains("  "))
-                return hint;
-
-            // Split on whitespace that precedes a new key=value token.
+            // Split into option "chunks" and then justify them across the available width.
+            // Chunk boundaries are detected when a new token begins (e.g. "(M)enu", "1-4=Tables", "Digits+↩=Input").
             var items = new List<string>();
             int len = hint.Length;
             int start = 0;
@@ -57,16 +54,29 @@ namespace Spacegun_Simulator.UI.Pages
                     while (j < len && char.IsWhiteSpace(hint[j])) j++;
                     if (j >= len) break;
 
-                    // Determine whether the next token looks like key=value.
-                    bool hasEq = false;
-                    int k = j;
-                    while (k < len && !char.IsWhiteSpace(hint[k]))
+                    bool splitHere = false;
+
+                    // If the next token starts with '(' or '[', treat it as a new chunk.
+                    char next = hint[j];
+                    if (next == '(' || next == '[')
+                        splitHere = true;
+
+                    // If the next token contains '=', treat it as a new chunk.
+                    if (!splitHere)
                     {
-                        if (hint[k] == '=') { hasEq = true; break; }
-                        k++;
+                        int k = j;
+                        while (k < len && !char.IsWhiteSpace(hint[k]))
+                        {
+                            if (hint[k] == '=') { splitHere = true; break; }
+                            k++;
+                        }
                     }
 
-                    if (hasEq)
+                    // If the next token begins with a digit, treat it as a new chunk.
+                    if (!splitHere && char.IsDigit(next))
+                        splitHere = true;
+
+                    if (splitHere)
                     {
                         var part = hint.Substring(start, i - start).Trim();
                         if (part.Length > 0) items.Add(part);
@@ -82,7 +92,7 @@ namespace Spacegun_Simulator.UI.Pages
             var last = hint.Substring(start).Trim();
             if (last.Length > 0) items.Add(last);
 
-            // Only justify when we have enough options for it to matter.
+            // Only justify when we have enough chunks for it to matter.
             if (items.Count < 3)
                 return hint;
 
@@ -373,7 +383,7 @@ namespace Spacegun_Simulator.UI.Pages
                         Console.WriteLine(ClampToWidth(footerBar!, frameWidth).PadRight(frameWidth));
 
                     // Pinned footer hint (always one line)
-                    var hint = Chrome.FooterHint ?? "Press [Esc] for Menu, [Q] to quit.";
+                    var hint = Chrome.FooterHint ?? "(M)enu (Q)uit";
                     hint = FormatFooterHint(hint, frameWidth);
                     Console.WriteLine(ClampToWidth(hint, frameWidth).PadRight(frameWidth));
 
@@ -402,7 +412,7 @@ namespace Spacegun_Simulator.UI.Pages
             ui.WriteLine();
             RenderBody(ui);
             ui.WriteLine();
-            var hint2 = Chrome.FooterHint ?? "Press [Esc] for Menu, [Q] to quit.";
+            var hint2 = Chrome.FooterHint ?? "(M)enu (Q)uit";
 			hint2 = FormatFooterHint(hint2, frameWidth);
 			ui.WriteLine(ClampToWidth(hint2, frameWidth));
         }
@@ -416,6 +426,9 @@ namespace Spacegun_Simulator.UI.Pages
 
             if (key.Key == ConsoleKey.Escape)
                 return HandleEscape(ui, key);
+
+            if (key.Key == ConsoleKey.M)
+                return HandleMenu(ui, key);
 
             return HandleInputBody(ui, key);
         }
@@ -435,6 +448,20 @@ namespace Spacegun_Simulator.UI.Pages
                 ui.RequestReturnToMenu = true;
 
             return PageResult.Exit;
+        }
+
+        protected virtual PageResult HandleMenu(UiContext ui, ConsoleKeyInfo key)
+        {
+            // Default behavior:
+            // - During gameplay, M requests a session-level return-to-menu.
+            // - During boot UI, M has no default meaning.
+            if (ui.Game != null)
+            {
+                ui.RequestReturnToMenu = true;
+                return PageResult.Exit;
+            }
+
+            return PageResult.Stay;
         }
 
         protected virtual PageResult HandleInputBody(UiContext ui, ConsoleKeyInfo key)

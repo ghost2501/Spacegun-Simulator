@@ -13,7 +13,7 @@ public sealed class GunDevelopmentPage : PageBase
     public override PageChrome Chrome { get; } = new(
         ShowStatusBar: true,
         ShowSidePanels: true,
-        FooterHint: "Arrows=Select  Enter=Apply  B=Back  Esc=Menu  Q=Quit"
+		FooterHint: "Select(↩)   (B)ack (M)enu (Q)uit"
     );
 
     private sealed record UpgradeOption(

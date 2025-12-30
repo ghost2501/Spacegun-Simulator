@@ -14,7 +14,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 			ShowSidePanels: true,
 			AutoSaveOnEnter: false,
 			AutoSaveOnExit: false,
-			FooterHint: "Digits+Enter=Accept  B=Back  Enter(Result)=Back  Backspace=Edit  Esc=Menu  Q=Quit"
+			FooterHint: "Enter(↩) (B)ack (M)enu (Q)uit"
 		);
 
 		private enum Mode
@@ -157,7 +157,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 				case Mode.Result:
 					BuildResultLines(diff);
 					_lines.Add("");
-					_lines.Add("[Enter]=Back  [M]=Modify  Arrows=Scroll".PadRight(60));
+					_lines.Add("[↩]=Back".PadRight(60));
 					break;
 			}
 		}
@@ -234,7 +234,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 				if (key.Key == ConsoleKey.Enter)
 					return PageResult.Back();
 
-				if (key.Key == ConsoleKey.M)
+				if (key.Key == ConsoleKey.E)
 				{
 					// Modify last (start at first field, retain values)
 					_mode = Mode.InputVelocity;

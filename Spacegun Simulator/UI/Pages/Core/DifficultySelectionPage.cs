@@ -20,12 +20,11 @@ namespace Spacegun_Simulator.UI.Pages.Core
         public override PageChrome Chrome => new(
             ShowStatusBar: true,
             ShowSidePanels: true,
-            FooterHint: EscapeNavigatesToMainMenu
-                ? "1-4 = Select difficulty   Esc = Menu/Back"
-                : "1-4 = Select difficulty   Esc = Back"
+			FooterHint: "Select(↩)  1-4=Select  (M)enu"
         );
 
         private IReadOnlyList<DifficultyConfig> _configs = Array.Empty<DifficultyConfig>();
+		private int _selectedIndex;
 
         public GameDifficulty? SelectedDifficulty { get; private set; }
 
@@ -34,6 +33,7 @@ namespace Spacegun_Simulator.UI.Pages.Core
             base.OnEnter(ui);
             SelectedDifficulty = null;
             _configs = DifficultyConfig.GetAllConfigs();
+			_selectedIndex = 0;
         }
 
         protected override void RenderBody(UiContext ui)
@@ -44,7 +44,8 @@ namespace Spacegun_Simulator.UI.Pages.Core
             for (int i = 0; i < _configs.Count; i++)
             {
                 var c = _configs[i];
-                ui.WriteLine($"[{i + 1}] {c.DisplayName}");
+				string cursor = (i == _selectedIndex) ? ">" : " ";
+				ui.WriteLine($"{cursor} [{i + 1}] {c.DisplayName}");
                 if (!string.IsNullOrWhiteSpace(c.NarrativeDescription))
                 {
                     var lines = c.NarrativeDescription.Replace("\r", "").Split('\n');
@@ -59,6 +60,25 @@ namespace Spacegun_Simulator.UI.Pages.Core
 
         protected override PageResult HandleInputBody(UiContext ui, ConsoleKeyInfo key)
         {
+            if (_configs.Count > 0)
+            {
+                switch (key.Key)
+                {
+                    case ConsoleKey.UpArrow:
+                        _selectedIndex = Math.Clamp(_selectedIndex - 1, 0, _configs.Count - 1);
+                        return PageResult.Stay;
+
+                    case ConsoleKey.DownArrow:
+                        _selectedIndex = Math.Clamp(_selectedIndex + 1, 0, _configs.Count - 1);
+                        return PageResult.Stay;
+
+                    case ConsoleKey.Enter:
+                        _selectedIndex = Math.Clamp(_selectedIndex, 0, _configs.Count - 1);
+                        SelectedDifficulty = _configs[_selectedIndex].Difficulty;
+                        return PageResult.Exit;
+                }
+            }
+
             int? n = key.Key switch
             {
                 ConsoleKey.D1 or ConsoleKey.NumPad1 => 1,
@@ -81,5 +101,8 @@ namespace Spacegun_Simulator.UI.Pages.Core
 
         protected override PageResult HandleEscape(UiContext ui, ConsoleKeyInfo key)
             => EscapeNavigatesToMainMenu ? PageResult.Go(PageId.MainMenu) : PageResult.Exit;
+
+		protected override PageResult HandleMenu(UiContext ui, ConsoleKeyInfo key)
+			=> EscapeNavigatesToMainMenu ? PageResult.Go(PageId.MainMenu) : PageResult.Exit;
     }
 }
