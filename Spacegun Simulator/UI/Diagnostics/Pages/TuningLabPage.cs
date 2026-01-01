@@ -582,11 +582,11 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
                         break;
                     case Field.EnemyManeuverability:
                         _overrideEnemyManeuverability = true;
-                        _enemyManeuverability = Math.Clamp(d, 0.0, 10.0);
+                        _enemyManeuverability = Math.Clamp(d, 0.0, 1.0);
                         break;
                     case Field.EnemyOffense:
                         _overrideEnemyOffense = true;
-                        _enemyOffense = Math.Clamp(d, 0.0, 10.0);
+                        _enemyOffense = Math.Clamp(d, 0.0, 1.0);
                         break;
                 }
 

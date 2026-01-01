@@ -565,8 +565,10 @@ namespace Spacegun_Simulator.Tests
 
             enemyMassKg = Math.Clamp(enemyMassKg, 0.01, 1e12);
             enemyFractureEnergy = Math.Clamp(enemyFractureEnergy, 0.0, 1e12);
-            enemyManeuverability = Math.Clamp(enemyManeuverability, 0.0, 10.0);
-            enemyOffense = Math.Clamp(enemyOffense, 0.0, 10.0);
+            // Enemy capability factors are 0..1.
+            // Keeping this consistent avoids confusion where values > 1 have no additional effect.
+            enemyManeuverability = Math.Clamp(enemyManeuverability, 0.0, 1.0);
+            enemyOffense = Math.Clamp(enemyOffense, 0.0, 1.0);
 
             string rulesetLabel = ruleset.ToString();
             string difficultyLabel = difficulty switch
