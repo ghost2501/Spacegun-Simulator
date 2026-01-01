@@ -671,7 +671,10 @@ namespace Spacegun_Simulator.Tests
                     double barrelMult = Math.Clamp(effectiveBarrelLength / 100.0, 0.5, 2.0);
                     double effectiveGunRange = tier.MaxEffectiveGunRange * barrelMult * stealthMult;
 
-                    double effectiveEnemyFractureEnergy = Math.Max(0.0, effectiveEnemyFractureRaw / Math.Max(0.1, effectivePenetration));
+                    double effectiveEnemyDefense01 = Math.Clamp(target.Defense, 0.0, 1.0);
+                    double defenseScale = Math.Max(0.0, GameModeTuning.Current.FractureEnergyDefenseScale);
+                    double armoredEnemyFracture = Math.Max(0.0, effectiveEnemyFractureRaw * (1.0 + defenseScale * effectiveEnemyDefense01));
+                    double effectiveEnemyFractureEnergy = Math.Max(0.0, armoredEnemyFracture / Math.Max(0.1, effectivePenetration));
 
                     double massEfficiency = effectivePropulsionReferenceMassKg / (effectivePropulsionReferenceMassKg + Math.Max(0.0, effectiveProjectileMass));
                     double bestCaseDeltaV = effectivePropulsionDeltaVCapacityMs * massEfficiency;

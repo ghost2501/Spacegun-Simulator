@@ -1,6 +1,6 @@
 ﻿{
-  "TotalWaves": 25,
   "BarrelIntegrityLossPerShot": 0.01,
+}
   "BudgetRewardBase": 100,
   "BudgetRewardPerWave": 10,
   "SteelRewardBase": 50,
@@ -34,6 +34,7 @@
     "TimeBudgetMultiplierPure": 1.0,
     "TimeBudgetMultiplierFull": 1.0,
     "HitToleranceMultiplierPure": 1.0,
-    "HitToleranceMultiplierFull": 1.0
+    "HitToleranceMultiplierFull": 1.0,
+    "FractureEnergyDefenseScale": 1.0
   }
 }

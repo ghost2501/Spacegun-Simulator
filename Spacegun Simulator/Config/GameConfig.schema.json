@@ -39,7 +39,8 @@
         "TimeBudgetMultiplierPure": { "type": "number", "minimum": 0 },
         "TimeBudgetMultiplierFull": { "type": "number", "minimum": 0 },
         "HitToleranceMultiplierPure": { "type": "number", "minimum": 0 },
-        "HitToleranceMultiplierFull": { "type": "number", "minimum": 0 }
+        "HitToleranceMultiplierFull": { "type": "number", "minimum": 0 },
+        "FractureEnergyDefenseScale": { "type": "number", "minimum": 0 }
       }
     }
   }

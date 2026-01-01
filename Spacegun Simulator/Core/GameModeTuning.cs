@@ -36,6 +36,12 @@ public sealed class GameModeTuning
     public double HitToleranceMultiplierPure { get; set; } = 1.0;
     public double HitToleranceMultiplierFull { get; set; } = 1.0;
 
+    /// <summary>
+    /// How strongly an enemy's Defense (0..1) increases fracture energy required.
+    /// Applied as: EffectiveFractureEnergy = BaseFractureEnergy * (1 + FractureEnergyDefenseScale * Defense).
+    /// </summary>
+    public double FractureEnergyDefenseScale { get; set; } = 1.0;
+
     public static GameModeTuning Current { get; private set; } = new();
 
     internal static void ApplyFromConfig(GameModeTuning? cfg)

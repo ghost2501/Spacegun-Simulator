@@ -443,7 +443,10 @@ namespace Spacegun_Simulator.Core
 
             double penetration = CraftedProjectile?.Enhancement?.Penetration ?? 1.0;
             penetration = Math.Max(0.1, penetration);
-            double effectiveFractureEnergyMJ = Math.Max(0.0, target.FractureEnergy / penetration);
+            double defense01 = Math.Clamp(target.Defense, 0.0, 1.0);
+            double defenseScale = Math.Max(0.0, GameModeTuning.Current.FractureEnergyDefenseScale);
+            double armoredFractureEnergyMJ = Math.Max(0.0, target.FractureEnergy * (1.0 + defenseScale * defense01));
+            double effectiveFractureEnergyMJ = Math.Max(0.0, armoredFractureEnergyMJ / penetration);
 
             double additionalHitToleranceMultiplier = CraftedProjectile?.Enhancement?.HitToleranceBonus ?? 1.0;
             additionalHitToleranceMultiplier = Math.Max(0.1, additionalHitToleranceMultiplier);
