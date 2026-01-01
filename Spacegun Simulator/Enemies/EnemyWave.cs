@@ -366,11 +366,11 @@ namespace Spacegun_Simulator.Enemies
             // Acceleration in m/s^2; Maneuverability/Defense are 0..1 factors.
             return tierIndex switch
             {
-                0 => (AccMin: 0.05, AccMax: 0.25, ManMax: 0.15, DefMax: 0.10, OffMax: 0.10),
-                1 => (AccMin: 0.10, AccMax: 0.50, ManMax: 0.30, DefMax: 0.20, OffMax: 0.20),
-                2 => (AccMin: 0.20, AccMax: 1.00, ManMax: 0.45, DefMax: 0.35, OffMax: 0.35),
-                3 => (AccMin: 0.35, AccMax: 1.75, ManMax: 0.60, DefMax: 0.50, OffMax: 0.50),
-                _ => (AccMin: 0.50, AccMax: 2.50, ManMax: 0.75, DefMax: 0.70, OffMax: 0.70),
+                0 => (AccMin: 0.00, AccMax: 0.00, ManMax: 0.00, DefMax: 0.00, OffMax: 0.00),
+                1 => (AccMin: 0.05, AccMax: 0.25, ManMax: 0.15, DefMax: 0.10, OffMax: 0.10),
+                2 => (AccMin: 0.10, AccMax: 0.50, ManMax: 0.30, DefMax: 0.20, OffMax: 0.20),
+                3 => (AccMin: 0.20, AccMax: 1.00, ManMax: 0.45, DefMax: 0.35, OffMax: 0.35),
+                _ => (AccMin: 0.35, AccMax: 1.75, ManMax: 0.60, DefMax: 0.50, OffMax: 0.50),
             };
         }
 
