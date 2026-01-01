@@ -18,11 +18,17 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
         private readonly List<string> _lines = new();
         private IReadOnlyList<FireSimulatorDiagnostics.CheckResult>? _lastChecks;
         private FireSimulatorDiagnostics.TechAuditResult? _lastAudit;
+        private FireSimulatorDiagnostics.EnemyCurveResult? _lastEnemyCurve;
+        private FireSimulatorDiagnostics.CounterCurveResult? _lastCounterCurve;
+        private FireSimulatorDiagnostics.EndToEndCurveResult? _lastEndToEndCurve;
 
         public override void OnEnter(UiContext ui)
         {
             _lastChecks = null;
             _lastAudit = null;
+            _lastEnemyCurve = null;
+            _lastCounterCurve = null;
+            _lastEndToEndCurve = null;
             BuildLines();
         }
 
@@ -32,9 +38,9 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
             _lines.Add("Runs automated diagnostics checks.".PadRight(60));
             _lines.Add("");
 
-            if (_lastChecks == null && _lastAudit == null)
+            if (_lastChecks == null && _lastAudit == null && _lastEnemyCurve == null && _lastCounterCurve == null && _lastEndToEndCurve == null)
             {
-                _lines.Add("Press Enter to run checks and export CSV.".PadRight(60));
+                _lines.Add("Press Enter to run checks and export CSVs.".PadRight(60));
                 return;
             }
 
@@ -58,7 +64,11 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
             if (_lastAudit != null)
             {
                 var audit = _lastAudit.Value;
-                if (audit.ScenarioCount <= 0 || string.IsNullOrWhiteSpace(audit.CsvPath))
+                if (!string.IsNullOrWhiteSpace(audit.CsvPath) && audit.CsvPath.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
+                {
+                    _lines.Add(Clamp60($"Tech audit: {audit.CsvPath}"));
+                }
+                else if (audit.ScenarioCount <= 0 || string.IsNullOrWhiteSpace(audit.CsvPath))
                 {
                     _lines.Add("Tech audit: no scenarios found.".PadRight(60));
                 }
@@ -66,6 +76,69 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
                 {
                     _lines.Add(Clamp60($"Tech audit: {audit.ScenarioCount} scenarios"));
                     _lines.Add(Clamp60($"CSV: {audit.CsvPath}"));
+                }
+            }
+
+            if (_lastEnemyCurve != null)
+            {
+                var curve = _lastEnemyCurve.Value;
+                if (!string.IsNullOrWhiteSpace(curve.CsvPath) && curve.CsvPath.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
+                {
+                    _lines.Add("");
+                    _lines.Add(Clamp60($"Enemy curve: {curve.CsvPath}"));
+                }
+                else if (curve.RowCount <= 0 || string.IsNullOrWhiteSpace(curve.CsvPath))
+                {
+                    _lines.Add("");
+                    _lines.Add("Enemy curve: no rows exported.".PadRight(60));
+                }
+                else
+                {
+                    _lines.Add("");
+                    _lines.Add(Clamp60($"Enemy curve: {curve.RowCount} rows"));
+                    _lines.Add(Clamp60($"CSV: {curve.CsvPath}"));
+                }
+            }
+
+            if (_lastCounterCurve != null)
+            {
+                var curve = _lastCounterCurve.Value;
+                if (!string.IsNullOrWhiteSpace(curve.CsvPath) && curve.CsvPath.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
+                {
+                    _lines.Add("");
+                    _lines.Add(Clamp60($"Balance curve: {curve.CsvPath}"));
+                }
+                else if (curve.RowCount <= 0 || string.IsNullOrWhiteSpace(curve.CsvPath))
+                {
+                    _lines.Add("");
+                    _lines.Add("Balance curve: no rows exported.".PadRight(60));
+                }
+                else
+                {
+                    _lines.Add("");
+                    _lines.Add(Clamp60($"Balance curve: {curve.RowCount} rows"));
+                    _lines.Add(Clamp60($"CSV: {curve.CsvPath}"));
+                }
+            }
+
+            if (_lastEndToEndCurve != null)
+            {
+                var curve = _lastEndToEndCurve.Value;
+                if (!string.IsNullOrWhiteSpace(curve.CsvPath) && curve.CsvPath.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
+                {
+                    _lines.Add("");
+                    _lines.Add(Clamp60($"End-to-end curve: {curve.CsvPath}"));
+                }
+                else if (curve.RowCount <= 0 || string.IsNullOrWhiteSpace(curve.CsvPath))
+                {
+                    _lines.Add("");
+                    _lines.Add("End-to-end curve: no rows exported.".PadRight(60));
+                }
+                else
+                {
+                    _lines.Add("");
+                    _lines.Add(Clamp60($"End-to-end curve: {curve.RowCount} rows"));
+                    _lines.Add(Clamp60($"CSV: {curve.CsvPath}"));
                 }
             }
 
@@ -108,6 +181,33 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
             catch (Exception ex)
             {
                 _lastAudit = new FireSimulatorDiagnostics.TechAuditResult(CsvPath: $"ERROR: {ex.Message}", ScenarioCount: 0);
+            }
+
+            try
+            {
+                _lastEnemyCurve = FireSimulatorDiagnostics.RunEnemyCurveAndWriteCsv();
+            }
+            catch (Exception ex)
+            {
+                _lastEnemyCurve = new FireSimulatorDiagnostics.EnemyCurveResult(CsvPath: $"ERROR: {ex.Message}", RowCount: 0);
+            }
+
+            try
+            {
+                _lastCounterCurve = FireSimulatorDiagnostics.RunCounterCurveAndWriteCsv();
+            }
+            catch (Exception ex)
+            {
+                _lastCounterCurve = new FireSimulatorDiagnostics.CounterCurveResult(CsvPath: $"ERROR: {ex.Message}", RowCount: 0);
+            }
+
+            try
+            {
+                _lastEndToEndCurve = FireSimulatorDiagnostics.RunEndToEndCurveAndWriteCsv();
+            }
+            catch (Exception ex)
+            {
+                _lastEndToEndCurve = new FireSimulatorDiagnostics.EndToEndCurveResult(CsvPath: $"ERROR: {ex.Message}", RowCount: 0);
             }
 
             BuildLines();

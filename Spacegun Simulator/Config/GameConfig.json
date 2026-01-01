@@ -25,16 +25,15 @@
     "Dreadnought": { "Min": 250, "Max": 400 },
     "Carrier": { "Min": 300, "Max": 500 }
   },
-  "EvasivenessRanges": {
-    "Scout": { "Min": 0.6, "Max": 0.9 },
-    "Fighter": { "Min": 0.5, "Max": 0.8 },
-    "Light Cruiser": { "Min": 0.2, "Max": 0.5 },
-    "Cruiser": { "Min": 0.2, "Max": 0.5 },
-    "Destroyer": { "Min": 0.2, "Max": 0.5 },
-    "Heavy Fighter": { "Min": 0.3, "Max": 0.6 },
-    "Battlecruiser": { "Min": 0.1, "Max": 0.4 },
-    "Dreadnought": { "Min": 0.05, "Max": 0.3 },
-    "Carrier": { "Min": 0.05, "Max": 0.3 }
-  },
-  "StealthChanceForLateTiers": 0.3
+  "StealthChanceForLateTiers": 0.3,
+  "Modes": {
+    "PureDeterministicSeed": 0,
+    "DisableRandomEventsInPure": true,
+    "DetectionRcsMultiplierPure": 1.0,
+    "DetectionRcsMultiplierFull": 1.0,
+    "TimeBudgetMultiplierPure": 1.0,
+    "TimeBudgetMultiplierFull": 1.0,
+    "HitToleranceMultiplierPure": 1.0,
+    "HitToleranceMultiplierFull": 1.0
+  }
 }

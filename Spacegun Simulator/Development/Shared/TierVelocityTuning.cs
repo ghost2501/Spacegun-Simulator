@@ -16,7 +16,8 @@ namespace Spacegun_Simulator.Development.Shared
             50_000.0,      // Tier 0
             200_000.0,     // Tier 1
             1_000_000.0,   // Tier 2
-            5_000_000.0    // Tier 3
+            3_000_000.0,   // Tier 3
+            5_000_000.0    // Tier 4
         };
 
         /// <summary>
@@ -28,7 +29,8 @@ namespace Spacegun_Simulator.Development.Shared
             90_000.0,        // Tier 0
             500_000.0,       // Tier 1
             3_000_000.0,     // Tier 2
-            10_000_000.0     // Tier 3
+            6_500_000.0,     // Tier 3
+            10_000_000.0     // Tier 4
         };
 
         /// <summary>
@@ -40,7 +42,8 @@ namespace Spacegun_Simulator.Development.Shared
             90_000.0,        // Tier 0
             500_000.0,       // Tier 1
             3_000_000.0,     // Tier 2
-            10_000_000.0     // Tier 3
+            6_500_000.0,     // Tier 3
+            10_000_000.0     // Tier 4
         };
 
         /// <summary>
@@ -51,7 +54,8 @@ namespace Spacegun_Simulator.Development.Shared
             135_000.0,       // Tier 0
             750_000.0,       // Tier 1
             4_500_000.0,     // Tier 2
-            15_000_000.0     // Tier 3
+            9_750_000.0,     // Tier 3
+            15_000_000.0     // Tier 4
         };
 
         public static (double EnemyMin, double EnemyMax, double PlayerMin, double PlayerMax) GetTierVelocityConstraints(

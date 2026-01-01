@@ -112,27 +112,32 @@
             // Reuse existing logic from previous BallisticsCalculator.CalculateMuzzleVelocity implementation.
             double velocity = 0.0;
 
+            // NOTE: The game uses very high muzzle velocities (tens to hundreds of km/s).
+            // To keep GunConfiguration defaults in the right order of magnitude, interpret the
+            // energy-like tuning fields as GJ-scaled values (i.e., multiply by 1e9 to get joules).
+            const double energyUnitJ = 1_000_000_000.0;
+
             switch (gun.PropulsionSystem)
             {
                 case PropulsionType.Chemical:
-                    double totalEnergy = gun.PropellantMass * gun.PropellantEnergyDensity * 1_000_000;
+                    double totalEnergy = gun.PropellantMass * gun.GetEffectivePropellantEnergyDensity() * energyUnitJ;
                     double kineticEnergy = totalEnergy * 0.3;
                     velocity = Math.Sqrt(2 * kineticEnergy / projectile.Mass);
                     break;
 
                 case PropulsionType.Railgun:
-                    double availableEnergy = gun.PowerCapacity * 1_000_000 * gun.CapacitorEfficiency;
+                    double availableEnergy = gun.PowerCapacity * energyUnitJ * gun.CapacitorEfficiency;
                     velocity = Math.Sqrt(2 * availableEnergy / projectile.Mass);
                     break;
 
                 case PropulsionType.Coilgun:
-                    double coilEnergy = gun.PowerCapacity * 1_000_000 * gun.CapacitorEfficiency * 0.85;
+                    double coilEnergy = gun.PowerCapacity * energyUnitJ * gun.CapacitorEfficiency * 0.85;
                     velocity = Math.Sqrt(2 * coilEnergy / projectile.Mass);
                     break;
 
                 case PropulsionType.Hybrid:
-                    double chemEnergy = gun.PropellantMass * gun.PropellantEnergyDensity * 1_000_000 * 0.3;
-                    double emEnergy = gun.PowerCapacity * 1_000_000 * gun.CapacitorEfficiency * 0.5;
+                    double chemEnergy = gun.PropellantMass * gun.GetEffectivePropellantEnergyDensity() * energyUnitJ * 0.3;
+                    double emEnergy = gun.PowerCapacity * energyUnitJ * gun.CapacitorEfficiency * 0.5;
                     velocity = Math.Sqrt(2 * (chemEnergy + emEnergy) / projectile.Mass);
                     break;
             }

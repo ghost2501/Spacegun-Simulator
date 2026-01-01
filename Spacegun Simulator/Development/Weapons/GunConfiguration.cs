@@ -14,6 +14,27 @@
         public string BarrelMaterial { get; set; }
         public double BarrelIntegrity { get; set; } // 0.0 (destroyed) .. 1.0 (new)
 
+        /// <summary>
+        /// Fire-control quality multiplier (>= 0). Higher values help counter enemy maneuverability.
+        /// </summary>
+        public double FireControlQuality { get; set; }
+
+        /// <summary>
+        /// Player-facing name for <see cref="FireControlQuality"/>.
+        /// Kept as an alias so existing saves/configs that reference FireControlQuality remain compatible.
+        /// </summary>
+        public double Guidance
+        {
+            get => FireControlQuality;
+            set => FireControlQuality = value;
+        }
+
+        /// <summary>
+        /// Range multiplier derived from barrel length.
+        /// Baseline is 100.0 (default BarrelLength) => 1.0x.
+        /// </summary>
+        public double RangeMultiplierFromBarrelLength => Math.Clamp(BarrelLength / 100.0, 0.5, 2.0);
+
         public PropulsionType PropulsionSystem { get; set; }
         public double PropellantMass { get; set; }
         public double PropellantEnergyDensity { get; set; }
@@ -22,7 +43,6 @@
         public double CapacitorEfficiency { get; set; }
         public CoolingSystem CoolingSystem { get; set; }
         public double CoolingCapacity { get; set; }
-        public double StructuralReinforcement { get; set; }
 
         public int AmmunitionCount { get; set; }
         public ProjectileConfiguration DefaultProjectile { get; set; }
@@ -57,6 +77,7 @@
             BoreDiameter = 0.5;
             BarrelMaterial = "Steel";
             BarrelIntegrity = 1.0;
+            FireControlQuality = 1.0;
             PropulsionSystem = PropulsionType.Chemical;
             PropellantMass = 50.0;
             PropellantEnergyDensity = 5.0;
@@ -64,7 +85,6 @@
             CapacitorEfficiency = 0.7;
             CoolingSystem = CoolingSystem.Passive;
             CoolingCapacity = 10.0;
-            StructuralReinforcement = 1.0;
             AmmunitionCount = 10;
             DefaultProjectile = new ProjectileConfiguration();
 
@@ -98,9 +118,17 @@
                 : 80_000;
         }
 
+        public static PropulsionType GetPropulsionSystemForWeaponsTechLevel(int weaponsTechLevel)
+        {
+            if (weaponsTechLevel <= 1) return PropulsionType.Chemical;
+            if (weaponsTechLevel == 2) return PropulsionType.Railgun;
+            return PropulsionType.Hybrid;
+        }
+
         public void UpdateBaseMuzzleVelocity(int weaponsTechLevel)
         {
             BaseMuzzleVelocityMs = GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel);
+            PropulsionSystem = GetPropulsionSystemForWeaponsTechLevel(weaponsTechLevel);
         }
 
         // ====================================================================
@@ -118,14 +146,11 @@
             double heatFactor = HeatPerShot / Math.Max(1.0, CoolingCapacity); // >1 => overheated
             double pressureFactor = MaxSafePressure > 0 ? (HeatPerShot / MaxSafePressure) : 1.0;
 
-            // Structural reinforcement reduces wear (higher reinforcement -> less wear)
-            double reinforcementFactor = 1.0 / Math.Max(0.1, StructuralReinforcement);
-
             // Upgrade modifiers
             double upgradeModifier = GetUpgradeWearModifier();
 
             // Compose final wear for this shot
-            double perShotWear = BaseWearPerShot * Math.Max(0.1, heatFactor) * Math.Max(0.5, pressureFactor) * reinforcementFactor * upgradeModifier;
+            double perShotWear = BaseWearPerShot * Math.Max(0.1, heatFactor) * Math.Max(0.5, pressureFactor) * upgradeModifier;
 
             // Bound wear so it's not absurd for a single shot
             perShotWear = Math.Clamp(perShotWear, 1e-6, 0.2); // min tiny wear, max 20% integrity loss per shot
@@ -183,8 +208,7 @@
             // estimate current per-shot wear with current state
             double heatFactor = HeatPerShot / Math.Max(1.0, CoolingCapacity);
             double pressureFactor = MaxSafePressure > 0 ? (HeatPerShot / MaxSafePressure) : 1.0;
-            double reinforcementFactor = 1.0 / Math.Max(0.1, StructuralReinforcement);
-            double perShotWear = BaseWearPerShot * Math.Max(0.1, heatFactor) * Math.Max(0.5, pressureFactor) * reinforcementFactor * GetUpgradeWearModifier();
+            double perShotWear = BaseWearPerShot * Math.Max(0.1, heatFactor) * Math.Max(0.5, pressureFactor) * GetUpgradeWearModifier();
             perShotWear = Math.Clamp(perShotWear, 1e-6, 0.2);
 
             if (perShotWear <= 0) return int.MaxValue;
@@ -249,7 +273,54 @@
                 "Exotic" => 1200.0,
                 _ => 500.0
             };
-            return basePressure * StructuralReinforcement * BarrelIntegrity;
+            return basePressure * BarrelIntegrity;
+        }
+
+        /// <summary>
+        /// Bore diameter defines the supported projectile mass range.
+        /// This is used as a hard compatibility constraint.
+        /// </summary>
+        public (double MinKg, double MaxKg) GetSupportedProjectileMassRangeKg()
+        {
+            const double referenceBoreMeters = 0.5;
+            double bore = Math.Max(0.01, BoreDiameter);
+            double areaScale = Math.Pow(bore / referenceBoreMeters, 2.0);
+
+            // Baseline ranges are chosen so legacy presets (incl. 100kg) and crafted cores (10-60kg)
+            // are supported by the default 0.5m bore.
+            double minKg = 0.3 * areaScale;
+            double maxKg = 200.0 * areaScale;
+
+            minKg = Math.Max(0.01, minKg);
+            maxKg = Math.Max(minKg, maxKg);
+            return (minKg, maxKg);
+        }
+
+        /// <summary>
+        /// Barrel material limits the maximum usable propellant energy density.
+        /// Values are in the same units as PropellantEnergyDensity.
+        /// </summary>
+        public double GetMaxUsablePropellantEnergyDensity()
+        {
+            // "Steel" is treated as the baseline safe cap.
+            const double steelSafeCap = 5.0;
+
+            double materialMultiplier = BarrelMaterial switch
+            {
+                "Steel" => 1.0,
+                "Titanium" => 1.2,
+                "Composite" => 1.5,
+                "Exotic" => 2.0,
+                _ => 1.0
+            };
+
+            return steelSafeCap * materialMultiplier;
+        }
+
+        public double GetEffectivePropellantEnergyDensity()
+        {
+            double cap = GetMaxUsablePropellantEnergyDensity();
+            return Math.Min(PropellantEnergyDensity, cap);
         }
 
         private double CalculateHeatGeneration()

@@ -1,13 +1,13 @@
 ﻿using Spacegun_Simulator.Enemies;
 using Spacegun_Simulator.Economy;
 using Spacegun_Simulator.Ballistics;
-using Spacegun_Simulator.Development;
 using Spacegun_Simulator.Development.Projectiles;
 using Spacegun_Simulator.Development.Shared;
 using Spacegun_Simulator.Development.Technology;
 using Spacegun_Simulator.Development.Weapons;
 using Spacegun_Simulator.Detection;
 using Spacegun_Simulator.Events;
+using System.Security.Cryptography;
 
 namespace Spacegun_Simulator.Core
 {
@@ -57,7 +57,12 @@ namespace Spacegun_Simulator.Core
         // Accumulated resources during allocation phase (time spent as tokens)
         public Dictionary<string, double> AccumulatedResources { get; private set; } = new();
 
-        internal readonly Random rng;
+        internal Random rng;
+
+        /// <summary>
+        /// Base seed for deterministic generation. Used to derive per-wave seeds so save/load is stable.
+        /// </summary>
+        public int BaseSeed { get; private set; }
 
         /// <summary>
         /// The single enemy type for this entire campaign.
@@ -73,6 +78,13 @@ namespace Spacegun_Simulator.Core
         /// Set during game initialization, cannot be changed mid-campaign.
         /// </summary>
         public GameDifficulty SelectedDifficulty { get; set; } = GameDifficulty.CometsAndAsteroids;
+
+        /// <summary>
+        /// High-level mode selection (economy/dev loop vs pure detection+fire).
+        /// </summary>
+        public GameModeId SelectedMode { get; set; } = GameModeId.Economy_KineticDronesVsRobotAsteroids;
+
+        public GameModeDefinition Mode => GameModeCatalog.Get(SelectedMode);
 
         /// <summary>
         /// Gets the difficulty configuration for the currently selected difficulty.
@@ -93,15 +105,84 @@ namespace Spacegun_Simulator.Core
             IsGameOver = false;
             WavesDefeated = 0;  // Unified: represents both waves and enemies destroyed
             CurrentPhase = GamePhase.Detection;
-            rng = seed.HasValue ? new Random(seed.Value) : new Random();
             SelectedDifficulty = difficulty;
+            SelectedMode = GameModeCatalog.GetDefaultForDifficulty(difficulty);
+
+            // Determinism foundation:
+            // - Pure modes default to a fixed seed so runs are identical.
+            // - Full modes default to a random seed, but that seed is persisted so save/load is stable.
+            BaseSeed = seed ?? (GameModeTuning.IsPureMode(Mode)
+                ? GameModeTuning.Current.PureDeterministicSeed
+                : RandomNumberGenerator.GetInt32(int.MaxValue));
+
+            rng = new Random(BaseSeed);
             TechTree = new TechTree();  // Initialize at level 1 in all trees
 
             InitializeResourceAccumulation();
 
             // NEW: Generate campaign-wide enemy type at game start
-            CampaignEnemyType = EnemyType.GenerateForCampaign(rng);
+            CampaignEnemyType = EnemyType.GenerateForCampaign(CreateDeterministicRng("CampaignEnemyType"));
         }
+
+        public GameState(int? seed = null, GameModeId mode = GameModeId.Economy_KineticDronesVsRobotAsteroids)
+            : this(seed: seed, difficulty: GameModeCatalog.Get(mode).Difficulty)
+        {
+            SelectedMode = mode;
+            SelectedDifficulty = GameModeCatalog.Get(mode).Difficulty;
+
+            // Re-apply deterministic seed defaults now that mode is known.
+            if (!seed.HasValue)
+            {
+                if (GameModeTuning.IsPureMode(Mode))
+                {
+                    BaseSeed = GameModeTuning.Current.PureDeterministicSeed;
+                    rng = new Random(BaseSeed);
+                }
+            }
+        }
+
+        public void SetBaseSeed(int seed)
+        {
+            BaseSeed = seed;
+            rng = new Random(seed);
+        }
+
+        private Random CreateDeterministicRng(string purpose, int waveNumber = 0)
+        {
+            int seed = DeriveSeed(purpose, waveNumber);
+            return new Random(seed);
+        }
+
+        private int DeriveSeed(string purpose, int waveNumber)
+        {
+            unchecked
+            {
+                uint hash = 2166136261;
+
+                void Add(string s)
+                {
+                    for (int i = 0; i < s.Length; i++)
+                    {
+                        hash ^= s[i];
+                        hash *= 16777619;
+                    }
+                }
+
+                Add(BaseSeed.ToString());
+                Add("|");
+                Add(((int)SelectedMode).ToString());
+                Add("|");
+                Add(((int)SelectedDifficulty).ToString());
+                Add("|");
+                Add(purpose);
+                Add("|");
+                Add(waveNumber.ToString());
+                return (int)hash;
+            }
+        }
+
+        private Random CreateWaveRng(int waveNumber) => CreateDeterministicRng("Wave", waveNumber);
+        private Random CreateEventRng(int waveNumber) => CreateDeterministicRng("Event", waveNumber);
 
         private void InitializeResourceAccumulation()
         {
@@ -131,11 +212,15 @@ namespace Spacegun_Simulator.Core
         {
             var result = new DetectionPhaseResult();
             var diffConfig = DifficultyConfig.GetConfig(SelectedDifficulty);
+            var modeTuning = GameModeTuning.Current;
+            var enemyRuleset = GameModeTuning.IsPureMode(Mode) ? EnemyGenerationRuleset.Pure : EnemyGenerationRuleset.Full;
+
+            ApplyRadarTechToDetectionSystem();
 
             // ===== TUTORIAL MODE: Use simplified beachball waves =====
             if (diffConfig.IsTutorialMode)
             {
-                CurrentWave = EnemyWave.GenerateTutorialWave(CurrentWaveNumber, rng);
+                CurrentWave = EnemyWave.GenerateTutorialWave(CurrentWaveNumber, CreateWaveRng(CurrentWaveNumber));
                 result.Wave = CurrentWave;
 
                 // Tutorial waves are always detected - use existing Detection system
@@ -161,7 +246,7 @@ namespace Spacegun_Simulator.Core
                 // Tutorial skips resource phases - go directly to firing
                 GamePhaseTransitionRules.Apply(
                     this,
-                    diffConfig.SkipResourcePhases
+                    (!Mode.UsesEconomyAndDevelopment || diffConfig.SkipResourcePhases)
                         ? GamePhaseTransitionRules.PhaseEvent.DetectionResolvedSkipResourcePhases
                         : GamePhaseTransitionRules.PhaseEvent.DetectionResolvedProceedToResourceAllocation);
 
@@ -181,7 +266,7 @@ namespace Spacegun_Simulator.Core
                 var preGenProblem = PreGeneratedWaves[CurrentWaveIndex];
 
                 // Generate wave data for display (detection stats), but use cached trajectory
-                CurrentWave = EnemyWave.GenerateWave(CurrentWaveNumber, rng, CampaignEnemyType);
+                CurrentWave = EnemyWave.GenerateWave(CurrentWaveNumber, CreateWaveRng(CurrentWaveNumber), enemyRuleset, CampaignEnemyType);
                 CurrentWave.Targets = CurrentWave.Targets.Take(1).ToList();
 
                 // Apply pre-generated trajectory data to ensure consistency
@@ -200,14 +285,26 @@ namespace Spacegun_Simulator.Core
             else
             {
                 // Fallback: Generate wave fresh (for testing or if pre-generation was skipped)
-                CurrentWave = EnemyWave.GenerateWave(CurrentWaveNumber, rng, CampaignEnemyType);
+                CurrentWave = EnemyWave.GenerateWave(CurrentWaveNumber, CreateWaveRng(CurrentWaveNumber), enemyRuleset, CampaignEnemyType);
                 CurrentWave.Targets = CurrentWave.Targets.Take(1).ToList();
             }
 
             result.Wave = CurrentWave;
 
+            // Apply mode tuning before detection calculations (e.g., RCS scaling).
+            if (CurrentWave != null && !diffConfig.IsTutorialMode)
+            {
+                double rcsMult = modeTuning.GetDetectionRcsMultiplier(Mode);
+                if (Math.Abs(rcsMult - 1.0) > 0.0000001)
+                {
+                    CurrentWave.AverageRadarCrossSection *= rcsMult;
+                    if (CurrentWave.Targets.Count > 0)
+                        CurrentWave.Targets[0].CrossSection *= rcsMult;
+                }
+            }
+
             // Get detection status
-            CurrentDetectionStatus = Detection.GetDetectionStatus(CurrentWave);
+            CurrentDetectionStatus = Detection.GetDetectionStatus(CurrentWave!);
             result.DetectionStatus = CurrentDetectionStatus;
 
             if (!CurrentDetectionStatus.IsDetected)
@@ -221,23 +318,159 @@ namespace Spacegun_Simulator.Core
             // Calculate time available to reach gun range
             // This is: (InitialDistance - GunRange) / Velocity
             var tier = GameConstants.GetTierForWave(CurrentWaveNumber);
-            double distanceToGunRange = CurrentWave.InitialDistance - tier.MaxEffectiveGunRange;
+            double effectiveGunRange = GetCurrentEffectiveGunRangeMeters();
+            double distanceToGunRange = CurrentWave!.InitialDistance - effectiveGunRange;
 
             // Store in BOTH seconds and years for consistency
-            double availableSecondsForGunRange = distanceToGunRange / CurrentWave.AverageVelocity;
+            double secondsUntilGunRange = distanceToGunRange / CurrentWave.AverageVelocity;
+
+            double timeMult = modeTuning.GetTimeBudgetMultiplier(Mode);
+            if (Math.Abs(timeMult - 1.0) > 0.0000001)
+                secondsUntilGunRange *= timeMult;
+
+            // Persist exact seconds for save/load.
+            availableSecondsForGunRange = secondsUntilGunRange;
 
             // Round to whole years, minimum 1 year
-            AvailableYears = Math.Max(1, (long)Math.Round(availableSecondsForGunRange / GameConstants.SECONDS_PER_YEAR));
+            AvailableYears = Math.Max(1, (long)Math.Round(secondsUntilGunRange / GameConstants.SECONDS_PER_YEAR));
             RemainingYears = AvailableYears;
             InitializeResourceAccumulation();
 
             result.WaveDetected = true;
             result.AvailableYears = AvailableYears;
-            result.Message = $"Enemy detected at {GameConstants.FormatDistance(CurrentWave.InitialDistance)}! {GameConstants.FormatTime(availableSecondsForGunRange)} until target enters gun range.";
+            var intelRng = CreateDeterministicRng("Intel", CurrentWaveNumber);
+            string intelSummary = Detection.GenerateNoisyIntelSummary(CurrentWave, intelRng);
+            result.Message = $"Enemy detected at {GameConstants.FormatDistance(CurrentWave.InitialDistance)}! {GameConstants.FormatTime(secondsUntilGunRange)} until target enters gun range.\n{intelSummary}";
 
-            GamePhaseTransitionRules.Apply(this, GamePhaseTransitionRules.PhaseEvent.DetectionResolvedProceedToResourceAllocation);
+            GamePhaseTransitionRules.Apply(
+                this,
+                Mode.UsesEconomyAndDevelopment
+                    ? GamePhaseTransitionRules.PhaseEvent.DetectionResolvedProceedToResourceAllocation
+                    : GamePhaseTransitionRules.PhaseEvent.DetectionResolvedSkipResourcePhases);
             return result;
         }
+
+        private void ApplyRadarTechToDetectionSystem()
+        {
+            int radarLevel = 1;
+            if (TechTree?.CurrentLevel != null && TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Radar, out int lvl))
+                radarLevel = Math.Max(1, lvl);
+
+            Detection.DetectionRangeMultiplier = radarLevel switch
+            {
+                1 => 1.0,
+                2 => 1.15,
+                3 => 1.30,
+                _ => 1.30
+            };
+
+            Detection.MaxSimultaneousTargets = radarLevel switch
+            {
+                1 => 5,
+                2 => 8,
+                3 => 12,
+                _ => 12
+            };
+
+            Detection.StealthPenetration = radarLevel switch
+            {
+                1 => 0.0,
+                2 => 0.40,
+                3 => 0.75,
+                _ => 0.75
+            };
+
+            Detection.IntelResolution = radarLevel switch
+            {
+                1 => 0.20,
+                2 => 0.50,
+                3 => 0.80,
+                _ => 0.80
+            };
+
+            // Keep existing space-based flag (some modes may set it elsewhere).
+        }
+
+        public double GetCurrentEffectiveGunRangeMeters()
+        {
+            var tier = GameConstants.GetTierForWave(CurrentWaveNumber);
+            double range = tier.MaxEffectiveGunRange;
+
+            // Gun upgrades: barrel length directly scales gun range.
+            if (Gun != null)
+                range *= Gun.RangeMultiplierFromBarrelLength;
+
+            // Stealth applies the same percent debuff to gun range as to detection.
+            if (CurrentWave != null)
+                range *= Detection.GetStealthRangeMultiplier(CurrentWave);
+
+            return Math.Max(0.0, range);
+        }
+
+        public ResolvedShotStats ResolveShotStats(EnemyTarget target)
+        {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (Gun == null) throw new InvalidOperationException("GameState.Gun is null.");
+
+            int weaponsTechLevel = 1;
+            if (TechTree?.CurrentLevel != null && TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Weapons, out int w))
+                weaponsTechLevel = Math.Max(1, w);
+
+            // Keep GunConfiguration synchronized with Weapons tech.
+            Gun.UpdateBaseMuzzleVelocity(weaponsTechLevel);
+
+            double projectileMassKg =
+                CraftedProjectile?.MassKg
+                ?? SelectedGunProjectileSpec?.ProjectileMassKg
+                ?? Gun.DefaultProjectile?.Mass
+                ?? 10.0;
+
+            var (minMassKg, maxMassKg) = Gun.GetSupportedProjectileMassRangeKg();
+            if (projectileMassKg < minMassKg || projectileMassKg > maxMassKg)
+            {
+                throw new InvalidOperationException(
+                    $"Projectile mass {projectileMassKg:N2} kg is incompatible with bore {Gun.BoreDiameter:N2} m " +
+                    $"(supported {minMassKg:N2}..{maxMassKg:N2} kg)."
+                );
+            }
+
+            double penetration = CraftedProjectile?.Enhancement?.Penetration ?? 1.0;
+            penetration = Math.Max(0.1, penetration);
+            double effectiveFractureEnergyMJ = Math.Max(0.0, target.FractureEnergy / penetration);
+
+            double additionalHitToleranceMultiplier = CraftedProjectile?.Enhancement?.HitToleranceBonus ?? 1.0;
+            additionalHitToleranceMultiplier = Math.Max(0.1, additionalHitToleranceMultiplier);
+
+            double deltaVCapacity = CraftedProjectile?.Propulsion?.DeltaVCapacityMs ?? 0.0;
+            double burnDuration = CraftedProjectile?.Propulsion?.BurnDurationSeconds ?? 1.0;
+            double referenceMass = CraftedProjectile?.Propulsion?.ReferenceMassKg ?? 10.0;
+
+            double projectileDefense = CraftedProjectile?.DefenseRating ?? 0.0;
+
+            // Compute maximum launch velocity from gun physics, then cap by tech base velocity.
+            var projectileCfg = new ProjectileConfiguration { Mass = projectileMassKg };
+            double energyBasedMax = BallisticsCalculator.CalculateMuzzleVelocity(Gun, projectileCfg);
+
+            double barrelEfficiency = Math.Min(1.0, Gun.BarrelLength / 200.0);
+            double barrelMultiplier = (0.5 + 0.5 * barrelEfficiency);
+            double techBaseMax = GunConfiguration.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel) * barrelMultiplier * Gun.BarrelIntegrity;
+
+            double maxLaunchVelocity = Math.Max(1.0, Math.Min(techBaseMax, energyBasedMax));
+
+            return new ResolvedShotStats(
+                ProjectileMassKg: projectileMassKg,
+                MaxLaunchVelocityMs: maxLaunchVelocity,
+                EffectiveFractureEnergyMJ: effectiveFractureEnergyMJ,
+                Penetration: penetration,
+                AdditionalHitToleranceMultiplier: additionalHitToleranceMultiplier,
+                PropulsionDeltaVCapacityMs: Math.Max(0.0, deltaVCapacity),
+                PropulsionBurnDurationSeconds: Math.Max(0.1, burnDuration),
+                PropulsionReferenceMassKg: Math.Max(0.01, referenceMass),
+                ProjectileDefenseRating: Math.Clamp(projectileDefense, 0.0, 1.0)
+            );
+        }
+
+        internal Random CreateFiringRng(string purpose) => CreateDeterministicRng($"Firing|{purpose}", CurrentWaveNumber);
 
         /// <summary>
         /// Generate a firing problem for tutorial mode.
@@ -295,9 +528,20 @@ namespace Spacegun_Simulator.Core
         /// </summary>
         public void GenerateWaveEvent()
         {
+            // Don't overwrite a restored event.
+            if (CurrentWaveEvent != null)
+                return;
+
+            // Pure runs have no RNG side-effects from events.
+            if (GameModeTuning.IsPureMode(Mode) && GameModeTuning.Current.DisableRandomEventsInPure)
+            {
+                CurrentWaveEvent = null;
+                return;
+            }
+
             if (RandomEvent.ShouldHaveEvent(CurrentWaveNumber))
             {
-                CurrentWaveEvent = RandomEvent.GenerateEvent(CurrentWaveNumber, rng);
+                CurrentWaveEvent = RandomEvent.GenerateEvent(CurrentWaveNumber, CreateEventRng(CurrentWaveNumber));
             }
             else
             {
@@ -539,6 +783,19 @@ namespace Spacegun_Simulator.Core
 
             // ===== CRITICAL: Only generate if NOT already generated =====
             // If CurrentFiringProblem already exists, reuse it (from a prior call or load)
+            double effectiveRangeForWave = diffConfig.IsTutorialMode
+                ? DifficultyConfig.TutorialPotatoCannon.EffectiveRangeMeters
+                : GetCurrentEffectiveGunRangeMeters();
+
+            if (CurrentFiringProblem != null && !diffConfig.IsTutorialMode)
+            {
+                // If gun range changed (e.g., upgrades or stealth mitigation), regenerate.
+                if (Math.Abs(CurrentFiringProblem.EngagementDistance - (float)effectiveRangeForWave) > 0.5f)
+                {
+                    CurrentFiringProblem = null;
+                }
+            }
+
             if (CurrentFiringProblem == null)
             {
                 // For tutorial mode, use the tutorial firing problem generator
@@ -548,10 +805,12 @@ namespace Spacegun_Simulator.Core
                 }
                 else
                 {
+                    var resolved = ResolveShotStats(target);
                     var solver = new FiringSolution(
-                        (float)SelectedGunProjectileSpec.ProjectileMassKg,
-                        (float)target.FractureEnergy,
+                        (float)resolved.ProjectileMassKg,
+                        (float)resolved.EffectiveFractureEnergyMJ,
                         target.Mass);
+                    solver.ConfigureProjectileModifiers(resolved);
 
                     FiringProblem firingProblem = null!;
                     try
@@ -559,8 +818,8 @@ namespace Spacegun_Simulator.Core
                         // Pass gun's effective range to constrain engagement
                         firingProblem = solver.GenerateFiringProblem(
                             CurrentWave,
-                            (float)SelectedGunProjectileSpec.MuzzleVelocityMs,
-                            (float)tier.MaxEffectiveGunRange,
+                            (float)resolved.MaxLaunchVelocityMs,
+                            (float)effectiveRangeForWave,
                             rng);
                     }
                     catch (InvalidOperationException exception)
@@ -570,7 +829,7 @@ namespace Spacegun_Simulator.Core
                         {
                             CanReachTarget = false,
                             TargetDistance = 1_100_000,
-                            GunRange = tier.MaxEffectiveGunRange,
+                            GunRange = effectiveRangeForWave,
                             Message = $"Gun is insufficient for this target: {exception.Message}",
                             Reward = null,
                             GameOver = false
@@ -582,16 +841,11 @@ namespace Spacegun_Simulator.Core
                 }
             }
 
-            // For tutorial, use tutorial effective range
-            double effectiveRange = diffConfig.IsTutorialMode
-                ? DifficultyConfig.TutorialPotatoCannon.EffectiveRangeMeters
-                : tier.MaxEffectiveGunRange;
-
             return new FiringPhaseResult
             {
                 CanReachTarget = true,
                 TargetDistance = CurrentFiringProblem.EngagementDistance,
-                GunRange = effectiveRange,
+                GunRange = effectiveRangeForWave,
                 Message = diffConfig.IsTutorialMode
                     ? $"🎯 Beachball at {CurrentFiringProblem.EngagementDistance:F0} meters - Ready to fire!"
                     : $"Target at engagement distance {GameConstants.FormatDistance(CurrentFiringProblem.EngagementDistance)}",
@@ -810,6 +1064,7 @@ namespace Spacegun_Simulator.Core
         public void GenerateAllCampaignWaves(int campaignLength)
         {
             var diffConfig = DifficultyConfig.GetConfig(SelectedDifficulty);
+            var enemyRuleset = GameModeTuning.IsPureMode(Mode) ? EnemyGenerationRuleset.Pure : EnemyGenerationRuleset.Full;
 
             // ===== TUTORIAL MODE: Generate simple beachball scenarios =====
             if (diffConfig.IsTutorialMode)
@@ -822,7 +1077,7 @@ namespace Spacegun_Simulator.Core
                 {
                     try
                     {
-                        var wave = EnemyWave.GenerateTutorialWave(waveNumber, rng);
+                        var wave = EnemyWave.GenerateTutorialWave(waveNumber, CreateWaveRng(waveNumber));
                         var problem = GenerateTutorialFiringProblem(wave);
                         PreGeneratedWaves.Add(problem);
                     }
@@ -849,7 +1104,7 @@ namespace Spacegun_Simulator.Core
             {
                 try
                 {
-                    var wave = EnemyWave.GenerateWave(waveNumber, rng, CampaignEnemyType);
+                    var wave = EnemyWave.GenerateWave(waveNumber, CreateWaveRng(waveNumber), enemyRuleset, CampaignEnemyType);
                     wave.Targets = wave.Targets.Take(1).ToList();
 
                     var tier = GameConstants.GetTierForWave(waveNumber);
@@ -869,7 +1124,7 @@ namespace Spacegun_Simulator.Core
                         wave,
                         campaignReferenceVelocity,
                         (float)tier.MaxEffectiveGunRange,
-                        rng);
+                        CreateWaveRng(waveNumber));
 
                     PreGeneratedWaves.Add(problem);
                     successCount++;

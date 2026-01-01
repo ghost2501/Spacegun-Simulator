@@ -18,7 +18,6 @@ namespace Spacegun_Simulator.Tests
             var gun = new GunConfiguration
             {
                 BarrelMaterial = "Steel",
-                StructuralReinforcement = 1.0,
                 CoolingCapacity = 10.0,
                 PropulsionSystem = PropulsionType.Railgun,
                 PowerCapacity = 200.0,

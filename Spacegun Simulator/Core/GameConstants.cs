@@ -13,7 +13,7 @@ namespace Spacegun_Simulator.Core
         // NOTE: TierCount is the single source of truth for how many tiers exist.
         // Update this value if WaveTiers length changes and keep arrays in sync.
         // ====================================================================
-        public const int TierCount = 4;
+        public const int TierCount = 5;
 
         // ====================================================================
         // Barrel wear tunables (canonical single source)
@@ -71,12 +71,12 @@ namespace Spacegun_Simulator.Core
 
         public static readonly WaveTier[] WaveTiers = new WaveTier[]
         {
-            // TIER 0: Early game (Waves 1-6)
+            // TIER 0: Early game (Waves 1-5)
             new WaveTier
             {
                 TierIndex = 0,
                 StartWave = 1,
-                EndWave = 6,
+                EndWave = 5,
                 DetectionRangeMin = 15_000.0 * AU_TO_METERS,
                 DetectionRangeMax = 25_000.0 * AU_TO_METERS,
                 VelocityMin = 50_000,           // 50 km/s
@@ -86,12 +86,12 @@ namespace Spacegun_Simulator.Core
                 TimeToImpactMax = (long)(400.0 * SECONDS_PER_YEAR)
             },
 
-            // TIER 1: Mid-game (Waves 7-12)
+            // TIER 1: Mid-game (Waves 6-10)
             new WaveTier
             {
                 TierIndex = 1,
-                StartWave = 7,
-                EndWave = 12,
+                StartWave = 6,
+                EndWave = 10,
                 DetectionRangeMin = 60_000.0 * AU_TO_METERS,
                 DetectionRangeMax = 100_000.0 * AU_TO_METERS,
                 VelocityMin = 200_000,          // 200 km/s
@@ -101,12 +101,12 @@ namespace Spacegun_Simulator.Core
                 TimeToImpactMax = (long)(40.0 * SECONDS_PER_YEAR)
             },
 
-            // TIER 2: Late-game (Waves 13-19)
+            // TIER 2: Late-game (Waves 11-15)
             new WaveTier
             {
                 TierIndex = 2,
-                StartWave = 13,
-                EndWave = 19,
+                StartWave = 11,
+                EndWave = 15,
                 DetectionRangeMin = 50_000.0 * AU_TO_METERS,
                 DetectionRangeMax = 150_000.0 * AU_TO_METERS,
                 VelocityMin = 1_000_000,        // 1,000 km/s
@@ -116,11 +116,26 @@ namespace Spacegun_Simulator.Core
                 TimeToImpactMax = (long)(8.0 * SECONDS_PER_YEAR)
             },
 
-            // TIER 3: Endgame (Waves 20-25)
+            // TIER 3: Endgame (Waves 16-20)
             new WaveTier
             {
                 TierIndex = 3,
-                StartWave = 20,
+                StartWave = 16,
+                EndWave = 20,
+                DetectionRangeMin = 100_000.0 * AU_TO_METERS,
+                DetectionRangeMax = 325_000.0 * AU_TO_METERS,
+                VelocityMin = 3_000_000,        // 3,000 km/s
+                VelocityMax = 6_500_000,        // 6,500 km/s
+                MaxEffectiveGunRange = 30_000_000.0,
+                TimeToImpactMin = (long)(1.5 * SECONDS_PER_YEAR),
+                TimeToImpactMax = (long)(5.0 * SECONDS_PER_YEAR)
+            },
+
+            // TIER 4: Final tier (Waves 21-25)
+            new WaveTier
+            {
+                TierIndex = 4,
+                StartWave = 21,
                 EndWave = 25,
                 DetectionRangeMin = 150_000.0 * AU_TO_METERS,
                 DetectionRangeMax = 500_000.0 * AU_TO_METERS,
@@ -271,9 +286,6 @@ namespace Spacegun_Simulator.Core
 
         // Cross-section ranges per type (square meters)
         public static Dictionary<string, (double Min, double Max)> CrossSectionRanges => EnemyTuning.CrossSectionRanges;
-
-        // Evasiveness ranges by type (0..1)
-        public static Dictionary<string, (double Min, double Max)> EvasivenessRanges => EnemyTuning.EvasivenessRanges;
 
         // Stealth chance when tier >= 2
         public static double StealthChanceForLateTiers
@@ -471,6 +483,9 @@ namespace Spacegun_Simulator.Core
                 if (cfg.ExoticRewardPerWave.HasValue) GameConstants.ExoticRewardPerWave = cfg.ExoticRewardPerWave.Value;
                 if (cfg.MinBudgetToContinue.HasValue) GameConstants.MinBudgetToContinue = cfg.MinBudgetToContinue.Value;
                 if (cfg.StealthChanceForLateTiers.HasValue) GameConstants.StealthChanceForLateTiers = cfg.StealthChanceForLateTiers.Value;
+
+                // Optional: mode tuning
+                GameModeTuning.ApplyFromConfig(cfg.Modes);
             }
             catch
             {
@@ -490,6 +505,8 @@ namespace Spacegun_Simulator.Core
             public double? ExoticRewardPerWave { get; set; }
             public double? MinBudgetToContinue { get; set; }
             public double? StealthChanceForLateTiers { get; set; }
+
+            public GameModeTuning? Modes { get; set; }
         }
     }
 }

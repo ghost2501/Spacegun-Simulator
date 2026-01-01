@@ -35,6 +35,7 @@ namespace Spacegun_Simulator.Core
         public double BarrelLength { get; set; }
         public string BarrelMaterial { get; set; } = string.Empty;
         public double BarrelIntegrity { get; set; }
+        public double FireControlQuality { get; set; }
         public string PropulsionSystem { get; set; } = string.Empty;
         public double PropellantMass { get; set; }
         public double PropellantEnergyDensity { get; set; }
@@ -42,7 +43,6 @@ namespace Spacegun_Simulator.Core
         public double CapacitorEfficiency { get; set; }
         public string CoolingSystem { get; set; } = string.Empty;
         public double CoolingCapacity { get; set; }
-        public double StructuralReinforcement { get; set; }
         public int AmmunitionCount { get; set; }
         public List<string> InstalledUpgrades { get; set; } = new();
 
@@ -89,6 +89,15 @@ namespace Spacegun_Simulator.Core
 
         // ===== DIFFICULTY SETTING =====
         public string SelectedDifficulty { get; set; } = string.Empty;
+
+        // ===== GAME MODE (NEW) =====
+        // Backward compatible: older saves won't have this field.
+        public string SelectedMode { get; set; } = string.Empty;
+
+        // ===== DETERMINISM (NEW) =====
+        // Base seed used to derive per-wave random streams.
+        // Nullable for backward compatibility with older saves.
+        public int? BaseSeed { get; set; }
 
         // ===== TECH TREE STATE (NEW) =====
         public Dictionary<string, int> TechTreeLevels { get; set; } = new();
@@ -138,6 +147,7 @@ namespace Spacegun_Simulator.Core
                 BarrelLength = gameState.Gun.BarrelLength,
                 BarrelMaterial = gameState.Gun.BarrelMaterial,
                 BarrelIntegrity = gameState.Gun.BarrelIntegrity,
+                FireControlQuality = gameState.Gun.FireControlQuality,
                 PropulsionSystem = gameState.Gun.PropulsionSystem.ToString(),
                 PropellantMass = gameState.Gun.PropellantMass,
                 PropellantEnergyDensity = gameState.Gun.PropellantEnergyDensity,
@@ -145,7 +155,6 @@ namespace Spacegun_Simulator.Core
                 CapacitorEfficiency = gameState.Gun.CapacitorEfficiency,
                 CoolingSystem = gameState.Gun.CoolingSystem.ToString(),
                 CoolingCapacity = gameState.Gun.CoolingCapacity,
-                StructuralReinforcement = gameState.Gun.StructuralReinforcement,
                 AmmunitionCount = gameState.Gun.AmmunitionCount,
                 InstalledUpgrades = new List<string>(gameState.Gun.InstalledUpgrades),
 
@@ -168,8 +177,8 @@ namespace Spacegun_Simulator.Core
                 CurrentWaveCurrentDistance = gameState.CurrentWave?.CurrentDistance ?? 0,
                 CurrentWaveAverageVelocity = gameState.CurrentWave?.AverageVelocity ?? 0,
                 CurrentWaveAverageRadarCrossSection = gameState.CurrentWave?.AverageRadarCrossSection ?? 0,
-                CurrentWaveAverageEvasiveness = gameState.CurrentWave?.AverageEvasiveness ?? 0,
                 CurrentWaveHasStealthCoating = gameState.CurrentWave?.HasStealthCoating ?? false,
+                CurrentWaveShipCount = gameState.CurrentWave?.ShipCount ?? 1,
                 CurrentWaveArchetypeId = gameState.CurrentWave?.Archetype?.Id ?? string.Empty,
                 CurrentWaveArchetypeName = gameState.CurrentWave?.Archetype?.Name ?? string.Empty,
                 CurrentWaveArchetypeDescription = gameState.CurrentWave?.Archetype?.Description ?? string.Empty,
@@ -179,7 +188,10 @@ namespace Spacegun_Simulator.Core
                 CurrentWaveTargetAltitude = gameState.CurrentWave?.Targets?[0]?.Altitude ?? 0,
                 CurrentWaveTargetVelocity = gameState.CurrentWave?.Targets?[0]?.Velocity ?? 0,
                 CurrentWaveTargetCrossSection = gameState.CurrentWave?.Targets?[0]?.CrossSection ?? 0,
-                CurrentWaveTargetEvasiveness = gameState.CurrentWave?.Targets?[0]?.Evasiveness ?? 0,
+                CurrentWaveTargetAcceleration = gameState.CurrentWave?.Targets?[0]?.Acceleration ?? 0,
+                CurrentWaveTargetManeuverability = gameState.CurrentWave?.Targets?[0]?.Maneuverability ?? 0,
+                CurrentWaveTargetDefense = gameState.CurrentWave?.Targets?[0]?.Defense ?? 0,
+                CurrentWaveTargetOffense = gameState.CurrentWave?.Targets?[0]?.Offense ?? 0,
                 CurrentWaveTargetMass = gameState.CurrentWave?.Targets?[0]?.Mass ?? 0,
                 CurrentWaveTargetFractureEnergy = gameState.CurrentWave?.Targets?[0]?.FractureEnergy ?? 0,
 
@@ -225,6 +237,8 @@ namespace Spacegun_Simulator.Core
                 HasFiringProblem = shouldSaveFiringProblem,
 
                 SelectedDifficulty = gameState.SelectedDifficulty.ToString(),
+                SelectedMode = gameState.SelectedMode.ToString(),
+                BaseSeed = gameState.BaseSeed,
 
                 // ===== Save tech tree levels =====
                 TechTreeLevels = techTreeLevels,
@@ -257,6 +271,7 @@ namespace Spacegun_Simulator.Core
             gameState.Gun.BarrelLength = BarrelLength;
             gameState.Gun.BarrelMaterial = BarrelMaterial;
             gameState.Gun.BarrelIntegrity = BarrelIntegrity;
+            gameState.Gun.FireControlQuality = FireControlQuality > 0 ? FireControlQuality : 1.0;
             if (Enum.TryParse<PropulsionType>(PropulsionSystem, out var propulsion))
                 gameState.Gun.PropulsionSystem = propulsion;
             gameState.Gun.PropellantMass = PropellantMass;
@@ -266,7 +281,6 @@ namespace Spacegun_Simulator.Core
             if (Enum.TryParse<CoolingSystem>(CoolingSystem, out var cooling))
                 gameState.Gun.CoolingSystem = cooling;
             gameState.Gun.CoolingCapacity = CoolingCapacity;
-            gameState.Gun.StructuralReinforcement = StructuralReinforcement;
             gameState.Gun.AmmunitionCount = AmmunitionCount;
             gameState.Gun.InstalledUpgrades.Clear();
             gameState.Gun.InstalledUpgrades.AddRange(InstalledUpgrades);
@@ -334,15 +348,18 @@ namespace Spacegun_Simulator.Core
                     TargetAltitude: CurrentWaveTargetAltitude,
                     TargetVelocity: CurrentWaveTargetVelocity,
                     TargetCrossSection: CurrentWaveTargetCrossSection,
-                    TargetEvasiveness: CurrentWaveTargetEvasiveness,
+                    TargetAcceleration: CurrentWaveTargetAcceleration,
+                    TargetManeuverability: CurrentWaveTargetManeuverability,
+                    TargetDefense: CurrentWaveTargetDefense,
+                    TargetOffense: CurrentWaveTargetOffense,
                     TargetMass: CurrentWaveTargetMass,
                     TargetFractureEnergy: CurrentWaveTargetFractureEnergy,
                     InitialDistance: CurrentWaveInitialDistance,
                     CurrentDistance: CurrentWaveCurrentDistance,
                     AverageVelocity: CurrentWaveAverageVelocity,
                     AverageRadarCrossSection: CurrentWaveAverageRadarCrossSection,
-                    AverageEvasiveness: CurrentWaveAverageEvasiveness,
                     HasStealthCoating: CurrentWaveHasStealthCoating,
+                    ShipCount: CurrentWaveShipCount,
                     ApproachElevation: EnemyApproachElevation,
                     ApproachAzimuth: EnemyApproachAzimuth,
                     HasCachedVectors: HasCachedVectors,
@@ -428,9 +445,55 @@ namespace Spacegun_Simulator.Core
                 gameState.SelectedDifficulty = difficulty;
             }
 
+            // Prefer new mode if present; otherwise derive a sensible default from legacy difficulty.
+            if (!string.IsNullOrEmpty(SelectedMode) && Enum.TryParse<GameModeId>(SelectedMode, out var mode))
+            {
+                gameState.SelectedMode = mode;
+                gameState.SelectedDifficulty = GameModeCatalog.Get(mode).Difficulty;
+            }
+            else
+            {
+                gameState.SelectedMode = GameModeCatalog.GetDefaultForDifficulty(gameState.SelectedDifficulty);
+            }
+
+            // Restore base seed (or derive a stable fallback for legacy saves).
+            int seedToApply = BaseSeed ?? DeriveLegacySeedFallback();
+            gameState.SetBaseSeed(seedToApply);
+
             if (!IsGameOver && Enum.TryParse<GameState.GamePhase>(CurrentPhase, out var phase))
             {
                 gameState.CurrentPhase = phase;
+            }
+        }
+
+        private int DeriveLegacySeedFallback()
+        {
+            unchecked
+            {
+                // Stable FNV-1a hash across platforms/runs.
+                uint hash = 2166136261;
+
+                void Add(string s)
+                {
+                    for (int i = 0; i < s.Length; i++)
+                    {
+                        hash ^= s[i];
+                        hash *= 16777619;
+                    }
+                }
+
+                Add(SaveTimestamp ?? string.Empty);
+                Add("|");
+                Add(CampaignEnemyTypeId ?? string.Empty);
+                Add("|");
+                Add(SelectedDifficulty ?? string.Empty);
+                Add("|");
+                Add(SelectedMode ?? string.Empty);
+                Add("|");
+                Add(CurrentWaveNumber.ToString());
+
+                // Avoid returning 0 too often for legacy saves.
+                return (int)(hash == 0 ? 1u : hash);
             }
         }
     }

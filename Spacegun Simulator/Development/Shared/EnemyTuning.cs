@@ -30,20 +30,6 @@ namespace Spacegun_Simulator.Development.Shared
             ["Carrier"] = (300.0, 500.0)
         };
 
-        // Evasiveness ranges by type (0..1)
-        public static readonly Dictionary<string, (double Min, double Max)> EvasivenessRanges = new()
-        {
-            ["Scout"] = (0.6, 0.9),
-            ["Fighter"] = (0.5, 0.8),
-            ["Light Cruiser"] = (0.2, 0.5),
-            ["Cruiser"] = (0.2, 0.5),
-            ["Destroyer"] = (0.2, 0.5),
-            ["Heavy Fighter"] = (0.3, 0.6),
-            ["Battlecruiser"] = (0.1, 0.4),
-            ["Dreadnought"] = (0.05, 0.3),
-            ["Carrier"] = (0.05, 0.3)
-        };
-
         // Stealth chance when tier >= 2
         public static double StealthChanceForLateTiers = 0.3;
     }

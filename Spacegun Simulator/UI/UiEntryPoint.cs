@@ -13,7 +13,7 @@ namespace Spacegun_Simulator.UI
     {
         public sealed record Result(
             MainMenuChoice Choice,
-            GameDifficulty? Difficulty
+            GameModeId? Mode
         );
 
         public static Result Run(string startPageId = PageId.Title)
@@ -46,32 +46,32 @@ namespace Spacegun_Simulator.UI
             var title = new TitleScreenPage();
             var menu = new MainMenuPage();
             var musicConfig = new MusicConfigurationPage();
-            var difficulty = new DifficultySelectionPage();
+            var mode = new ModeSelectionPage();
 
             controller.Register(title);
             controller.Register(menu);
             controller.Register(musicConfig);
-            controller.Register(difficulty);
+            controller.Register(mode);
 
             controller.Run();
 
             // If the boot UI ended due to ESC/Q, treat it as Exit (don’t fall through as None).
             if (ui.RequestReturnToMenu || ui.RequestExitGame)
-                return new Result(MainMenuChoice.Exit, Difficulty: null);
+                return new Result(MainMenuChoice.Exit, Mode: null);
 
             var choice = menu.Choice;
 
             // Any non-NewGame choice just returns directly.
             if (choice != MainMenuChoice.NewGame)
-                return new Result(choice, Difficulty: null);
+                return new Result(choice, Mode: null);
 
-            // NewGame was chosen, but difficulty must be selected.
-            // If difficulty is null, the player likely ESC/Q'd out of difficulty selection.
+            // NewGame was chosen, but mode must be selected.
+            // If mode is null, the player likely ESC/Q'd out of mode selection.
             // Treat this as "return to main menu" by clearing the choice and re-running the UI in Program.
-            if (difficulty.SelectedDifficulty is null)
-                return new Result(MainMenuChoice.None, Difficulty: null);
+            if (mode.SelectedMode is null)
+                return new Result(MainMenuChoice.None, Mode: null);
 
-            return new Result(choice, difficulty.SelectedDifficulty);
+            return new Result(choice, mode.SelectedMode);
         }
     }
 }

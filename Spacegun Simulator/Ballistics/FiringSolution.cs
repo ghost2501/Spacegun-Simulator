@@ -71,11 +71,52 @@ namespace Spacegun_Simulator.Ballistics
         private float enemyFractureEnergy;
         private double enemyMass;
 
+        // Projectile modifiers (resolved at fire time)
+        // Delta-V affects impact KE only (trajectory remains constant-velocity per solver model).
+        private double additionalHitToleranceMultiplier = 1.0;
+        private double propulsionDeltaVCapacityMs = 0.0;
+        private double propulsionBurnDurationSeconds = 1.0;
+        private double propulsionReferenceMassKg = 10.0;
+
         public FiringSolution(float projectileMass, float enemyFractureEnergy, double enemyMass = 10000.0)
         {
             this.projectileMass = projectileMass;
             this.enemyFractureEnergy = enemyFractureEnergy;
             this.enemyMass = enemyMass;
+        }
+
+        public void ConfigureProjectileModifiers(
+            double additionalHitToleranceMultiplier,
+            double propulsionDeltaVCapacityMs,
+            double propulsionBurnDurationSeconds,
+            double propulsionReferenceMassKg)
+        {
+            this.additionalHitToleranceMultiplier = Math.Max(0.1, additionalHitToleranceMultiplier);
+            this.propulsionDeltaVCapacityMs = Math.Max(0.0, propulsionDeltaVCapacityMs);
+            this.propulsionBurnDurationSeconds = Math.Max(0.1, propulsionBurnDurationSeconds);
+            this.propulsionReferenceMassKg = Math.Max(0.01, propulsionReferenceMassKg);
+        }
+
+        public void ConfigureProjectileModifiers(in ResolvedShotStats stats)
+        {
+            ConfigureProjectileModifiers(
+                additionalHitToleranceMultiplier: stats.AdditionalHitToleranceMultiplier,
+                propulsionDeltaVCapacityMs: stats.PropulsionDeltaVCapacityMs,
+                propulsionBurnDurationSeconds: stats.PropulsionBurnDurationSeconds,
+                propulsionReferenceMassKg: stats.PropulsionReferenceMassKg);
+        }
+
+        private double CalculateEffectiveDeltaV(double flightTimeSeconds)
+        {
+            if (propulsionDeltaVCapacityMs <= 0.0) return 0.0;
+
+            double burnRateMsPerSecond = propulsionDeltaVCapacityMs / propulsionBurnDurationSeconds;
+            double burnLimitedDeltaV = Math.Min(flightTimeSeconds * burnRateMsPerSecond, propulsionDeltaVCapacityMs);
+
+            double massKg = Math.Max(0.0, (double)projectileMass);
+            double massEfficiency = propulsionReferenceMassKg / (propulsionReferenceMassKg + massKg);
+
+            return burnLimitedDeltaV * massEfficiency;
         }
 
         /// <summary>
@@ -190,7 +231,7 @@ namespace Spacegun_Simulator.Ballistics
             double baseTolerance = diameterM * 0.5;
 
             // Apply tolerance multiplier (for warhead blast radius)
-            return (float)(baseTolerance * toleranceMultiplier);
+            return (float)(baseTolerance * toleranceMultiplier * additionalHitToleranceMultiplier);
         }
 
         /// <summary>
@@ -292,7 +333,7 @@ namespace Spacegun_Simulator.Ballistics
                     ApproachAzimuth = (float)wave.ApproachAzimuth,
                     EngagementDistance = (float)cachedEnemyPosition.Magnitude,
                     ApproachSpeed = (float)wave.AverageVelocity,
-                    FractureEnergyRequired = target.FractureEnergy,
+                    FractureEnergyRequired = (double)enemyFractureEnergy,
                     CorrectLaunchDelayTime = wave.CachedCorrectLaunchDelayTime,
                     CorrectElevation = wave.CachedCorrectElevation,
                     CorrectAzimuth = wave.CachedCorrectAzimuth,
@@ -345,16 +386,26 @@ namespace Spacegun_Simulator.Ballistics
             wave.IsRestoredFromSave = false;
 
             // STEP 5: Generate cached firing solution (fast heuristic)
-            if (!GenerateCachedSolution(
+            // Prefer a truly valid solution (accounts for gravity/lead/hit tolerance).
+            // Fall back to the heuristic if the full search fails.
+            if (!FindValidSolution(
                 enemyAtT0,
                 enemyVelocity,
                 playerGunMaxVelocity,
                 gunEffectiveRange,
                 out var cachedSolution))
             {
-                // This should NEVER happen with constrained geometry
-                throw new InvalidOperationException(
-                    $"FATAL: Could not generate even a heuristic solution for valid geometry.");
+                if (!GenerateCachedSolution(
+                    enemyAtT0,
+                    enemyVelocity,
+                    playerGunMaxVelocity,
+                    gunEffectiveRange,
+                    out cachedSolution))
+                {
+                    // This should NEVER happen with constrained geometry.
+                    throw new InvalidOperationException(
+                        $"FATAL: Could not generate a valid firing solution for this wave geometry.");
+                }
             }
 
             return new FiringProblem
@@ -365,7 +416,7 @@ namespace Spacegun_Simulator.Ballistics
                 ApproachAzimuth = approachAzim,
                 EngagementDistance = gunEffectiveRange,  // T+0 is defined as gun range entry
                 ApproachSpeed = (float)wave.AverageVelocity,
-                FractureEnergyRequired = target.FractureEnergy,
+                FractureEnergyRequired = (double)enemyFractureEnergy,
                 CorrectLaunchDelayTime = cachedSolution.LaunchDelayTime,
                 CorrectElevation = cachedSolution.Elevation,
                 CorrectAzimuth = cachedSolution.Azimuth,
@@ -592,11 +643,8 @@ namespace Spacegun_Simulator.Ballistics
             //Console.WriteLine($"  ✓ All parameter validations passed");
 
             float minVelocity = CalculateRequiredVelocity();
-            //double playerKE_MJ = CalculateKineticEnergyMJ((float)playerLaunchVelocity);
-            // Use centralized KE formula to avoid missing local helper
-            double playerKE_MJ = BallisticsCalculator.CalculateKineticEnergyMJ(this.projectileMass, playerLaunchVelocity);
-
-            //Console.WriteLine($"  Energy: {playerKE_MJ:F0} MJ required (fracture: {enemyFractureEnergy:F0} MJ)");
+            // Energy is computed after estimating intercept flight time, so propulsion Delta-V can
+            // contribute to impact KE without changing trajectory math.
 
             Vector3 bestInterceptPoint = Vector3.Zero;
             double bestDeviation = double.MaxValue;
@@ -610,7 +658,14 @@ namespace Spacegun_Simulator.Ballistics
             //Console.WriteLine($"  Estimated max flight time: {estimatedMaxFlightTime:F5}s");
             //Console.WriteLine($"  Searching for intercept point with fine time resolution...");
 
-            for (double testFlightTime = 0.001; testFlightTime <= estimatedMaxFlightTime; testFlightTime += 0.001)
+            // IMPORTANT: Fixed-step scans can miss the hit window at high velocities.
+            // Example: at 135 km/s, a 1ms step jumps 135m. If hit tolerance is ~10m,
+            // the best point can be entirely skipped. Use adaptive refinement instead.
+            double maxT = Math.Max(0.001, estimatedMaxFlightTime);
+            double dt = maxT / 1000.0;
+            dt = Math.Clamp(dt, 1e-5, 0.05);
+
+            void Consider(double testFlightTime)
             {
                 Vector3 projectileAtFlight = CalculateProjectilePosition(testFlightTime, playerLaunchVelocity, playerTargetElevation, playerTargetAzimuth);
                 Vector3 enemyAtFlight = CalculateEnemyPosition(playerLaunchDelayTime + testFlightTime, enemyInitialPosition, enemyVelocityVector);
@@ -618,27 +673,34 @@ namespace Spacegun_Simulator.Ballistics
                 Vector3 deviation = projectileAtFlight - enemyAtFlight;
                 double distance = deviation.Magnitude;
 
-                // ===== DIAGNOSTIC: Log first few iterations =====
-                //if (testFlightTime <= 0.010)  // First 10ms of flight
-                //{
-                //    Console.WriteLine($"  [DEBUG T+{playerLaunchDelayTime + testFlightTime:F5}s] Flight={testFlightTime:F5}s");
-                //    Console.WriteLine($"    Projectile: {projectileAtFlight}");
-                //    Console.WriteLine($"    Enemy: {enemyAtFlight}");
-                //    Console.WriteLine($"    Deviation: {distance:F1}m");
-                //}
-
                 if (distance < bestDeviation)
                 {
                     bestDeviation = distance;
                     bestFlightTime = testFlightTime;
                     bestInterceptPoint = enemyAtFlight;
                 }
+            }
 
-                if (testFlightTime > 5.0 && bestDeviation < 1000.0 && distance > bestDeviation * 1.5)
+            // Coarse scan
+            for (double t = dt; t <= maxT; t += dt)
+            {
+                Consider(t);
+            }
+
+            // Local refinements around the best coarse time.
+            for (int refine = 0; refine < 3; refine++)
+            {
+                double window = dt;
+                double start = Math.Max(0.001, bestFlightTime - window);
+                double end = Math.Min(maxT, bestFlightTime + window);
+                double fineDt = window / 10.0;
+
+                for (double t = start; t <= end; t += fineDt)
                 {
-                    //Console.WriteLine($"  Early exit: Projectile passed target at T+{testFlightTime:F5}s");
-                    break;
+                    Consider(t);
                 }
+
+                dt = fineDt;
             }
 
             //Console.WriteLine($"  Best intercept found at T+{playerLaunchDelayTime + bestFlightTime:F5}s (flight time: {bestFlightTime:F5}s)");
@@ -648,6 +710,9 @@ namespace Spacegun_Simulator.Ballistics
 
             double interceptDistance = bestInterceptPoint.Magnitude;
             //Console.WriteLine($"  Range check: {interceptDistance:F0} m vs {gunEffectiveRange:F0} m limit");
+
+            double impactVelocity = playerLaunchVelocity + CalculateEffectiveDeltaV(bestFlightTime);
+            double playerKE_MJ = BallisticsCalculator.CalculateKineticEnergyMJ(this.projectileMass, impactVelocity);
 
             if (interceptDistance > gunEffectiveRange)
             {
@@ -691,6 +756,8 @@ namespace Spacegun_Simulator.Ballistics
                 MinVelocityRequired = minVelocity,
                 MaxVelocityAvailable = maxGunVelocity,
                 ProjectileVelocity = (float)playerLaunchVelocity,
+                ImpactVelocityMs = impactVelocity,
+                FlightTimeSeconds = bestFlightTime,
                 KineticEnergyMJ = playerKE_MJ,
                 FractureEnergyRequired = enemyFractureEnergy,
                 InterceptDeviation = (float)bestDeviation,
@@ -708,6 +775,8 @@ namespace Spacegun_Simulator.Ballistics
                 EnemyInterceptPoint = (Vector3?)enemyInterceptPoint,
                 LaunchDelayTime = (float)launchDelayTime,
                 KineticEnergyMJ = kineticEnergyMJ,
+                ImpactVelocityMs = 0.0,
+                FlightTimeSeconds = 0.0,
                 FractureEnergyRequired = enemyFractureEnergy >= 0 ? (double)enemyFractureEnergy : 0,
                 Message = "✗ Miss"
             };
@@ -854,7 +923,10 @@ namespace Spacegun_Simulator.Ballistics
                 estimatedFlightTime = (float)(distanceToEnemy / firingVelocity);
             }
 
-            if (estimatedFlightTime < 0.5f) return false;  // Too fast
+            // NOTE: With stealth penalties applied to effective gun range, engagement distances can shrink
+            // enough that even conservative firing velocities yield very short flight times. This is still
+            // a valid engagement geometry, so don't fail the cached solution just because the flight time is small.
+            if (estimatedFlightTime < 0.05f) return false;  // Too fast / degenerate geometry
 
             // Return the cached solution (will be reused for all player attempts on this wave)
             solution = (estimatedEngagementTime, (float)targetElev, (float)targetAzim, firingVelocity);

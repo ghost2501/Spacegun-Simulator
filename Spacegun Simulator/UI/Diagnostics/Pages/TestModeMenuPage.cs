@@ -11,7 +11,7 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
         public override PageChrome Chrome { get; } = new(
             ShowStatusBar: true,
             ShowSidePanels: true,
-            FooterHint: "1=Challenge  2=Harness  3=Launcher  4=Return  Enter=Choose  B=Back  Esc=Menu  Q=Quit"
+            FooterHint: "1=Challenge  2=Harness  3=Tuning  4=Launcher  5=Return  Enter=Choose  B=Back  Esc=Menu  Q=Quit"
         );
 
         private readonly List<string> _lines = new();
@@ -21,6 +21,7 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
         {
             "Firing Challenge (Quick Firing Test)",
             "Test Harness (Automated Validation)",
+            "Tuning Lab (Interactive Difficulty Curve)",
             "UI Page Launcher (New UI)",
             "Return to Main Menu",
         };
@@ -94,12 +95,19 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
                     BuildLines();
                     return PageResult.Stay;
 
+                case ConsoleKey.D5:
+                case ConsoleKey.NumPad5:
+                    _selected = 4;
+                    BuildLines();
+                    return PageResult.Stay;
+
                 case ConsoleKey.Enter:
                     return _selected switch
                     {
                         0 => PageResult.Go(PageId.FiringChallenge),
                         1 => PageResult.Go(PageId.DiagnosticsTestHarness),
-                        2 => PageResult.Go(PageId.DiagnosticsUiPageLauncher),
+                        2 => PageResult.Go(PageId.DiagnosticsTuningLab),
+                        3 => PageResult.Go(PageId.DiagnosticsUiPageLauncher),
                         _ => PageResult.Exit,
                     };
             }

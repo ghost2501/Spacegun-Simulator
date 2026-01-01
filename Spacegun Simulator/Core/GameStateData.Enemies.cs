@@ -45,16 +45,16 @@ namespace Spacegun_Simulator.Core
             set => Enemy.CurrentWave.AverageRadarCrossSection = value;
         }
 
-        public double CurrentWaveAverageEvasiveness
-        {
-            get => Enemy.CurrentWave.AverageEvasiveness;
-            set => Enemy.CurrentWave.AverageEvasiveness = value;
-        }
-
         public bool CurrentWaveHasStealthCoating
         {
             get => Enemy.CurrentWave.HasStealthCoating;
             set => Enemy.CurrentWave.HasStealthCoating = value;
+        }
+
+        public int CurrentWaveShipCount
+        {
+            get => Enemy.CurrentWave.ShipCount;
+            set => Enemy.CurrentWave.ShipCount = value;
         }
 
         public string CurrentWaveArchetypeId
@@ -123,10 +123,28 @@ namespace Spacegun_Simulator.Core
             set => Enemy.CurrentWave.TargetCrossSection = value;
         }
 
-        public double CurrentWaveTargetEvasiveness
+        public double CurrentWaveTargetAcceleration
         {
-            get => Enemy.CurrentWave.TargetEvasiveness;
-            set => Enemy.CurrentWave.TargetEvasiveness = value;
+            get => Enemy.CurrentWave.TargetAcceleration;
+            set => Enemy.CurrentWave.TargetAcceleration = value;
+        }
+
+        public double CurrentWaveTargetManeuverability
+        {
+            get => Enemy.CurrentWave.TargetManeuverability;
+            set => Enemy.CurrentWave.TargetManeuverability = value;
+        }
+
+        public double CurrentWaveTargetDefense
+        {
+            get => Enemy.CurrentWave.TargetDefense;
+            set => Enemy.CurrentWave.TargetDefense = value;
+        }
+
+        public double CurrentWaveTargetOffense
+        {
+            get => Enemy.CurrentWave.TargetOffense;
+            set => Enemy.CurrentWave.TargetOffense = value;
         }
 
         public double CurrentWaveTargetMass

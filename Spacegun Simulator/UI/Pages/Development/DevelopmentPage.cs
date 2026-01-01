@@ -79,7 +79,9 @@ public sealed class DevelopmentPage : PageBase
             var proj = game.CraftedProjectile;
             _lines.Add($"  Projectile: {proj.DisplayName}");
             _lines.Add($"  Mass: {proj.MassKg} kg | Velocity: {proj.MaxVelocityMs:N0} m/s");
-            _lines.Add($"  Kinetic Energy: {proj.EffectiveKineticEnergyMJ:N0} MJ");
+            _lines.Add($"  Kinetic Energy (max): {proj.RawKineticEnergyMJ:N0} MJ");
+            if (proj.Enhancement?.Penetration is double p && p != 1.0)
+                _lines.Add($"  Penetration: {(p - 1) * 100:+0}%");
             if (proj.HitToleranceMultiplier != 1.0)
                 _lines.Add($"  Hit Tolerance Bonus: {(proj.HitToleranceMultiplier - 1) * 100:+0}%");
         }
@@ -92,7 +94,17 @@ public sealed class DevelopmentPage : PageBase
         _lines.Add("");
         _lines.Add("  Gun Configuration:");
         _lines.Add($"    Barrel Integrity: {game.Gun.BarrelIntegrity:P0}");
-        _lines.Add($"    Power Capacity: {game.Gun.PowerCapacity:F0} MW");
+        game.Gun.UpdateBaseMuzzleVelocity(game.TechTree.CurrentLevel[TechTree.TechType.Weapons]);
+        _lines.Add($"    Propulsion: {game.Gun.PropulsionSystem}");
+        if (game.Gun.PropulsionSystem == Spacegun_Simulator.Development.PropulsionType.Chemical)
+        {
+            _lines.Add($"    Propellant Mass: {game.Gun.PropellantMass:F0} kg");
+            _lines.Add($"    Propellant Energy Density: {game.Gun.GetEffectivePropellantEnergyDensity():F2} GJ/kg");
+        }
+        else
+        {
+            _lines.Add($"    Power Capacity: {game.Gun.PowerCapacity:F0} MW");
+        }
         _lines.Add($"    Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(game.CurrentWaveNumber).MaxEffectiveGunRange)}");
         _lines.Add("");
     }

@@ -75,7 +75,17 @@ public sealed class DetailedWeaponStatusPage : PageBase
 		// Gun Status
 		_lines.Add("=== GUN CONFIGURATION ===");
 		_lines.Add(Clamp60($"  Barrel Integrity: {game.Gun.BarrelIntegrity:P0}"));
-		_lines.Add(Clamp60($"  Power Capacity: {game.Gun.PowerCapacity:F0} MW"));
+		game.Gun.UpdateBaseMuzzleVelocity(weaponsTechLevel);
+		_lines.Add(Clamp60($"  Propulsion: {game.Gun.PropulsionSystem}"));
+		if (game.Gun.PropulsionSystem == Spacegun_Simulator.Development.PropulsionType.Chemical)
+		{
+			_lines.Add(Clamp60($"  Propellant Mass: {game.Gun.PropellantMass:F0} kg"));
+			_lines.Add(Clamp60($"  Propellant Energy Density: {game.Gun.GetEffectivePropellantEnergyDensity():F2} GJ/kg"));
+		}
+		else
+		{
+			_lines.Add(Clamp60($"  Power Capacity: {game.Gun.PowerCapacity:F0} MW"));
+		}
 		_lines.Add(Clamp60($"  Weapons Tech Level: {weaponsTechLevel}"));
 		_lines.Add("");
 
@@ -96,7 +106,8 @@ public sealed class DetailedWeaponStatusPage : PageBase
 			}
 
 			_lines.Add(Clamp60($"  Max KE: {proj.RawKineticEnergyMJ:N0} MJ"));
-			_lines.Add(Clamp60($"  Effective KE: {proj.EffectiveKineticEnergyMJ:N0} MJ"));
+			if (proj.Enhancement?.Penetration is double p && p != 1.0)
+				_lines.Add(Clamp60($"  Penetration: {(p - 1) * 100:+0}%"));
 			if (proj.HitToleranceMultiplier != 1.0)
 				_lines.Add(Clamp60($"  Hit Tolerance: {(proj.HitToleranceMultiplier - 1) * 100:+0}%"));
 		}

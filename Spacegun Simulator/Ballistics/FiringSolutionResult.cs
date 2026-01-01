@@ -12,6 +12,8 @@ namespace Spacegun_Simulator.Ballistics
         public float MinVelocityRequired { get; set; }
         public float MaxVelocityAvailable { get; set; }
         public float ProjectileVelocity { get; set; }
+        public double ImpactVelocityMs { get; set; }
+        public double FlightTimeSeconds { get; set; }
         public double KineticEnergyMJ { get; set; }
         public double FractureEnergyRequired { get; set; }
         public float InterceptDeviation { get; set; }

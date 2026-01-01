@@ -22,6 +22,7 @@ namespace Spacegun_Simulator.UI
             controller.Register(new TestModeMenuPage());
             controller.Register(new FiringChallengePage());
             controller.Register(new DiagnosticsTestHarnessPage());
+            controller.Register(new TuningLabPage());
             controller.Register(new DiagnosticsUiPageLauncherPage());
         }
 

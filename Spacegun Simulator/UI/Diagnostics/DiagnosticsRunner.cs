@@ -53,6 +53,9 @@ namespace Spacegun_Simulator.UI.Diagnostics
         {
             _ = FireSimulatorDiagnostics.RunConsistencyChecks();
             _ = FireSimulatorDiagnostics.RunTechAuditAndWriteCsv();
+            _ = FireSimulatorDiagnostics.RunEnemyCurveAndWriteCsv();
+            _ = FireSimulatorDiagnostics.RunCounterCurveAndWriteCsv();
+            _ = FireSimulatorDiagnostics.RunEndToEndCurveAndWriteCsv();
         }
 
         public static void RunDevelopmentLauncher(UiContext ui, GameState game)

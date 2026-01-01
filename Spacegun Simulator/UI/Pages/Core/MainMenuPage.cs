@@ -67,7 +67,7 @@ namespace Spacegun_Simulator.UI.Pages.Core
             {
                 switch (n.Value)
                 {
-                    case 1: Choice = MainMenuChoice.NewGame; return PageResult.Go(PageId.DifficultySelection);
+                    case 1: Choice = MainMenuChoice.NewGame; return PageResult.Go(PageId.ModeSelection);
                     case 2: Choice = MainMenuChoice.Resume; return PageResult.Exit;
                     case 3: Choice = MainMenuChoice.TestMode; return PageResult.Exit;
                     case 4: return PageResult.Go(PageId.MusicConfiguration);
@@ -78,7 +78,7 @@ namespace Spacegun_Simulator.UI.Pages.Core
             {
                 switch (n.Value)
                 {
-                    case 1: Choice = MainMenuChoice.NewGame; return PageResult.Go(PageId.DifficultySelection);
+                    case 1: Choice = MainMenuChoice.NewGame; return PageResult.Go(PageId.ModeSelection);
                     case 2: Choice = MainMenuChoice.TestMode; return PageResult.Exit;
                     case 3: return PageResult.Go(PageId.MusicConfiguration);
                     case 4: Choice = MainMenuChoice.Exit; return PageResult.Exit;

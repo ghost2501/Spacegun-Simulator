@@ -5,7 +5,7 @@ namespace Spacegun_Simulator.Enemies
     // ============================================================================
     // Contains properties essential for:
     // - Detection system calculations (CrossSection, Name)
-    // - Targeting calculations (Altitude, Velocity, Evasiveness)
+    // - Targeting calculations (Altitude, Velocity, Maneuverability)
     // - Firing phase validation (FractureEnergy, Mass)
     // ============================================================================
 
@@ -36,10 +36,29 @@ namespace Spacegun_Simulator.Enemies
         public double CrossSection { get; set; }
 
         /// <summary>
-        /// Evasiveness factor (0.0 to 1.0).
-        /// Affects hit probability during firing phase.
+        /// Acceleration capability in m/s^2.
+        /// Full mode only; Pure mode sets this to 0.
         /// </summary>
-        public double Evasiveness { get; set; }
+        public double Acceleration { get; set; }
+
+        /// <summary>
+        /// Maneuverability factor (0.0 to 1.0).
+        /// Full mode only; Pure mode sets this to 0.
+        /// </summary>
+        public double Maneuverability { get; set; }
+
+        /// <summary>
+        /// Defensive capability factor (0.0 to 1.0).
+        /// Full mode only; Pure mode sets this to 0.
+        /// </summary>
+        public double Defense { get; set; }
+
+        /// <summary>
+        /// Offensive capability factor (0.0 to 1.0).
+        /// Full mode only; Pure mode sets this to 0.
+        /// Represents the target's ability to destroy incoming projectiles.
+        /// </summary>
+        public double Offense { get; set; }
 
         /// <summary>
         /// Mass in metric tons from the enemy archetype.

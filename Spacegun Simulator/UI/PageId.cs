@@ -10,6 +10,7 @@
         public const string Title = "Title";
         public const string MainMenu = "MainMenu";
         public const string MusicConfiguration = "MusicConfiguration";
+        public const string ModeSelection = "ModeSelection";
         public const string DifficultySelection = "DifficultySelection";
         public const string GameOver = "GameOver";
 
@@ -49,5 +50,6 @@
         // UI-based diagnostics pages
         public const string DiagnosticsUiPageLauncher = "DiagnosticsUiPageLauncher";
         public const string DiagnosticsTestHarness = "DiagnosticsTestHarness";
+        public const string DiagnosticsTuningLab = "DiagnosticsTuningLab";
     }
 }

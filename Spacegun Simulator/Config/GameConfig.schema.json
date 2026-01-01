@@ -27,14 +27,20 @@
         "required": ["Min", "Max"]
       }
     },
-    "EvasivenessRanges": {
+    "StealthChanceForLateTiers": { "type": "number", "minimum": 0, "maximum": 1 },
+    "Modes": {
       "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "properties": { "Min": { "type": "number" }, "Max": { "type": "number" } },
-        "required": ["Min", "Max"]
+      "additionalProperties": false,
+      "properties": {
+        "PureDeterministicSeed": { "type": "integer" },
+        "DisableRandomEventsInPure": { "type": "boolean" },
+        "DetectionRcsMultiplierPure": { "type": "number", "minimum": 0 },
+        "DetectionRcsMultiplierFull": { "type": "number", "minimum": 0 },
+        "TimeBudgetMultiplierPure": { "type": "number", "minimum": 0 },
+        "TimeBudgetMultiplierFull": { "type": "number", "minimum": 0 },
+        "HitToleranceMultiplierPure": { "type": "number", "minimum": 0 },
+        "HitToleranceMultiplierFull": { "type": "number", "minimum": 0 }
       }
-    },
-    "StealthChanceForLateTiers": { "type": "number", "minimum": 0, "maximum": 1 }
+    }
   }
 }

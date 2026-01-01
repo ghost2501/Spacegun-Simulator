@@ -20,8 +20,10 @@ namespace Spacegun_Simulator.Enemies
             public double CurrentDistance { get; set; }
             public double AverageVelocity { get; set; }
             public double AverageRadarCrossSection { get; set; }
-            public double AverageEvasiveness { get; set; }
             public bool HasStealthCoating { get; set; }
+
+            // Full-mode wave variables
+            public int ShipCount { get; set; } = 1;
 
             public string ArchetypeId { get; set; } = string.Empty;
             public string ArchetypeName { get; set; } = string.Empty;
@@ -37,7 +39,10 @@ namespace Spacegun_Simulator.Enemies
             public double TargetAltitude { get; set; }
             public double TargetVelocity { get; set; }
             public double TargetCrossSection { get; set; }
-            public double TargetEvasiveness { get; set; }
+            public double TargetAcceleration { get; set; }
+            public double TargetManeuverability { get; set; }
+            public double TargetDefense { get; set; }
+            public double TargetOffense { get; set; }
             public double TargetMass { get; set; }
             public double TargetFractureEnergy { get; set; }
 

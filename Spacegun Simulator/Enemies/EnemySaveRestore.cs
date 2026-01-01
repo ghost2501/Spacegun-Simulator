@@ -12,14 +12,12 @@ namespace Spacegun_Simulator.Enemies
             double TargetAltitude,
             double TargetVelocity,
             double TargetCrossSection,
-            double TargetEvasiveness,
             double TargetMass,
             double TargetFractureEnergy,
             double InitialDistance,
             double CurrentDistance,
             double AverageVelocity,
             double AverageRadarCrossSection,
-            double AverageEvasiveness,
             bool HasStealthCoating,
             float ApproachElevation,
             float ApproachAzimuth,
@@ -33,7 +31,13 @@ namespace Spacegun_Simulator.Enemies
             float CachedCorrectLaunchDelayTime,
             float CachedCorrectElevation,
             float CachedCorrectAzimuth,
-            float CachedCorrectVelocity
+            float CachedCorrectVelocity,
+            // Full-mode extensions (optional for backward-compatible save/load)
+            int ShipCount = 1,
+            double TargetAcceleration = 0.0,
+            double TargetManeuverability = 0.0,
+            double TargetDefense = 0.0,
+            double TargetOffense = 0.0
         );
 
         public sealed record CampaignEnemyTypeSnapshot(
@@ -73,7 +77,10 @@ namespace Spacegun_Simulator.Enemies
                 Altitude = snapshot.TargetAltitude,
                 Velocity = snapshot.TargetVelocity,
                 CrossSection = snapshot.TargetCrossSection,
-                Evasiveness = snapshot.TargetEvasiveness,
+                Acceleration = snapshot.TargetAcceleration,
+                Maneuverability = snapshot.TargetManeuverability,
+                Defense = snapshot.TargetDefense,
+                Offense = snapshot.TargetOffense,
                 Mass = snapshot.TargetMass,
                 FractureEnergy = snapshot.TargetFractureEnergy
             };
@@ -85,8 +92,8 @@ namespace Spacegun_Simulator.Enemies
                 CurrentDistance = snapshot.CurrentDistance,
                 AverageVelocity = snapshot.AverageVelocity,
                 AverageRadarCrossSection = snapshot.AverageRadarCrossSection,
-                AverageEvasiveness = snapshot.AverageEvasiveness,
                 HasStealthCoating = snapshot.HasStealthCoating,
+                ShipCount = snapshot.ShipCount,
                 Archetype = archetype,
                 ApproachElevation = snapshot.ApproachElevation,
                 ApproachAzimuth = snapshot.ApproachAzimuth,

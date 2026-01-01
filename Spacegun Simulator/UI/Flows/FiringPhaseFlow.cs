@@ -40,12 +40,15 @@ namespace Spacegun_Simulator.UI.Flows
                     break;
                 }
 
-                var calculator = new FiringSolution(
-                    (float)game.SelectedGunProjectileSpec.ProjectileMassKg,
-                    (float)target.FractureEnergy,
-                    target.Mass);
+                var resolved = game.ResolveShotStats(target);
 
-                float maxVelocity = (float)game.SelectedGunProjectileSpec.MuzzleVelocityMs;
+                var calculator = new FiringSolution(
+                    (float)resolved.ProjectileMassKg,
+                    (float)resolved.EffectiveFractureEnergyMJ,
+                    target.Mass);
+                calculator.ConfigureProjectileModifiers(resolved);
+
+                float maxVelocity = (float)resolved.MaxLaunchVelocityMs;
                 double displayRcs = target.CrossSection * diffConfig.TargetRcsMultiplier;
 
                 switch (page.Action)

@@ -191,26 +191,29 @@ namespace Spacegun_Simulator.Development.Projectiles
         public string Name { get; }
         public string Description { get; }
         public double HitToleranceBonus { get; }      // Multiplier to hit tolerance
-        public double EnergyEfficiencyBonus { get; }  // Multiplier to effective KE
+        public double Penetration { get; }           // Multiplier to penetration (higher => less energy required)
+        public double DefenseBonus { get; }           // 0..1 additive defense rating
         public int RequiredTechLevel { get; }         // TechTree.Projectiles level required
         public ResourceCost Cost { get; }
 
         public ProjectileEnhancement(string id, string name, string description, 
-            double hitToleranceBonus, double energyEfficiencyBonus, 
+            double hitToleranceBonus, double penetration,
+            double defenseBonus,
             int requiredTechLevel, ResourceCost cost)
         {
             Id = id;
             Name = name;
             Description = description;
             HitToleranceBonus = hitToleranceBonus;
-            EnergyEfficiencyBonus = energyEfficiencyBonus;
+            Penetration = penetration;
+            DefenseBonus = defenseBonus;
             RequiredTechLevel = requiredTechLevel;
             Cost = cost;
         }
 
         public static readonly ProjectileEnhancement None = new(
             "none", "No Enhancement", "Standard projectile without modifications",
-            hitToleranceBonus: 1.0, energyEfficiencyBonus: 1.0,
+            hitToleranceBonus: 1.0, penetration: 1.0, defenseBonus: 0.0,
             requiredTechLevel: 1, cost: ResourceCost.None);
 
         public static readonly ProjectileEnhancement[] All =
@@ -218,24 +221,34 @@ namespace Spacegun_Simulator.Development.Projectiles
             None,
 
             new("guidance", "Guidance Package", "Terminal guidance for improved accuracy",
-                hitToleranceBonus: 2.0, energyEfficiencyBonus: 1.0,
+                hitToleranceBonus: 2.0, penetration: 1.0, defenseBonus: 0.0,
                 requiredTechLevel: 3,
                 cost: new ResourceCost(budget: 200, steel: 50, exotic: 50)),
 
             new("shaped", "Shaped Charge", "Focused energy on impact - 25% more effective damage",
-                hitToleranceBonus: 1.0, energyEfficiencyBonus: 1.25,
+                hitToleranceBonus: 1.0, penetration: 1.25, defenseBonus: 0.0,
                 requiredTechLevel: 2,
                 cost: new ResourceCost(budget: 150, steel: 80, exotic: 30)),
 
             new("armor_piercing", "Armor Piercing Tip", "Hardened tip for dense targets - 15% damage boost",
-                hitToleranceBonus: 1.0, energyEfficiencyBonus: 1.15,
+                hitToleranceBonus: 1.0, penetration: 1.15, defenseBonus: 0.0,
                 requiredTechLevel: 1,
                 cost: new ResourceCost(budget: 80, steel: 60, exotic: 10)),
 
             new("fragmentation", "Fragmentation Shell", "Larger hit tolerance, slight damage penalty",
-                hitToleranceBonus: 1.75, energyEfficiencyBonus: 0.9,
+                hitToleranceBonus: 1.75, penetration: 0.9, defenseBonus: 0.0,
                 requiredTechLevel: 2,
-                cost: new ResourceCost(budget: 120, steel: 70, exotic: 20))
+                cost: new ResourceCost(budget: 120, steel: 70, exotic: 20)),
+
+            new("countermeasures", "Countermeasure Package", "Decoys and ablatives - improves projectile survivability",
+                hitToleranceBonus: 1.0, penetration: 0.98, defenseBonus: 0.25,
+                requiredTechLevel: 2,
+                cost: new ResourceCost(budget: 140, steel: 60, exotic: 30)),
+
+            new("hardened", "Hardened Casing", "Hardened casing - major survivability boost",
+                hitToleranceBonus: 1.0, penetration: 0.96, defenseBonus: 0.50,
+                requiredTechLevel: 3,
+                cost: new ResourceCost(budget: 260, steel: 120, exotic: 60))
         ];
     }
 
@@ -284,18 +297,18 @@ namespace Spacegun_Simulator.Development.Projectiles
         public double CalculateKineticEnergyMJ(double flightTimeSeconds)
         {
             double impactVelocity = CalculateImpactVelocity(flightTimeSeconds);
-            return BallisticsCalculator.CalculateKineticEnergyMJ(MassKg, impactVelocity) * Enhancement.EnergyEfficiencyBonus;
+            return BallisticsCalculator.CalculateKineticEnergyMJ(MassKg, impactVelocity);
         }
-
-        /// <summary>
-        /// Effective kinetic energy after enhancement bonus (at max velocity).
-        /// </summary>
-        public double EffectiveKineticEnergyMJ => RawKineticEnergyMJ * Enhancement.EnergyEfficiencyBonus;
 
         /// <summary>
         /// Hit tolerance multiplier from enhancement.
         /// </summary>
         public double HitToleranceMultiplier => Enhancement.HitToleranceBonus;
+
+        /// <summary>
+        /// Projectile defensive rating (0.0..1.0) used against enemy Offense.
+        /// </summary>
+        public double DefenseRating => Math.Clamp(Enhancement.DefenseBonus, 0.0, 1.0);
 
         /// <summary>
         /// Total cost to build this projectile.

@@ -241,8 +241,8 @@ public sealed class ProjectileDevelopmentPage : PageBase
             string bonusText = "";
             if (enh.HitToleranceBonus != 1.0)
                 bonusText += $"Hit Tolerance: {(enh.HitToleranceBonus - 1) * 100:+0;-0}%  ";
-            if (enh.EnergyEfficiencyBonus != 1.0)
-                bonusText += $"Damage: {(enh.EnergyEfficiencyBonus - 1) * 100:+0;-0}%";
+            if (enh.Penetration != 1.0)
+                bonusText += $"Penetration: {(enh.Penetration - 1) * 100:+0;-0}%";
 
             _lines.Add(Clamp60($"{cursor} [{i + 1}] {enh.Name}"));
             if (!string.IsNullOrEmpty(bonusText))
@@ -281,7 +281,8 @@ public sealed class ProjectileDevelopmentPage : PageBase
         }
 
         _lines.Add(Clamp60($"  Max KE: {crafted.RawKineticEnergyMJ:N0} MJ"));
-        _lines.Add(Clamp60($"  Effective Kinetic Energy: {crafted.EffectiveKineticEnergyMJ:N0} MJ"));
+        if (crafted.Enhancement?.Penetration is double p && p != 1.0)
+            _lines.Add(Clamp60($"  Penetration: {(p - 1) * 100:+0}%"));
         if (crafted.HitToleranceMultiplier != 1.0)
             _lines.Add(Clamp60($"  Hit Tolerance: {(crafted.HitToleranceMultiplier - 1) * 100:+0}%"));
 
@@ -293,7 +294,9 @@ public sealed class ProjectileDevelopmentPage : PageBase
 
         if (game.CurrentWave?.Archetype != null)
         {
-            bool meets = crafted.EffectiveKineticEnergyMJ >= game.CurrentWave.Archetype.FractureEnergyRange.Min;
+            double penetration = Math.Max(0.1, crafted.Enhancement?.Penetration ?? 1.0);
+            double requiredMJ = game.CurrentWave.Archetype.FractureEnergyRange.Min / penetration;
+            bool meets = crafted.RawKineticEnergyMJ >= requiredMJ;
             _lines.Add(string.Empty);
             _lines.Add(Clamp60($"  Target Requirement: {(meets ? "✓ MEETS REQUIREMENT" : "✗ INSUFFICIENT ENERGY")}"));
 

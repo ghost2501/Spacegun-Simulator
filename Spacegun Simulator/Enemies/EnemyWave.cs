@@ -12,11 +12,17 @@ namespace Spacegun_Simulator.Enemies
         public int WaveNumber { get; set; }
         public List<EnemyTarget> Targets { get; set; } = new List<EnemyTarget>();
 
+        /// <summary>
+        /// Number of ships in this wave.
+        /// Full mode only; Pure mode always uses 1.
+        /// Note: Current gameplay is still single-target; this models future multi-ship waves.
+        /// </summary>
+        public int ShipCount { get; set; } = 1;
+
         public double InitialDistance { get; set; }
         public double CurrentDistance { get; set; }
         public double AverageVelocity { get; set; }
         public double AverageRadarCrossSection { get; set; }
-        public double AverageEvasiveness { get; set; }
         public bool HasStealthCoating { get; set; }
 
         /// <summary>
@@ -71,7 +77,9 @@ namespace Spacegun_Simulator.Enemies
         /// </summary>
         public bool IsTutorialWave { get; set; } = false;
 
-        public int TargetCount => Targets.Count;
+        // ShipCount is the gameplay-relevant count (Full mode can spawn multi-ship waves).
+        // Targets currently stores a single representative target used by firing-phase mechanics.
+        public int TargetCount => Math.Max(1, ShipCount);
         public double TimeToImpact => AverageVelocity > 0 ? CurrentDistance / AverageVelocity : double.PositiveInfinity;
 
         public EnemyWave(int waveNumber)
@@ -104,7 +112,6 @@ namespace Spacegun_Simulator.Enemies
                 CurrentDistance = scenario.StartDistanceMeters,
                 AverageVelocity = scenario.ApproachSpeedMs,
                 AverageRadarCrossSection = DifficultyConfig.TutorialBeachball.CrossSectionM2,
-                AverageEvasiveness = DifficultyConfig.TutorialBeachball.Evasiveness,
                 HasStealthCoating = false,
                 ApproachElevation = scenario.Elevation,
                 ApproachAzimuth = scenario.Azimuth
@@ -117,7 +124,7 @@ namespace Spacegun_Simulator.Enemies
                 Altitude = scenario.ArcHeightMeters,
                 Velocity = scenario.ApproachSpeedMs,
                 CrossSection = DifficultyConfig.TutorialBeachball.CrossSectionM2,
-                Evasiveness = DifficultyConfig.TutorialBeachball.Evasiveness,
+                Maneuverability = DifficultyConfig.TutorialBeachball.Evasiveness,
                 Mass = DifficultyConfig.TutorialBeachball.MassTons,
                 FractureEnergy = DifficultyConfig.TutorialBeachball.FractureEnergyMJ
             };
@@ -180,25 +187,33 @@ namespace Spacegun_Simulator.Enemies
         /// If no campaign enemy type provided, uses a random archetype.
         /// This method kept as the public entry used by GameState and pre-generation.
         /// </summary>
-        public static EnemyWave GenerateWave(int waveNumber, Random rng, EnemyType? campaignEnemyType = null)
+        public static EnemyWave GenerateWave(
+            int waveNumber,
+            Random rng,
+            EnemyGenerationRuleset ruleset,
+            EnemyType? campaignEnemyType = null)
         {
             if (rng is null) throw new ArgumentNullException(nameof(rng));
 
             // If we have a campaign enemy type (ongoing game), use it
             if (campaignEnemyType != null)
             {
-                return GenerateWaveFromArchetype(waveNumber, campaignEnemyType.Archetype, rng);
+                return GenerateWaveFromArchetype(waveNumber, campaignEnemyType.Archetype, rng, ruleset);
             }
 
             // Fallback: Generate with random archetype
             var archetype = EnemyArchetype.SelectRandom(rng);
-            return GenerateWaveFromArchetype(waveNumber, archetype, rng);
+            return GenerateWaveFromArchetype(waveNumber, archetype, rng, ruleset);
         }
 
         /// <summary>
         /// Generate a procedural enemy wave for detection phase from an archetype.
         /// </summary>
-        public static EnemyWave GenerateWaveFromArchetype(int waveNumber, EnemyArchetype archetype, Random rng)
+        public static EnemyWave GenerateWaveFromArchetype(
+            int waveNumber,
+            EnemyArchetype archetype,
+            Random rng,
+            EnemyGenerationRuleset ruleset)
         {
             if (rng is null) throw new ArgumentNullException(nameof(rng));
             if (archetype is null) throw new ArgumentNullException(nameof(archetype));
@@ -208,6 +223,10 @@ namespace Spacegun_Simulator.Enemies
 
             var wave = new EnemyWave(waveNumber);
             wave.Archetype = archetype;
+
+            wave.ShipCount = ruleset == EnemyGenerationRuleset.Pure
+                ? 1
+                : GenerateShipCountForWave(waveNumber, rng);
 
             // ===== DETECTION PHASE GENERATION =====
 
@@ -225,7 +244,7 @@ namespace Spacegun_Simulator.Enemies
             wave.AverageVelocity = enemyMinVel + rng.NextDouble() * (enemyMaxVel - enemyMinVel);
 
             // Generate target with stats
-            var target = GenerateTargetFromArchetype(waveNumber, tierIndex, archetype, rng);
+            var target = GenerateTargetFromArchetype(waveNumber, tierIndex, archetype, rng, ruleset);
             wave.Targets.Add(target);
 
             // FIX: Use consolidated BallisticsCalculator method instead of local duplicate
@@ -234,8 +253,17 @@ namespace Spacegun_Simulator.Enemies
             // Set BOTH wave average AND target's CrossSection
             wave.AverageRadarCrossSection = diameterMeters;  // RCS = Diameter
             target.CrossSection = diameterMeters;             // Set target's cross-section too
-            wave.AverageEvasiveness = target.Evasiveness;
-            wave.HasStealthCoating = tierIndex >= 2 && rng.NextDouble() < GameConstants.StealthChanceForLateTiers;
+            // Pure mode: keep enemy stats as simple physical variables only.
+            // No stealth / maneuver modifiers.
+            if (ruleset == EnemyGenerationRuleset.Pure)
+            {
+                wave.HasStealthCoating = false;
+                target.Maneuverability = 0.0;
+            }
+            else
+            {
+                wave.HasStealthCoating = tierIndex >= 2 && rng.NextDouble() < GameConstants.StealthChanceForLateTiers;
+            }
 
             // Calculate display information (timeToImpact maybe used elsewhere)
             double timeToImpactSeconds = wave.InitialDistance / wave.AverageVelocity;
@@ -246,7 +274,12 @@ namespace Spacegun_Simulator.Enemies
         /// <summary>
         /// Generate a target procedurally within archetype bounds.
         /// </summary>
-        private static EnemyTarget GenerateTargetFromArchetype(int waveNumber, int tierIndex, EnemyArchetype archetype, Random rng)
+        private static EnemyTarget GenerateTargetFromArchetype(
+            int waveNumber,
+            int tierIndex,
+            EnemyArchetype archetype,
+            Random rng,
+            EnemyGenerationRuleset ruleset)
         {
             if (rng is null) throw new ArgumentNullException(nameof(rng));
 
@@ -261,11 +294,20 @@ namespace Spacegun_Simulator.Enemies
 
             string type = typePool[rng.Next(typePool.Length)];
 
-            // Get evasiveness range for this type
-            double evasiveness = 0.35;
-            if (GameConstants.EvasivenessRanges.TryGetValue(type, out var er))
+            // Full mode: additional enemy capability variables.
+            // Pure mode: keep physical-only (all set to 0).
+            double acceleration = 0.0;
+            double maneuverability = 0.0;
+            double defense = 0.0;
+            double offense = 0.0;
+
+            if (ruleset != EnemyGenerationRuleset.Pure)
             {
-                evasiveness = er.Min + rng.NextDouble() * (er.Max - er.Min);
+                var (accMin, accMax, manMax, defMax, offMax) = GetCapabilityRangesForTier(tierIndex);
+                acceleration = accMin + rng.NextDouble() * (accMax - accMin);
+                maneuverability = rng.NextDouble() * manMax;
+                defense = rng.NextDouble() * defMax;
+                offense = rng.NextDouble() * offMax;
             }
 
             // Generate mass and fracture energy WITHIN ARCHETYPE BOUNDS
@@ -285,9 +327,50 @@ namespace Spacegun_Simulator.Enemies
                 Altitude = 0,
                 Velocity = 0,
                 CrossSection = 0.0,  // Will be overwritten with diameter in GenerateWaveFromArchetype
-                Evasiveness = evasiveness,
+                Acceleration = acceleration,
+                Maneuverability = maneuverability,
+                Defense = defense,
+                Offense = offense,
                 Mass = mass,
                 FractureEnergy = fractureEnergy
+            };
+        }
+
+        private static int GenerateShipCountForWave(int waveNumber, Random rng)
+        {
+            // Ship-count pattern by wave bucket (Tier 1..5):
+            // 1-5: 1
+            // 6-10: 1-2
+            // 11-15: 1-3
+            // 16-20: 1-4
+            // 21-25+: 1-5
+            // (Uses non-overlapping ranges; if waveNumber is out of bounds, clamp to the nearest bucket.)
+
+            if (waveNumber <= 5) return 1;
+
+            int max = waveNumber switch
+            {
+                <= 10 => 2,
+                <= 15 => 3,
+                <= 20 => 4,
+                _ => 5
+            };
+
+            // rng.Next upper bound is exclusive
+            return rng.Next(1, max + 1);
+        }
+
+        private static (double AccMin, double AccMax, double ManMax, double DefMax, double OffMax) GetCapabilityRangesForTier(int tierIndex)
+        {
+            // Full-mode capability ranges by tier.
+            // Acceleration in m/s^2; Maneuverability/Defense are 0..1 factors.
+            return tierIndex switch
+            {
+                0 => (AccMin: 0.05, AccMax: 0.25, ManMax: 0.15, DefMax: 0.10, OffMax: 0.10),
+                1 => (AccMin: 0.10, AccMax: 0.50, ManMax: 0.30, DefMax: 0.20, OffMax: 0.20),
+                2 => (AccMin: 0.20, AccMax: 1.00, ManMax: 0.45, DefMax: 0.35, OffMax: 0.35),
+                3 => (AccMin: 0.35, AccMax: 1.75, ManMax: 0.60, DefMax: 0.50, OffMax: 0.50),
+                _ => (AccMin: 0.50, AccMax: 2.50, ManMax: 0.75, DefMax: 0.70, OffMax: 0.70),
             };
         }
 

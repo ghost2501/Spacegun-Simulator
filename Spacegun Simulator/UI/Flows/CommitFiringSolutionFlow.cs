@@ -40,6 +40,9 @@ namespace Spacegun_Simulator.UI.Flows
             if (target == null) throw new ArgumentNullException(nameof(target));
             if (calculator == null) throw new ArgumentNullException(nameof(calculator));
 
+            var resolved = game.ResolveShotStats(target);
+            bool hasDeltaV = resolved.PropulsionDeltaVCapacityMs > 0.0;
+
             // Step 1: Collect firing parameters via page-based UI (no Console.ReadLine).
             var ui = new UiContext(
                 layout: screenLayout,
@@ -51,7 +54,22 @@ namespace Spacegun_Simulator.UI.Flows
                 DebugEnabled = false
             };
 
-            var paramPage = new EnterFiringParametersPage(maxVelocity);
+            var diffConfigForInput = DifficultyConfig.GetConfig(game.SelectedDifficulty);
+            double effectiveDeltaVAvailableMs = hasDeltaV
+                ? resolved.PropulsionDeltaVCapacityMs * ComputeMassEfficiency(resolved)
+                : 0.0;
+            double baseHitToleranceMeters = ComputeBaseHitToleranceMeters(
+                diffConfigForInput,
+                enemyMass: target.Mass,
+                additionalHitToleranceMultiplier: resolved.AdditionalHitToleranceMultiplier);
+
+            var paramPage = new EnterFiringParametersPage(
+                maxVelocity,
+                enableDeltaVAllocation: hasDeltaV,
+                effectiveDeltaVAvailableMs: effectiveDeltaVAvailableMs,
+                baseHitToleranceMeters: baseHitToleranceMeters,
+                baseDefenseRating: resolved.ProjectileDefenseRating,
+                projectileMassKg: resolved.ProjectileMassKg);
             var controller = new UiController(ui, PageId.EnterFiringParameters);
             controller.Register(paramPage);
             controller.Run();
@@ -69,6 +87,27 @@ namespace Spacegun_Simulator.UI.Flows
             float playerTargetElevation = (float)paramPage.TargetElevationDegrees;
             float playerTargetAzimuth = (float)paramPage.TargetAzimuthDegrees;
             float playerLaunchVelocity = (float)paramPage.LaunchVelocityMs;
+
+            int impulsePct = hasDeltaV ? paramPage.DeltaVImpulsePercent : 100;
+            int controlPct = hasDeltaV ? paramPage.DeltaVControlPercent : 0;
+            int dodgePct = hasDeltaV ? paramPage.DeltaVDodgePercent : 0;
+
+            double impulseFrac = Math.Clamp(impulsePct / 100.0, 0.0, 1.0);
+            double controlFrac = Math.Clamp(controlPct / 100.0, 0.0, 1.0);
+            double dodgeFrac = Math.Clamp(dodgePct / 100.0, 0.0, 1.0);
+
+            double effectiveControlDeltaV = effectiveDeltaVAvailableMs * controlFrac;
+            double controlBonus = ComputeControlGuidanceBonus(effectiveControlDeltaV);
+
+            // Apply the player's Δv split for this shot.
+            // - Impulse: feeds the solver's impact KE via propulsion delta-v.
+            // - Control: improves hit tolerance in the solver (and may also improve Guidance below).
+            var allocated = resolved with
+            {
+                PropulsionDeltaVCapacityMs = resolved.PropulsionDeltaVCapacityMs * impulseFrac,
+                AdditionalHitToleranceMultiplier = resolved.AdditionalHitToleranceMultiplier * (1.0 + controlBonus)
+            };
+            calculator.ConfigureProjectileModifiers(allocated);
 
             var header = new List<string>
             {
@@ -101,12 +140,59 @@ namespace Spacegun_Simulator.UI.Flows
                     Console.WriteLine($"Elevation: {diffConfig.FormatElevation(playerTargetElevation)}");
                     Console.WriteLine($"Azimuth: {diffConfig.FormatAzimuth(playerTargetAzimuth)}");
                     Console.WriteLine($"Velocity: {diffConfig.FormatVelocity(playerLaunchVelocity)}");
+                    if (hasDeltaV)
+                        Console.WriteLine($"Δv split: Impulse {impulsePct}% / Control {controlPct}% / Dodge {dodgePct}%");
                     Console.WriteLine();
                 }
                 finally
                 {
                     promptRowNoOffset = screenLayout.EndBufferedFrame(contentLeftNoOffset, contentTop);
                 }
+            }
+
+            static double ComputeMassEfficiency(in ResolvedShotStats stats)
+            {
+                double massKg = Math.Max(0.0, stats.ProjectileMassKg);
+                double refMassKg = Math.Max(0.01, stats.PropulsionReferenceMassKg);
+                return refMassKg / (refMassKg + massKg);
+            }
+
+            static double ComputeBaseHitToleranceMeters(
+                DifficultyConfig diffConfig,
+                double enemyMass,
+                double additionalHitToleranceMultiplier)
+            {
+                // Mirrors FiringSolution.CalculateHitTolerance.
+                if (diffConfig.IsTutorialMode)
+                    return DifficultyConfig.TutorialBeachball.RadiusMeters;
+
+                double diameterM = BallisticsCalculator.CalculateDiameterFromMass(enemyMass);
+
+                if (diffConfig.TargetRcsMultiplier > 1.0)
+                {
+                    double rcsLinear = Math.Sqrt(diffConfig.TargetRcsMultiplier);
+                    diameterM *= rcsLinear;
+                }
+
+                double baseTolerance = diameterM * 0.5;
+                return baseTolerance * diffConfig.HitToleranceMultiplier * additionalHitToleranceMultiplier;
+            }
+
+            static double ComputeControlGuidanceBonus(double effectiveDeltaVMs)
+            {
+                // Diminishing returns, tuned conservatively.
+                // 0 m/s => +0.00, 2000 m/s => ~+0.38, 5000 m/s => ~+0.62; cap at +0.75.
+                if (effectiveDeltaVMs <= 0.0) return 0.0;
+                double x = Math.Clamp(effectiveDeltaVMs / 2000.0, 0.0, 20.0);
+                return Math.Clamp(0.75 * (1.0 - Math.Exp(-x)), 0.0, 0.75);
+            }
+
+            static double ComputeDodgeDefenseBonus(double effectiveDeltaVMs)
+            {
+                // Diminishing returns; cap at +0.25 defense.
+                if (effectiveDeltaVMs <= 0.0) return 0.0;
+                double x = Math.Clamp(effectiveDeltaVMs / 2500.0, 0.0, 20.0);
+                return Math.Clamp(0.25 * (1.0 - Math.Exp(-x)), 0.0, 0.25);
             }
 
             var rawOut = originalConsoleOut ?? Console.Out;
@@ -128,8 +214,8 @@ namespace Spacegun_Simulator.UI.Flows
                 playerTargetElevation,
                 playerTargetAzimuth,
                 playerLaunchVelocity,
-                (float)game.SelectedGunProjectileSpec.MuzzleVelocityMs,
-                (float)GameConstants.GetTierForWave(game.CurrentWaveNumber).MaxEffectiveGunRange,
+                maxVelocity,
+                (float)game.GetCurrentEffectiveGunRangeMeters(),
                 game.CurrentWaveNumber,
                 target.Mass,
                 game.SelectedDifficulty);
@@ -140,6 +226,53 @@ namespace Spacegun_Simulator.UI.Flows
             System.Threading.Thread.Sleep(1000);
 
             bool hitResult = solution.CanDestroy && solution.CanHit;
+
+            // Full-mode maneuverability: apply a terminal evasion chance, countered by Guidance.
+            bool evaded = false;
+            if (hitResult && target.Maneuverability > 0.0)
+            {
+                double maneuver = Math.Clamp(target.Maneuverability, 0.0, 1.0);
+                bool hasGuidanceMod =
+                    (game.CraftedProjectile?.Enhancement?.Id == "guidance")
+                    || (game.Gun?.DefaultProjectile?.HasGuidance ?? false);
+
+                // Guidance is a projectile-linked capability. If the guidance mod isn't installed,
+                // Guidance stays at baseline (1.0) regardless of any gun-side tuning/upgrades.
+                double guidance = hasGuidanceMod
+                    ? Math.Max(0.0, game.Gun?.Guidance ?? 1.0)
+                    : 1.0;
+
+                if (hasDeltaV && hasGuidanceMod && controlPct > 0)
+                    guidance *= (1.0 + controlBonus);
+
+                double lockBreakChance = CombatCurves.ComputeEvasionChance(maneuver, guidance);
+
+                var evasionRng = game.CreateFiringRng("Evasion");
+                evaded = evasionRng.NextDouble() < lockBreakChance;
+                if (evaded)
+                    hitResult = false;
+            }
+
+            // Full-mode offense vs projectile defense: target may destroy the projectile before impact.
+            bool projectileIntercepted = false;
+            if (hitResult && target.Offense > 0.0)
+            {
+                double offense = Math.Clamp(target.Offense, 0.0, 1.0);
+                double defense = Math.Clamp(resolved.ProjectileDefenseRating, 0.0, 1.0);
+
+                if (hasDeltaV && dodgePct > 0)
+                {
+                    double effectiveDodgeDeltaV = effectiveDeltaVAvailableMs * dodgeFrac;
+                    defense = Math.Clamp(defense + ComputeDodgeDefenseBonus(effectiveDodgeDeltaV), 0.0, 1.0);
+                }
+
+                double killChance = CombatCurves.ComputeInterceptKillChance(offense, defense);
+
+                var interceptRng = game.CreateFiringRng("Intercept");
+                projectileIntercepted = interceptRng.NextDouble() < killChance;
+                if (projectileIntercepted)
+                    hitResult = false;
+            }
 
             double animFlightTime = firingProblem.EnemyPosition.Magnitude / Math.Max(1.0, playerLaunchVelocity) * 1.5;
 
@@ -195,7 +328,11 @@ namespace Spacegun_Simulator.UI.Flows
             }
             else
             {
-                outcomeLine = "✗ MISS! Your ballistic solution was inaccurate or lacked sufficient energy.";
+                outcomeLine = evaded
+                    ? "✗ EVADED! Target maneuvered away from intercept."
+                    : projectileIntercepted
+                        ? "✗ INTERCEPTED! Enemy defenses destroyed the projectile."
+                    : "✗ MISS! Your ballistic solution was inaccurate or lacked sufficient energy.";
             }
 
             var resultsLines = BuildResultsLines(
@@ -204,9 +341,12 @@ namespace Spacegun_Simulator.UI.Flows
                 playerLaunchVelocity,
                 displayRcs,
                 game.SelectedDifficulty,
+                GameModeTuning.Current.GetHitToleranceMultiplier(game.Mode),
                 barrelLine1,
                 barrelLine2,
-                outcomeLine);
+                outcomeLine,
+                evaded,
+                projectileIntercepted);
 
             var resultsUi = new UiContext(
                 layout: screenLayout,
@@ -242,6 +382,8 @@ namespace Spacegun_Simulator.UI.Flows
             Console.WriteLine($"  Launch Delay: {delayTime:F2}s");
             Console.WriteLine($"  Elevation: {elevation:F2}°   Azimuth: {azimuth:F2}°");
             Console.WriteLine($"  Launch Velocity: {velocity:F0} m/s");
+            if (solution.ImpactVelocityMs > 0)
+                Console.WriteLine($"  Impact Velocity: {solution.ImpactVelocityMs:F0} m/s (flight: {solution.FlightTimeSeconds:F2}s)");
             Console.WriteLine($"  Energy Needed: {solution.FractureEnergyRequired:F0} MJ");
             Console.WriteLine($"  Can Destroy: {(solution.CanDestroy ? "Yes" : "No")}");
             Console.WriteLine($"  Can Hit: {(solution.SolutionValid ? (solution.CanHit ? "Yes" : "No") : "N/A")}");
@@ -254,19 +396,26 @@ namespace Spacegun_Simulator.UI.Flows
             float velocity,
             double targetRcs,
             GameDifficulty difficulty,
+            double modeHitToleranceMultiplier,
             string? barrelLine1,
             string? barrelLine2,
-            string outcomeLine)
+            string outcomeLine,
+            bool evaded,
+            bool projectileIntercepted)
         {
             var lines = new List<string>();
 
             lines.Add("=== ENERGY CALCULATION ===");
             lines.Add("Formula: KE = 0.5 × mass × velocity²");
             lines.Add($"  Mass: {mass:F1} kg");
-            lines.Add($"  Velocity: {velocity:F0} m/s");
+            lines.Add($"  Launch Velocity: {velocity:F0} m/s");
 
-            double displayEnergyMj = BallisticsCalculator.CalculateKineticEnergyMJ(mass, velocity);
-            lines.Add($"  Calculation: 0.5 × {mass:F1} × ({velocity:F0})²");
+            double impactVelocity = solution.ImpactVelocityMs > 0.0 ? solution.ImpactVelocityMs : velocity;
+            if (solution.ImpactVelocityMs > 0.0)
+                lines.Add($"  Impact Velocity: {impactVelocity:F0} m/s");
+
+            double displayEnergyMj = BallisticsCalculator.CalculateKineticEnergyMJ(mass, impactVelocity);
+            lines.Add($"  Calculation: 0.5 × {mass:F1} × ({impactVelocity:F0})²");
             lines.Add($"  = {displayEnergyMj:F1} MJ");
             lines.Add($"Required: {solution.FractureEnergyRequired:F0} MJ");
             lines.Add($"✓ Energy Check: {(solution.CanDestroy ? "PASS" : "FAIL")}");
@@ -291,7 +440,7 @@ namespace Spacegun_Simulator.UI.Flows
                 else
                 {
                     double diameterFromRcs = 2.0 * Math.Sqrt(targetRcs / Math.PI);
-                    hitTolerance = diameterFromRcs * 0.5 * diffConfig.HitToleranceMultiplier;
+                    hitTolerance = diameterFromRcs * 0.5 * diffConfig.HitToleranceMultiplier * modeHitToleranceMultiplier;
                     lines.Add($"  Hit tolerance: {hitTolerance:F1} m (from {targetRcs:F1} m² RCS)");
                 }
 
@@ -309,7 +458,14 @@ namespace Spacegun_Simulator.UI.Flows
             lines.Add($"Energy sufficient: {(solution.CanDestroy ? "✓ Yes" : "✗ No")}");
             lines.Add($"Accuracy valid: {(solution.SolutionValid ? (solution.CanHit ? "✓ Yes" : "✗ No") : "N/A")}");
             lines.Add($"Solution valid: {(solution.SolutionValid ? "✓ Yes" : "✗ No")}");
-            lines.Add($"Result: {(solution.CanDestroy && solution.CanHit ? "✓ HIT" : "✗ MISS")}");
+
+            if (solution.CanDestroy && solution.CanHit)
+            {
+                lines.Add($"Evasion check: {(evaded ? "✗ Failed" : "✓ Passed")}");
+                lines.Add($"Projectile survival: {(projectileIntercepted ? "✗ Failed" : "✓ Passed")}");
+            }
+
+            lines.Add($"Result: {(solution.CanDestroy && solution.CanHit && !evaded && !projectileIntercepted ? "✓ HIT" : "✗ MISS")}");
 
             if (!string.IsNullOrWhiteSpace(barrelLine1) || !string.IsNullOrWhiteSpace(barrelLine2))
             {

@@ -56,6 +56,11 @@ namespace Spacegun_Simulator.UI.Pages
 
                     bool splitHere = false;
 
+                    // If there are 2+ spaces (or other whitespace) between tokens,
+                    // treat it as an explicit chunk separator.
+                    if (j - i >= 2)
+                        splitHere = true;
+
                     // If the next token starts with '(' or '[', treat it as a new chunk.
                     char next = hint[j];
                     if (next == '(' || next == '[')

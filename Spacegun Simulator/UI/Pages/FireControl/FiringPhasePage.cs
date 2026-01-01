@@ -99,16 +99,27 @@ public sealed class FiringPhasePage : PageBase
             return;
         }
 
-        double muzzleVelocity = game.SelectedGunProjectileSpec.MuzzleVelocityMs;
-        double projectileMass = game.SelectedGunProjectileSpec.ProjectileMassKg;
+        var resolved = game.ResolveShotStats(target);
+        double muzzleVelocity = resolved.MaxLaunchVelocityMs;
+        double projectileMass = resolved.ProjectileMassKg;
 
         var calculator = new FiringSolution(
             (float)projectileMass,
-            (float)target.FractureEnergy,
+            (float)resolved.EffectiveFractureEnergyMJ,
             target.Mass);
+        calculator.ConfigureProjectileModifiers(resolved);
 
-        float minVelocity = calculator.CalculateRequiredVelocity();
+        float requiredImpactVelocity = calculator.CalculateRequiredVelocity();
         float maxVelocity = (float)muzzleVelocity;
+
+        double bestCaseDeltaV = 0.0;
+        if (resolved.PropulsionDeltaVCapacityMs > 0.0)
+        {
+            double massEfficiency = resolved.PropulsionReferenceMassKg / (resolved.PropulsionReferenceMassKg + projectileMass);
+            bestCaseDeltaV = resolved.PropulsionDeltaVCapacityMs * massEfficiency;
+        }
+
+        double requiredLaunchVelocityBestCase = Math.Max(0.0, requiredImpactVelocity - bestCaseDeltaV);
 
         double displayRcs = target.CrossSection * diff.TargetRcsMultiplier;
 
@@ -116,7 +127,9 @@ public sealed class FiringPhasePage : PageBase
         _lines.Add($"Projectile Mass: {FiringPhaseFormatter.FormatMass(projectileMass, game.SelectedDifficulty)} kg");
         _lines.Add($"Max Muzzle Velocity: {FiringPhaseFormatter.FormatVelocity(muzzleVelocity, game.SelectedDifficulty)} m/s");
         _lines.Add($"Barrel Integrity: {game.Gun.BarrelIntegrity:P2}");
-        _lines.Add($"Has Guidance System: {(game.Gun.DefaultProjectile.HasGuidance ? "Yes" : "No")}");
+        bool hasGuidanceMod = (game.CraftedProjectile?.Enhancement?.Id == "guidance") || game.Gun.DefaultProjectile.HasGuidance;
+        _lines.Add($"Has Guidance System: {(hasGuidanceMod ? "Yes" : "No")}");
+        _lines.Add($"Guidance: {game.Gun.Guidance:F2}x");
         _lines.Add($"Gun Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(game.CurrentWaveNumber).MaxEffectiveGunRange)}");
         _lines.Add("");
 
@@ -142,7 +155,15 @@ public sealed class FiringPhasePage : PageBase
         }
 
         _lines.Add("");
-        _lines.Add($"Required Velocity Range: {minVelocity:N0} - {maxVelocity:N0} m/s");
+        if (bestCaseDeltaV > 0.0)
+        {
+            _lines.Add($"Required Impact Velocity (KE): {requiredImpactVelocity:N0} m/s");
+            _lines.Add($"Required Launch Velocity (best-case Δv if spent on Impulse): {requiredLaunchVelocityBestCase:N0} - {maxVelocity:N0} m/s");
+        }
+        else
+        {
+            _lines.Add($"Required Velocity Range: {requiredImpactVelocity:N0} - {maxVelocity:N0} m/s");
+        }
 
         _lines.Add("");
         _lines.Add("=== FIRE CONTROL TOOLS ===");
