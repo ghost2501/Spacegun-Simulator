@@ -143,6 +143,8 @@ namespace Spacegun_Simulator.Core
                 enemyManeuverability: 1.0,
                 overrideEnemyOffense: false,
                 enemyOffense: 1.0,
+                overrideEnemyDefense: false,
+                enemyDefense: 1.0,
                 overrideBarrelLength: false,
                 barrelLength: 100.0,
                 overrideFireControlQuality: false,
@@ -199,6 +201,8 @@ namespace Spacegun_Simulator.Core
             const double enemyManeuverability = 1.0;
             const bool overrideEnemyOffense = false;
             const double enemyOffense = 1.0;
+            const bool overrideEnemyDefense = false;
+            const double enemyDefense = 1.0;
 
             const bool overrideBarrelLength = false;
             const double barrelLength = 100.0;
@@ -233,6 +237,8 @@ namespace Spacegun_Simulator.Core
                 enemyManeuverability: enemyManeuverability,
                 overrideEnemyOffense: overrideEnemyOffense,
                 enemyOffense: enemyOffense,
+                overrideEnemyDefense: overrideEnemyDefense,
+                enemyDefense: enemyDefense,
                 overrideBarrelLength: overrideBarrelLength,
                 barrelLength: barrelLength,
                 overrideFireControlQuality: overrideFireControlQuality,
@@ -274,6 +280,8 @@ namespace Spacegun_Simulator.Core
                     enemyManeuverability: enemyManeuverability,
                     overrideEnemyOffense: overrideEnemyOffense,
                     enemyOffense: enemyOffense,
+                    overrideEnemyDefense: overrideEnemyDefense,
+                    enemyDefense: enemyDefense,
                     barrelLengthMeters: barrelLength,
                     fireControlQuality: fireControlQuality,
                     muzzleVelocityMultiplier: muzzleVelocityMultiplier,

@@ -22,6 +22,7 @@ namespace Spacegun_Simulator.Tests
             double[] AvgEnemyFractureEnergyByTier,
             double[] AvgEnemyManeuverabilityByTier,
             double[] AvgEnemyOffenseByTier,
+            double[] AvgEnemyDefenseByTier,
             double[] DetectionRateByTier,
             double[] BallisticsOkRateByTier);
 
@@ -152,6 +153,8 @@ namespace Spacegun_Simulator.Tests
             double enemyManeuverability,
             bool overrideEnemyOffense,
             double enemyOffense,
+            bool overrideEnemyDefense,
+            double enemyDefense,
             double barrelLengthMeters,
             double fireControlQuality,
             double muzzleVelocityMultiplier,
@@ -194,6 +197,7 @@ namespace Spacegun_Simulator.Tests
                     "OverrideEnemyFractureEnergy","EnemyFractureEnergy",
                     "OverrideEnemyManeuverability","EnemyManeuverability",
                     "OverrideEnemyOffense","EnemyOffense",
+                    "OverrideEnemyDefense","EnemyDefense",
 
                     "BarrelLength_m",
                     "Guidance",
@@ -210,6 +214,7 @@ namespace Spacegun_Simulator.Tests
                     "AvgEnemyFractureEnergyByTier",
                     "AvgEnemyManeuverabilityByTier",
                     "AvgEnemyOffenseByTier",
+                    "AvgEnemyDefenseByTier",
                     "DetectionRateByTier",
                     "BallisticsOkRateByTier",
 
@@ -246,6 +251,8 @@ namespace Spacegun_Simulator.Tests
                     (overrideEnemyManeuverability ? FormatInv(enemyManeuverability, "F6") : string.Empty),
                     (overrideEnemyOffense ? "1" : "0"),
                     (overrideEnemyOffense ? FormatInv(enemyOffense, "F6") : string.Empty),
+                    (overrideEnemyDefense ? "1" : "0"),
+                    (overrideEnemyDefense ? FormatInv(enemyDefense, "F6") : string.Empty),
 
                     FormatInv(barrelLengthMeters, "F3"),
                     FormatInv(fireControlQuality, "F6"),
@@ -262,6 +269,7 @@ namespace Spacegun_Simulator.Tests
                     FormatInv(result.AvgEnemyFractureEnergyByTier[i], "F3"),
                     FormatInv(result.AvgEnemyManeuverabilityByTier[i], "F6"),
                     FormatInv(result.AvgEnemyOffenseByTier[i], "F6"),
+                    FormatInv(result.AvgEnemyDefenseByTier[i], "F6"),
                     FormatInv(result.DetectionRateByTier[i], "F6"),
                     FormatInv(result.BallisticsOkRateByTier[i], "F6"),
 
@@ -286,12 +294,34 @@ namespace Spacegun_Simulator.Tests
             }
 
             // Retry briefly in case another run is appending.
+            // If the schema changed (header mismatch), write to a fresh versioned file.
+            string targetPath = fullPath;
+            if (File.Exists(targetPath))
+            {
+                try
+                {
+                    using var stream = new FileStream(targetPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 4096, leaveOpen: false);
+                    string? firstLine = reader.ReadLine();
+                    if (!string.Equals(firstLine, headerLine, StringComparison.Ordinal))
+                    {
+                        targetPath = Path.GetFullPath(Path.Combine(
+                            dir,
+                            $"TuningLab_Runs_v2_{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv"));
+                    }
+                }
+                catch
+                {
+                    // If we can't read it, fall back to existing append behavior.
+                }
+            }
+
             for (int attempt = 0; attempt < 5; attempt++)
             {
                 try
                 {
-                    AppendWithHeaderIfNeeded(fullPath, headerLine, rows.ToString());
-                    return fullPath;
+                    AppendWithHeaderIfNeeded(targetPath, headerLine, rows.ToString());
+                    return targetPath;
                 }
                 catch (IOException) when (attempt < 4)
                 {
@@ -522,6 +552,8 @@ namespace Spacegun_Simulator.Tests
             double enemyManeuverability,
             bool overrideEnemyOffense,
             double enemyOffense,
+            bool overrideEnemyDefense,
+            double enemyDefense,
             bool overrideBarrelLength,
             double barrelLength,
             bool overrideFireControlQuality,
@@ -569,6 +601,7 @@ namespace Spacegun_Simulator.Tests
             // Keeping this consistent avoids confusion where values > 1 have no additional effect.
             enemyManeuverability = Math.Clamp(enemyManeuverability, 0.0, 1.0);
             enemyOffense = Math.Clamp(enemyOffense, 0.0, 1.0);
+            enemyDefense = Math.Clamp(enemyDefense, 0.0, 1.0);
 
             string rulesetLabel = ruleset.ToString();
             string difficultyLabel = difficulty switch
@@ -587,6 +620,7 @@ namespace Spacegun_Simulator.Tests
             var enemyFractureSum = new double[GameConstants.TierCount];
             var enemyManeuverSum = new double[GameConstants.TierCount];
             var enemyOffenseSum = new double[GameConstants.TierCount];
+            var enemyDefenseSum = new double[GameConstants.TierCount];
             var sampleCount = new int[GameConstants.TierCount];
 
             var detectedCount = new int[GameConstants.TierCount];
@@ -644,11 +678,13 @@ namespace Spacegun_Simulator.Tests
                     double effectiveEnemyFractureRaw = overrideEnemyFractureEnergy ? enemyFractureEnergy : target.FractureEnergy;
                     double effectiveEnemyManeuverability = overrideEnemyManeuverability ? enemyManeuverability : target.Maneuverability;
                     double effectiveEnemyOffense = overrideEnemyOffense ? enemyOffense : target.Offense;
+                    double effectiveEnemyDefense = overrideEnemyDefense ? enemyDefense : target.Defense;
 
                     enemyMassSum[tierIndex] += effectiveEnemyMass;
                     enemyFractureSum[tierIndex] += effectiveEnemyFractureRaw;
                     enemyManeuverSum[tierIndex] += effectiveEnemyManeuverability;
                     enemyOffenseSum[tierIndex] += effectiveEnemyOffense;
+                    enemyDefenseSum[tierIndex] += effectiveEnemyDefense;
                     sampleCount[tierIndex]++;
 
                     var detection = new DetectionSystem
@@ -673,7 +709,7 @@ namespace Spacegun_Simulator.Tests
                     double barrelMult = Math.Clamp(effectiveBarrelLength / 100.0, 0.5, 2.0);
                     double effectiveGunRange = tier.MaxEffectiveGunRange * barrelMult * stealthMult;
 
-                    double effectiveEnemyDefense01 = Math.Clamp(target.Defense, 0.0, 1.0);
+                    double effectiveEnemyDefense01 = Math.Clamp(effectiveEnemyDefense, 0.0, 1.0);
                     double defenseScale = Math.Max(0.0, GameModeTuning.Current.FractureEnergyDefenseScale);
                     double armoredEnemyFracture = Math.Max(0.0, effectiveEnemyFractureRaw * (1.0 + defenseScale * effectiveEnemyDefense01));
                     double effectiveEnemyFractureEnergy = Math.Max(0.0, armoredEnemyFracture / Math.Max(0.1, effectivePenetration));
@@ -881,6 +917,7 @@ namespace Spacegun_Simulator.Tests
             var avgEnemyFracture = new double[GameConstants.TierCount];
             var avgEnemyManeuver = new double[GameConstants.TierCount];
             var avgEnemyOffense = new double[GameConstants.TierCount];
+            var avgEnemyDefense = new double[GameConstants.TierCount];
             var detectionRate = new double[GameConstants.TierCount];
             var ballisticsOkRate = new double[GameConstants.TierCount];
 
@@ -895,6 +932,7 @@ namespace Spacegun_Simulator.Tests
                 avgEnemyFracture[t] = enemyFractureSum[t] / s;
                 avgEnemyManeuver[t] = enemyManeuverSum[t] / s;
                 avgEnemyOffense[t] = enemyOffenseSum[t] / s;
+                avgEnemyDefense[t] = enemyDefenseSum[t] / s;
 
                 detectionRate[t] = (double)detectedCount[t] / denom;
                 ballisticsOkRate[t] = (double)ballisticsOkCount[t] / Math.Max(1, detectedCount[t]);
@@ -910,6 +948,7 @@ namespace Spacegun_Simulator.Tests
                 AvgEnemyFractureEnergyByTier: avgEnemyFracture,
                 AvgEnemyManeuverabilityByTier: avgEnemyManeuver,
                 AvgEnemyOffenseByTier: avgEnemyOffense,
+                AvgEnemyDefenseByTier: avgEnemyDefense,
                 DetectionRateByTier: detectionRate,
                 BallisticsOkRateByTier: ballisticsOkRate);
         }

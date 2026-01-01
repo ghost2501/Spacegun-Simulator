@@ -37,8 +37,9 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
             EnemyFractureEnergy = 17,
             EnemyManeuverability = 18,
             EnemyOffense = 19,
+            EnemyDefense = 20,
 
-            Run = 20,
+            Run = 21,
         }
 
         private static readonly Field[] s_fieldOrder = new[]
@@ -65,6 +66,7 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
             Field.EnemyFractureEnergy,
             Field.EnemyManeuverability,
             Field.EnemyOffense,
+            Field.EnemyDefense,
 
             Field.Run,
         };
@@ -97,6 +99,9 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
 
         private bool _overrideEnemyOffense;
         private double _enemyOffense = 1.0;
+
+        private bool _overrideEnemyDefense;
+        private double _enemyDefense = 1.0;
 
         private bool _overrideBarrelLength;
         private double _barrelLength = 100.0;
@@ -324,6 +329,7 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
             AddSelectable(Field.EnemyFractureEnergy, FormatNumericRow(Field.EnemyFractureEnergy, "EnemyFractureEnergy", _overrideEnemyFractureEnergy, _overrideEnemyFractureEnergy ? _enemyFractureEnergy.ToString("F0") : "(wave)"));
             AddSelectable(Field.EnemyManeuverability, FormatNumericRow(Field.EnemyManeuverability, "EnemyManeuverability", _overrideEnemyManeuverability, _overrideEnemyManeuverability ? _enemyManeuverability.ToString("F2") : "(wave)"));
             AddSelectable(Field.EnemyOffense, FormatNumericRow(Field.EnemyOffense, "EnemyOffense", _overrideEnemyOffense, _overrideEnemyOffense ? _enemyOffense.ToString("F2") : "(wave)"));
+            AddSelectable(Field.EnemyDefense, FormatNumericRow(Field.EnemyDefense, "EnemyDefense", _overrideEnemyDefense, _overrideEnemyDefense ? _enemyDefense.ToString("F2") : "(wave)"));
 
             _lines.Add("");
             string runState = _last is null ? "(no results yet)" : (_resultsStale ? "(results: stale)" : "(results: current)");
@@ -473,6 +479,7 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
                     case Field.EnemyFractureEnergy: _overrideEnemyFractureEnergy = !_overrideEnemyFractureEnergy; break;
                     case Field.EnemyManeuverability: _overrideEnemyManeuverability = !_overrideEnemyManeuverability; break;
                     case Field.EnemyOffense: _overrideEnemyOffense = !_overrideEnemyOffense; break;
+                    case Field.EnemyDefense: _overrideEnemyDefense = !_overrideEnemyDefense; break;
                 }
 
                 _resultsStale = _last is not null;
@@ -588,6 +595,10 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
                         _overrideEnemyOffense = true;
                         _enemyOffense = Math.Clamp(d, 0.0, 1.0);
                         break;
+                    case Field.EnemyDefense:
+                        _overrideEnemyDefense = true;
+                        _enemyDefense = Math.Clamp(d, 0.0, 1.0);
+                        break;
                 }
 
                 _inputBuffer = "";
@@ -618,6 +629,8 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
                     enemyManeuverability: _enemyManeuverability,
                     overrideEnemyOffense: _overrideEnemyOffense,
                     enemyOffense: _enemyOffense,
+                    overrideEnemyDefense: _overrideEnemyDefense,
+                    enemyDefense: _enemyDefense,
                     overrideBarrelLength: _overrideBarrelLength,
                     barrelLength: _barrelLength,
                     overrideFireControlQuality: _overrideFireControlQuality,
@@ -713,6 +726,8 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
                 enemyManeuverability: _enemyManeuverability,
                 overrideEnemyOffense: _overrideEnemyOffense,
                 enemyOffense: _enemyOffense,
+                overrideEnemyDefense: _overrideEnemyDefense,
+                enemyDefense: _enemyDefense,
                 barrelLengthMeters: barrelLen,
                 fireControlQuality: fireControl,
                 muzzleVelocityMultiplier: muzzleMult,
