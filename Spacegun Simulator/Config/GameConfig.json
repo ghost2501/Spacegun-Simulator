@@ -27,7 +27,7 @@
   },
   "StealthChanceForLateTiers": 0.3,
   "Modes": {
-    "PureDeterministicSeed": 0,
+    "PureDeterministicSeed": -1,
     "DisableRandomEventsInPure": true,
     "DetectionRcsMultiplierPure": 1.0,
     "DetectionRcsMultiplierFull": 1.0,

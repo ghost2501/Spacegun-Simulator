@@ -79,7 +79,7 @@ namespace Spacegun_Simulator.UI.Pages.Core
                 ui.WriteLine();
 
                 WriteChoice(ui, 0, "Tutorial", "Starts immediately. No economy/dev.");
-                WriteChoice(ui, 1, "Pure", "Purely deterministic. No economy/dev.");
+                WriteChoice(ui, 1, "Pure", "No economy/dev. Randomized per run.");
                 WriteChoice(ui, 2, "Full Game", "Some RNG. Tech development & economy.");
 
                 ui.WriteLine();

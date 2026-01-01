@@ -109,11 +109,9 @@ namespace Spacegun_Simulator.Core
             SelectedMode = GameModeCatalog.GetDefaultForDifficulty(difficulty);
 
             // Determinism foundation:
-            // - Pure modes default to a fixed seed so runs are identical.
             // - Full modes default to a random seed, but that seed is persisted so save/load is stable.
-            BaseSeed = seed ?? (GameModeTuning.IsPureMode(Mode)
-                ? GameModeTuning.Current.PureDeterministicSeed
-                : RandomNumberGenerator.GetInt32(int.MaxValue));
+            // - Pure modes default to a random seed too, unless an explicit deterministic seed is configured.
+            BaseSeed = seed ?? ChooseDefaultSeedForMode(Mode);
 
             rng = new Random(BaseSeed);
             TechTree = new TechTree();  // Initialize at level 1 in all trees
@@ -130,15 +128,24 @@ namespace Spacegun_Simulator.Core
             SelectedMode = mode;
             SelectedDifficulty = GameModeCatalog.Get(mode).Difficulty;
 
-            // Re-apply deterministic seed defaults now that mode is known.
+            // Re-apply seed defaults now that mode is known.
             if (!seed.HasValue)
             {
-                if (GameModeTuning.IsPureMode(Mode))
-                {
-                    BaseSeed = GameModeTuning.Current.PureDeterministicSeed;
-                    rng = new Random(BaseSeed);
-                }
+                BaseSeed = ChooseDefaultSeedForMode(Mode);
+                rng = new Random(BaseSeed);
             }
+        }
+
+        private static int ChooseDefaultSeedForMode(GameModeDefinition mode)
+        {
+            if (GameModeTuning.IsPureMode(mode))
+            {
+                int configured = GameModeTuning.Current.PureDeterministicSeed;
+                if (configured >= 0)
+                    return configured;
+            }
+
+            return RandomNumberGenerator.GetInt32(int.MaxValue);
         }
 
         public void SetBaseSeed(int seed)

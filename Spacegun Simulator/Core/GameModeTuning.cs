@@ -7,9 +7,10 @@ namespace Spacegun_Simulator.Core;
 public sealed class GameModeTuning
 {
     /// <summary>
-    /// Pure modes use a fixed seed by default so runs are identical.
+    /// If set to a non-negative value, Pure modes use a fixed seed so runs are reproducible.
+    /// If negative, Pure modes use a random seed per new game.
     /// </summary>
-    public int PureDeterministicSeed { get; set; } = 0;
+    public int PureDeterministicSeed { get; set; } = -1;
 
     /// <summary>
     /// When true, disables random events for pure modes.
