@@ -1,4 +1,5 @@
 using System.Text;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.UI.Screen
 {
@@ -159,6 +160,10 @@ namespace Spacegun_Simulator.UI.Screen
                 string c = i < centerLines.Count ? (centerLines[i] ?? "") : "";
                 string r = i < useRight.Length ? (useRight[i] ?? "") : "";
 
+                l = ConsoleTextMode.Sanitize(l);
+                c = ConsoleTextMode.Sanitize(c);
+                r = ConsoleTextMode.Sanitize(r);
+
                 l = leftW <= 0 ? "" : (l.Length > leftW ? l.Substring(0, leftW) : l.PadRight(leftW));
                 c = c.Length > FrameWidth ? c.Substring(0, FrameWidth) : c.PadRight(FrameWidth);
                 r = rightW <= 0 ? "" : (r.Length > rightW ? r.Substring(0, rightW) : r.PadRight(rightW));
@@ -169,7 +174,10 @@ namespace Spacegun_Simulator.UI.Screen
                 try { winW = Console.WindowWidth; }
                 catch { winW = totalWidth + (includeOffset ? Offset : 0); }
 
-                int avail = Math.Max(0, winW - padLeft);
+                // IMPORTANT: avoid writing into the last console column.
+                // Many console hosts auto-wrap when the last column is written,
+                // which makes each logical row consume an extra line.
+                int avail = Math.Max(0, winW - padLeft - 1);
                 if (line.Length > avail) line = line.Substring(0, avail);
 
                 try { Console.SetCursorPosition(padLeft, Console.CursorTop); } catch { }
@@ -181,10 +189,10 @@ namespace Spacegun_Simulator.UI.Screen
             ComputeClampedMetrics(IList<string> centerLines, string[] useLeft, string[] useRight, bool includeOffset)
         {
             int leftW = 0;
-            foreach (var l in useLeft) leftW = Math.Max(leftW, l?.Length ?? 0);
+            foreach (var l in useLeft) leftW = Math.Max(leftW, ConsoleTextMode.Sanitize(l).Length);
 
             int rightW = 0;
-            foreach (var r in useRight) rightW = Math.Max(rightW, r?.Length ?? 0);
+            foreach (var r in useRight) rightW = Math.Max(rightW, ConsoleTextMode.Sanitize(r).Length);
 
             int totalWidth = leftW + FrameWidth + rightW;
 
@@ -192,9 +200,12 @@ namespace Spacegun_Simulator.UI.Screen
             try { winW = Console.WindowWidth; }
             catch { winW = totalWidth + (includeOffset ? Offset : 0); }
 
-            if (totalWidth > winW)
+            // Keep a 1-column safety margin to avoid auto-wrap.
+            int safeWinW = Math.Max(0, winW - 1);
+
+            if (totalWidth > safeWinW)
             {
-                int available = Math.Max(0, winW - FrameWidth);
+                int available = Math.Max(0, safeWinW - FrameWidth);
                 int sides = leftW + rightW;
 
                 if (sides > 0)
@@ -400,7 +411,15 @@ namespace Spacegun_Simulator.UI.Screen
                 try
                 {
                     Console.SetCursorPosition(left, row++);
-                    Console.Write(line);
+                    int winW;
+                    try { winW = Console.WindowWidth; }
+                    catch { winW = left + line.Length + 1; }
+
+                    int avail = Math.Max(0, winW - left - 1);
+                    if (line.Length > avail)
+                        Console.Write(line.Substring(0, avail));
+                    else
+                        Console.Write(line);
                 }
                 catch { }
             }

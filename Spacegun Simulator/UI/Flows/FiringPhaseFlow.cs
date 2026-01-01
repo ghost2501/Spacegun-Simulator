@@ -49,6 +49,8 @@ namespace Spacegun_Simulator.UI.Flows
                 calculator.ConfigureProjectileModifiers(resolved);
 
                 float maxVelocity = (float)resolved.MaxLaunchVelocityMs;
+                if (diffConfig.IsTutorialMode)
+                    maxVelocity = (float)Math.Min(maxVelocity, DifficultyConfig.TutorialPotatoCannon.MuzzleVelocityMs);
                 double displayRcs = target.CrossSection * diffConfig.TargetRcsMultiplier;
 
                 switch (page.Action)

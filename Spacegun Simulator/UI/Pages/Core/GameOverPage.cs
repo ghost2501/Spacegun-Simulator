@@ -32,11 +32,45 @@ namespace Spacegun_Simulator.UI.Pages.Core
 				string.Empty
 			};
 
+		private static string[]? TryLoadGameOverArtLines(string fileName)
+		{
+			string cwd = Directory.GetCurrentDirectory();
+			string baseDir = AppContext.BaseDirectory;
+
+			string[] candidates =
+			{
+				Path.Combine(cwd, "Assets", "ascii-art", fileName),
+				Path.Combine(baseDir, "Assets", "ascii-art", fileName),
+				Path.GetFullPath(Path.Combine(baseDir, "..", "Assets", "ascii-art", fileName)),
+				Path.GetFullPath(Path.Combine(baseDir, "..", "..", "Assets", "ascii-art", fileName)),
+			};
+
+			foreach (var p in candidates)
+			{
+				try
+				{
+					if (File.Exists(p))
+						return File.ReadAllLines(p);
+				}
+				catch { }
+			}
+
+			return null;
+		}
+
 		public override void Render(UiContext ui)
 		{
 			ui.Clear();
 
-			var header = new List<string>(BuildHeader());
+			IReadOnlyList<string> headerLines = BuildHeader();
+			if (ConsoleTextMode.AsciiOnly)
+			{
+				var ascii = TryLoadGameOverArtLines("GameOver-ascii-only.txt");
+				if (ascii is { Length: > 0 })
+					headerLines = ascii;
+			}
+
+			var header = new List<string>(headerLines);
 			var (leftOverride, rightOverride) = ui.ResolveSideArt?.Invoke(Id) ?? (null, null);
 
 			var (contentLeft, contentTop) = ui.Layout.BeginBufferedFrame(

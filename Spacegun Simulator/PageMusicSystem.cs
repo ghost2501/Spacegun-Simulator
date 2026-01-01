@@ -120,7 +120,7 @@ namespace Spacegun_Simulator
         // Presets (shareable save files)
         // ===========================
         private static readonly string MUSIC_PRESETS_DIR =
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Saves", "Music");
+            Path.Combine(Spacegun_Simulator.Core.UserDataPaths.GetSavesDirectory(), "Music");
 
         private static string SanitizePresetName(string name)
         {

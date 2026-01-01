@@ -1,4 +1,5 @@
 ﻿using Spacegun_Simulator.UI.Theme;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.UI.Pages
 {
@@ -385,16 +386,16 @@ namespace Spacegun_Simulator.UI.Pages
 
                     // Pinned footer bar (optional)
                     if (hasFooterBar)
-                        Console.WriteLine(ClampToWidth(footerBar!, frameWidth).PadRight(frameWidth));
+                        Console.WriteLine(ClampToWidth(ConsoleTextMode.Sanitize(footerBar!), frameWidth).PadRight(frameWidth));
 
                     // Pinned footer hint (always one line)
                     var hint = Chrome.FooterHint ?? "(M)enu (Q)uit";
                     hint = FormatFooterHint(hint, frameWidth);
-                    Console.WriteLine(ClampToWidth(hint, frameWidth).PadRight(frameWidth));
+                    Console.WriteLine(ClampToWidth(ConsoleTextMode.Sanitize(hint), frameWidth).PadRight(frameWidth));
 
                     // Pinned footer art (optional)
                     foreach (var line in footerArt)
-                        Console.WriteLine(ClampToWidth(line ?? "", frameWidth).PadRight(frameWidth));
+                        Console.WriteLine(ClampToWidth(ConsoleTextMode.Sanitize(line ?? ""), frameWidth).PadRight(frameWidth));
                 }
                 catch (Exception ex)
                 {
@@ -419,7 +420,7 @@ namespace Spacegun_Simulator.UI.Pages
             ui.WriteLine();
             var hint2 = Chrome.FooterHint ?? "(M)enu (Q)uit";
 			hint2 = FormatFooterHint(hint2, frameWidth);
-			ui.WriteLine(ClampToWidth(hint2, frameWidth));
+            ui.WriteLine(ClampToWidth(ConsoleTextMode.Sanitize(hint2), frameWidth));
         }
 
         protected abstract void RenderBody(UiContext ui);

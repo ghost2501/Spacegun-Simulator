@@ -55,6 +55,8 @@ namespace Spacegun_Simulator.UI.Flows
             };
 
             var diffConfigForInput = DifficultyConfig.GetConfig(game.SelectedDifficulty);
+            if (diffConfigForInput.IsTutorialMode)
+                maxVelocity = (float)Math.Min(maxVelocity, DifficultyConfig.TutorialPotatoCannon.MuzzleVelocityMs);
             double effectiveDeltaVAvailableMs = hasDeltaV
                 ? resolved.PropulsionDeltaVCapacityMs * ComputeMassEfficiency(resolved)
                 : 0.0;

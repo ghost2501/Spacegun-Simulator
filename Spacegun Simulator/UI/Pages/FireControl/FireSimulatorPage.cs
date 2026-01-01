@@ -73,6 +73,8 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 			_enemyVel = firingProblem.EnemyVelocity;
 			_projectileMassKg = spec.ProjectileMassKg;
 			_muzzleVelocity = spec.MuzzleVelocityMs;
+			if (_diff.IsTutorialMode)
+				_muzzleVelocity = Math.Min(_muzzleVelocity, DifficultyConfig.TutorialPotatoCannon.MuzzleVelocityMs);
 
 			if (s_lastVelocity < 0 || s_lastVelocity > _muzzleVelocity)
 				s_lastVelocity = _muzzleVelocity;
@@ -147,7 +149,6 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 					foreach (var l in _resultLines)
 						_lines.Add(Clamp60(l));
 					_lines.Add("");
-					_lines.Add("[↩]=Back  [R]=Reset  [E]=Edit".PadRight(60));
 					break;
 			}
 		}

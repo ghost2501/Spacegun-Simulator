@@ -85,8 +85,8 @@ namespace Spacegun_Simulator.UI
         // ============================================================
 
         public void Clear() => Console.Clear();
-        public void Write(string text) => Console.Write(text);
-        public void WriteLine(string text = "") => Console.WriteLine(text);
+        public void Write(string text) => Console.Write(ConsoleTextMode.Sanitize(text));
+        public void WriteLine(string text = "") => Console.WriteLine(ConsoleTextMode.Sanitize(text));
 
         // ============================================================
         // Header / footer / side art hooks

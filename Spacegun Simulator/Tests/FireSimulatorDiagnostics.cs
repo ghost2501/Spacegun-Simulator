@@ -164,7 +164,7 @@ namespace Spacegun_Simulator.Tests
             double propulsionReferenceMassKg,
             in TuningCurveByTierResult result)
         {
-            var dir = Path.Combine(AppContext.BaseDirectory, "Saves", "TuningLab");
+            var dir = Path.Combine(UserDataPaths.GetSavesDirectory(), "TuningLab");
             Directory.CreateDirectory(dir);
 
             string fullPath = Path.GetFullPath(Path.Combine(dir, "TuningLab_Runs.csv"));

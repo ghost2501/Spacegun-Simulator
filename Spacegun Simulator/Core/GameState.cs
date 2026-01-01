@@ -1008,7 +1008,7 @@ namespace Spacegun_Simulator.Core
         /// <summary>
         /// Get the single auto-save file path.
         /// </summary>
-        private static string GetAutoSavePath() => "Saves/AutoSave.json";
+        private static string GetAutoSavePath() => UserDataPaths.GetAutoSavePath();
 
         /// <summary>
         /// Get auto-save timestamp for display.

@@ -1,4 +1,5 @@
 ﻿using Spacegun_Simulator.UI.Theme;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.UI.Pages.Core
 {
@@ -18,7 +19,14 @@ namespace Spacegun_Simulator.UI.Pages.Core
             // Render title art as a full-screen page (no PageBase frame/header).
             Console.Clear();
 
-            string[] lines = LoadTitleArtLines() ?? FallbackTitleArt();
+            string[] lines =
+                (ConsoleTextMode.AsciiOnly ? LoadTitleArtLines("TitleScreen-ascii-only.txt") : null)
+                ?? LoadTitleArtLines("TitleScreen.txt")
+                ?? FallbackTitleArt();
+
+            // Title screen writes directly to Console, so it must participate in ASCII fallback.
+            for (int i = 0; i < lines.Length; i++)
+                lines[i] = ConsoleTextMode.Sanitize(lines[i]);
 
             int winW, winH;
             try { winW = Console.WindowWidth; winH = Console.WindowHeight; }
@@ -62,6 +70,33 @@ namespace Spacegun_Simulator.UI.Pages.Core
             {
                 Console.Write(prompt);
             }
+
+            // If UTF-8 setup failed and we fell back to ASCII, tell the player.
+            if (ConsoleTextMode.AsciiOnly)
+            {
+                string notice = ConsoleTextMode.AsciiOnlyForcedByUser
+                    ? "NOTICE: ASCII mode is enabled (forced). Remove --ascii-ui for full UI."
+                    : "NOTICE: UTF-8 isn't available in this terminal; using ASCII mode. Use a UTF-8 capable terminal for full UI.";
+                int noticeLeft = Math.Max(0, (winW - notice.Length) / 2);
+                int noticeTop = Math.Min(winH - 1, promptTop + 1);
+
+                TrySetCursor(noticeLeft, noticeTop);
+
+                int maxLen = Math.Max(0, winW - noticeLeft);
+                if (notice.Length > maxLen) notice = notice.Substring(0, maxLen);
+
+                try
+                {
+                    var prev = Console.ForegroundColor;
+                    Console.ForegroundColor = ConsoleColor.DarkYellow;
+                    Console.Write(notice);
+                    Console.ForegroundColor = prev;
+                }
+                catch
+                {
+                    Console.Write(notice);
+                }
+            }
         }
 
         protected override void RenderBody(UiContext ui) { /* unused; Render overridden */ }
@@ -87,17 +122,17 @@ namespace Spacegun_Simulator.UI.Pages.Core
             catch { /* tiny console / unsupported */ }
         }
 
-        private static string[]? LoadTitleArtLines()
+        private static string[]? LoadTitleArtLines(string fileName)
         {
             string cwd = Directory.GetCurrentDirectory();
             string baseDir = AppContext.BaseDirectory;
 
             string[] candidates =
             {
-                Path.Combine(cwd, "Assets", "ascii-art", "TitleScreen.txt"),
-                Path.Combine(baseDir, "Assets", "ascii-art", "TitleScreen.txt"),
-                Path.GetFullPath(Path.Combine(baseDir, "..", "Assets", "ascii-art", "TitleScreen.txt")),
-                Path.GetFullPath(Path.Combine(baseDir, "..", "..", "Assets", "ascii-art", "TitleScreen.txt")),
+                Path.Combine(cwd, "Assets", "ascii-art", fileName),
+                Path.Combine(baseDir, "Assets", "ascii-art", fileName),
+                Path.GetFullPath(Path.Combine(baseDir, "..", "Assets", "ascii-art", fileName)),
+                Path.GetFullPath(Path.Combine(baseDir, "..", "..", "Assets", "ascii-art", fileName)),
             };
 
             foreach (var p in candidates)

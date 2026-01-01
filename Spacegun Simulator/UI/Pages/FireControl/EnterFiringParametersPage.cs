@@ -18,7 +18,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
             ShowSidePanels: true,
             AutoSaveOnEnter: false,
             AutoSaveOnExit: false,
-            FooterHint: "←/→ Adjust Δv  Digits+↩  (F)ire  (B)ack  (M)enu  (Q)uit"
+            FooterHint: "←/→ Adjust ΔV  Digits+↩  (F)ire  (B)ack  (M)enu  (Q)uit"
         );
 
         private enum Selection

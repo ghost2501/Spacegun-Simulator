@@ -11,6 +11,20 @@ namespace Spacegun_Simulator.Core
     {
         public static void Main(string[] args)
         {
+            _ = ConsoleUiBootstrap.ConfigureForUi();
+
+            // Testing/compat flag: force ASCII-only rendering even if UTF-8 is available.
+            if (args.Any(a => string.Equals(a, "--ascii-ui", StringComparison.OrdinalIgnoreCase)
+                           || string.Equals(a, "--ascii", StringComparison.OrdinalIgnoreCase)))
+            {
+                ConsoleTextMode.EnableAsciiOnly(forcedByUser: true);
+            }
+
+            if (args.Any(a => string.Equals(a, "--console-diag", StringComparison.OrdinalIgnoreCase)))
+            {
+                try { ConsoleUiBootstrap.WriteDiagnostics(Console.Error); } catch { }
+            }
+
             // Diagnostics smoke checks (headless).
             // Keeps normal UX unchanged unless an explicit flag is provided.
             if (args.Any(a => string.Equals(a, "--tuninglab-smoke", StringComparison.OrdinalIgnoreCase)))
@@ -21,15 +35,19 @@ namespace Spacegun_Simulator.Core
 
             GameConfigLoader.LoadIfExists();
 
+            // Save files should live in a per-user location (no admin required).
+            // Best-effort migrate any legacy install-relative saves.
+            UserDataPaths.MigrateLegacySavesIfNeeded();
+            UserDataPaths.EnsureSavesDirectoryExists();
+
             Console.WriteLine("Loading Space Gun Defense Simulator...\n");
             Thread.Sleep(500);
 
-
-                if (args is not null && args.Length > 0 && args.Contains("--tuninglab-run", StringComparer.OrdinalIgnoreCase))
-                {
-                    RunTuningLabHeadless();
-                    return;
-                }
+            if (args is not null && args.Length > 0 && args.Contains("--tuninglab-run", StringComparer.OrdinalIgnoreCase))
+            {
+                RunTuningLabHeadless();
+                return;
+            }
             // Single source of truth for the app session:
             // boot UI -> gameplay -> back to boot UI (when requested) -> exit
             string nextBootStartPage = PageId.Title;

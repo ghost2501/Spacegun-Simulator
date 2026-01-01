@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.Audio.Backends;
 
@@ -12,7 +13,7 @@ public static class AudioBackendDiagnostics
 
         try
         {
-            var dir = Path.Combine(AppContext.BaseDirectory, "Saves", "Logs");
+            var dir = Path.Combine(UserDataPaths.GetSavesDirectory(), "Logs");
             Directory.CreateDirectory(dir);
 
             var path = Path.Combine(dir, "audio.log");
