@@ -237,7 +237,7 @@ namespace Spacegun_Simulator.Enemies
 
             // ===== TIER-CONSTRAINED VELOCITY (NEW) =====
             // Get tier-specific velocity bounds - enemies must stay within these
-            var (enemyMinVel, enemyMaxVel, _, _) = GameConstants.GetTierVelocityConstraints(tierIndex);
+            var (enemyMinVel, enemyMaxVel) = GameConstants.GetTierEnemyVelocityConstraints(tierIndex);
 
             // Generate velocity uniformly within tier constraints
             // NO archetype multiplier - velocity is determined by tier alone
@@ -247,12 +247,9 @@ namespace Spacegun_Simulator.Enemies
             var target = GenerateTargetFromArchetype(waveNumber, tierIndex, archetype, rng, ruleset);
             wave.Targets.Add(target);
 
-            // FIX: Use consolidated BallisticsCalculator method instead of local duplicate
-            double diameterMeters = BallisticsCalculator.CalculateDiameterFromMass(target.Mass);
-
-            // Set BOTH wave average AND target's CrossSection
-            wave.AverageRadarCrossSection = diameterMeters;  // RCS = Diameter
-            target.CrossSection = diameterMeters;             // Set target's cross-section too
+            // Canonical meaning: CrossSection is radar cross-sectional AREA in m^2.
+            // This is derived from tier-sampled mass + density inside GenerateTargetFromArchetype.
+            wave.AverageRadarCrossSection = target.CrossSection;
             // Pure mode: keep enemy stats as simple physical variables only.
             // No stealth / maneuver modifiers.
             if (ruleset == EnemyGenerationRuleset.Pure)
@@ -310,29 +307,45 @@ namespace Spacegun_Simulator.Enemies
                 offense = rng.NextDouble() * offMax;
             }
 
-            // Generate mass and fracture energy WITHIN ARCHETYPE BOUNDS
-            double waveProgression = Math.Min(1.0, waveNumber / 25.0); // 0-1 over campaign
+            // Tier-derived base properties (single-source physics).
+            // Archetype does not constrain mass/density/strength; it remains a behavioral/flavor label.
+            static double SampleTierRange(double[] mins, double[] maxs, int index, Random r)
+            {
+                if (mins is null || maxs is null || mins.Length == 0 || maxs.Length == 0) return 0.0;
+                int safe = Math.Clamp(index, 0, Math.Min(mins.Length, maxs.Length) - 1);
+                double min = mins[safe];
+                double max = maxs[safe];
+                if (max < min) (min, max) = (max, min);
+                return min + r.NextDouble() * (max - min);
+            }
 
-            double mass = archetype.MassRange.Min +
-                (rng.NextDouble() * (archetype.MassRange.Max - archetype.MassRange.Min)) +
-                (waveProgression * (archetype.MassRange.Max - archetype.MassRange.Min) * 0.1);
+            var mat = DevelopmentTuning.TierTargetMaterial;
+            double massTons = SampleTierRange(mat.TierEnemyMassTonsMin, mat.TierEnemyMassTonsMax, tierIndex, rng);
+            double densityKgM3 = SampleTierRange(mat.TierEnemyDensityKgM3Min, mat.TierEnemyDensityKgM3Max, tierIndex, rng);
+            double bulkModulusGpa = SampleTierRange(mat.TierEnemyBulkModulusGpaMin, mat.TierEnemyBulkModulusGpaMax, tierIndex, rng);
 
-            double fractureEnergy = archetype.FractureEnergyRange.Min +
-                (rng.NextDouble() * (archetype.FractureEnergyRange.Max - archetype.FractureEnergyRange.Min)) +
-                (waveProgression * (archetype.FractureEnergyRange.Max - archetype.FractureEnergyRange.Min) * 0.1);
+            // Derived quantities.
+            double crossSectionM2 = BallisticsCalculator.CalculateCrossSectionAreaM2FromMassAndDensity(massTons, densityKgM3);
+            double fractureEnergyMJ = BallisticsCalculator.CalculateFractureEnergyMJFromMassDensityAndBulkModulus(
+                massTons,
+                densityKgM3,
+                bulkModulusGpa,
+                mat.FractureStrain);
 
             return new EnemyTarget
             {
                 Name = $"{archetype.Name} #{rng.Next(100, 999)}",
                 Altitude = 0,
                 Velocity = 0,
-                CrossSection = 0.0,  // Will be overwritten with diameter in GenerateWaveFromArchetype
+                CrossSection = crossSectionM2,
                 Acceleration = acceleration,
                 Maneuverability = maneuverability,
                 Defense = defense,
                 Offense = offense,
-                Mass = mass,
-                FractureEnergy = fractureEnergy
+                Mass = massTons,
+                DensityKgM3 = densityKgM3,
+                BulkModulusGpa = bulkModulusGpa,
+                FractureEnergy = fractureEnergyMJ
             };
         }
 

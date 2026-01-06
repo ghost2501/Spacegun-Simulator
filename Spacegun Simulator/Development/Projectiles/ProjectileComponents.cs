@@ -1,4 +1,5 @@
 using Spacegun_Simulator.Ballistics;
+using Spacegun_Simulator.Core;
 using Spacegun_Simulator.Development.Shared;
 using Spacegun_Simulator.Development.Technology;
 
@@ -43,28 +44,7 @@ namespace Spacegun_Simulator.Development.Projectiles
             Cost = cost;
         }
 
-        public static readonly ProjectileCore[] All =
-        [
-            // Light Core: 10kg - entry level
-            new("light", "Light Core", "10kg tungsten dart - entry-level penetrator", 
-                massKg: 10, requiredTechLevel: 1, 
-                cost: new ResourceCost(budget: 50, steel: 30, exotic: 0)),
-
-            // Standard Core: 15kg - balanced
-            new("standard", "Standard Core", "15kg dense penetrator - reliable workhorse",
-                massKg: 15, requiredTechLevel: 1,
-                cost: new ResourceCost(budget: 100, steel: 80, exotic: 10)),
-
-            // Heavy Core: 25kg - high mass
-            new("heavy", "Heavy Core", "25kg armored slug - high mass",
-                massKg: 25, requiredTechLevel: 2,
-                cost: new ResourceCost(budget: 200, steel: 180, exotic: 30)),
-
-            // Ultra-Dense Core: 50kg - endgame
-            new("ultra", "Ultra-Dense Core", "50kg exotic alloy - devastating impact",
-                massKg: 50, requiredTechLevel: 3,
-                cost: new ResourceCost(budget: 400, steel: 300, exotic: 80))
-        ];
+        public static ProjectileCore[] All => ProjectilesCatalog.Cores;
     }
 
     /// <summary>
@@ -126,10 +106,7 @@ namespace Spacegun_Simulator.Development.Projectiles
         /// <summary>
         /// No propulsion - projectile uses gun velocity only.
         /// </summary>
-        public static readonly PropulsionSystem None = new(
-            "none", "No Propulsion", "Unpowered projectile - uses gun velocity only",
-            deltaVCapacityMs: 0, burnDurationSeconds: 1, referenceMassKg: 10,
-            requiredTechLevel: 1, cost: ResourceCost.None);
+        public static PropulsionSystem None => ProjectilesCatalog.PropulsionNone;
 
         /// <summary>
         /// Calculate effective Delta-V for a given projectile mass and flight time.
@@ -148,38 +125,7 @@ namespace Spacegun_Simulator.Development.Projectiles
         }
 
         // All propulsion systems - None is always available, others require Tech 2+
-        public static readonly PropulsionSystem[] All =
-        [
-            None,
-
-            // Solid Rocket Booster: Quick burn, moderate Delta-V
-            // Good for close targets (full burn completes quickly)
-            new("solid_rocket", "Solid Rocket Booster", "Quick-burn solid fuel - +20 km/s over 2 seconds",
-                deltaVCapacityMs: 20_000, burnDurationSeconds: 2.0, referenceMassKg: 15,
-                requiredTechLevel: 2,
-                cost: new ResourceCost(budget: 80, steel: 40, exotic: 10)),
-
-            // Liquid Fuel Sustainer: Slow burn, high Delta-V
-            // Good for distant targets (more time to accumulate velocity)
-            new("liquid_sustainer", "Liquid Fuel Sustainer", "Extended burn liquid fuel - +40 km/s over 8 seconds",
-                deltaVCapacityMs: 40_000, burnDurationSeconds: 8.0, referenceMassKg: 20,
-                requiredTechLevel: 2,
-                cost: new ResourceCost(budget: 150, steel: 80, exotic: 30)),
-
-            // Ion Drive: Very slow burn, massive Delta-V
-            // Best for long-range engagements
-            new("ion_drive", "Ion Thruster Array", "Continuous ion propulsion - +80 km/s over 20 seconds",
-                deltaVCapacityMs: 80_000, burnDurationSeconds: 20.0, referenceMassKg: 10,
-                requiredTechLevel: 3,
-                cost: new ResourceCost(budget: 300, steel: 100, exotic: 80)),
-
-            // Plasma Accelerator: Fast burn, extreme Delta-V
-            // Endgame option for maximum impact velocity
-            new("plasma_accel", "Plasma Accelerator", "High-energy plasma burst - +120 km/s over 3 seconds",
-                deltaVCapacityMs: 120_000, burnDurationSeconds: 3.0, referenceMassKg: 25,
-                requiredTechLevel: 3,
-                cost: new ResourceCost(budget: 400, steel: 150, exotic: 100))
-        ];
+        public static PropulsionSystem[] All => ProjectilesCatalog.PropulsionSystems;
     }
 
     /// <summary>
@@ -192,12 +138,13 @@ namespace Spacegun_Simulator.Development.Projectiles
         public string Description { get; }
         public double HitToleranceBonus { get; }      // Multiplier to hit tolerance
         public double Penetration { get; }           // Multiplier to penetration (higher => less energy required)
+        public double ImpactCoupling { get; }        // Multiplier to effective energy delivered on impact
         public double DefenseBonus { get; }           // 0..1 additive defense rating
         public int RequiredTechLevel { get; }         // TechTree.Projectiles level required
         public ResourceCost Cost { get; }
 
         public ProjectileEnhancement(string id, string name, string description, 
-            double hitToleranceBonus, double penetration,
+            double hitToleranceBonus, double penetration, double impactCoupling,
             double defenseBonus,
             int requiredTechLevel, ResourceCost cost)
         {
@@ -206,50 +153,15 @@ namespace Spacegun_Simulator.Development.Projectiles
             Description = description;
             HitToleranceBonus = hitToleranceBonus;
             Penetration = penetration;
+            ImpactCoupling = impactCoupling;
             DefenseBonus = defenseBonus;
             RequiredTechLevel = requiredTechLevel;
             Cost = cost;
         }
 
-        public static readonly ProjectileEnhancement None = new(
-            "none", "No Enhancement", "Standard projectile without modifications",
-            hitToleranceBonus: 1.0, penetration: 1.0, defenseBonus: 0.0,
-            requiredTechLevel: 1, cost: ResourceCost.None);
+        public static ProjectileEnhancement None => ProjectilesCatalog.EnhancementNone;
 
-        public static readonly ProjectileEnhancement[] All =
-        [
-            None,
-
-            new("guidance", "Guidance Package", "Terminal guidance for improved accuracy",
-                hitToleranceBonus: 2.0, penetration: 1.0, defenseBonus: 0.0,
-                requiredTechLevel: 3,
-                cost: new ResourceCost(budget: 200, steel: 50, exotic: 50)),
-
-            new("shaped", "Shaped Charge", "Focused energy on impact - 25% more effective damage",
-                hitToleranceBonus: 1.0, penetration: 1.25, defenseBonus: 0.0,
-                requiredTechLevel: 2,
-                cost: new ResourceCost(budget: 150, steel: 80, exotic: 30)),
-
-            new("armor_piercing", "Armor Piercing Tip", "Hardened tip for dense targets - 15% damage boost",
-                hitToleranceBonus: 1.0, penetration: 1.15, defenseBonus: 0.0,
-                requiredTechLevel: 1,
-                cost: new ResourceCost(budget: 80, steel: 60, exotic: 10)),
-
-            new("fragmentation", "Fragmentation Shell", "Larger hit tolerance, slight damage penalty",
-                hitToleranceBonus: 1.75, penetration: 0.9, defenseBonus: 0.0,
-                requiredTechLevel: 2,
-                cost: new ResourceCost(budget: 120, steel: 70, exotic: 20)),
-
-            new("countermeasures", "Countermeasure Package", "Decoys and ablatives - improves projectile survivability",
-                hitToleranceBonus: 1.0, penetration: 0.98, defenseBonus: 0.25,
-                requiredTechLevel: 2,
-                cost: new ResourceCost(budget: 140, steel: 60, exotic: 30)),
-
-            new("hardened", "Hardened Casing", "Hardened casing - major survivability boost",
-                hitToleranceBonus: 1.0, penetration: 0.96, defenseBonus: 0.50,
-                requiredTechLevel: 3,
-                cost: new ResourceCost(budget: 260, steel: 120, exotic: 60))
-        ];
+        public static ProjectileEnhancement[] All => ProjectilesCatalog.Enhancements;
     }
 
     /// <summary>

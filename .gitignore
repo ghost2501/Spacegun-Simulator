@@ -10,6 +10,9 @@
 *.userosscache
 *.sln.docstates
 
+# Local Visual Studio solution (repo uses .slnx)
+Spacegun Simulator.sln
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

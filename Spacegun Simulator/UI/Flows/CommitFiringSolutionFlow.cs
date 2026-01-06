@@ -203,12 +203,6 @@ namespace Spacegun_Simulator.UI.Flows
             // From this point onward, keep output anchored to the frame-left.
             FramedPrompts.Anchor(frameOut, contentLeftNoOffset, promptRowNoOffset);
 
-            if (game.SelectedGunProjectileSpec == null)
-            {
-                game.IsGameOver = true;
-                return default;
-            }
-
             var solution = calculator.CalculateSolution(
                 firingProblem.EnemyPosition,
                 firingProblem.EnemyVelocity,
@@ -339,7 +333,7 @@ namespace Spacegun_Simulator.UI.Flows
 
             var resultsLines = BuildResultsLines(
                 solution,
-                game.SelectedGunProjectileSpec.ProjectileMassKg,
+                resolved.ProjectileMassKg,
                 playerLaunchVelocity,
                 displayRcs,
                 game.SelectedDifficulty,
@@ -348,7 +342,11 @@ namespace Spacegun_Simulator.UI.Flows
                 barrelLine2,
                 outcomeLine,
                 evaded,
-                projectileIntercepted);
+                projectileIntercepted,
+                includeEarthImpactThreat: !hitResult,
+                earthThreat: !hitResult && game.CurrentWave != null
+                    ? Spacegun_Simulator.Core.EarthImpactThreat.Compute(game.CurrentWave)
+                    : null);
 
             var resultsUi = new UiContext(
                 layout: screenLayout,
@@ -388,7 +386,7 @@ namespace Spacegun_Simulator.UI.Flows
                 Console.WriteLine($"  Impact Velocity: {solution.ImpactVelocityMs:F0} m/s (flight: {solution.FlightTimeSeconds:F2}s)");
             Console.WriteLine($"  Energy Needed: {solution.FractureEnergyRequired:F0} MJ");
             Console.WriteLine($"  Can Destroy: {(solution.CanDestroy ? "Yes" : "No")}");
-            Console.WriteLine($"  Can Hit: {(solution.SolutionValid ? (solution.CanHit ? "Yes" : "No") : "N/A")}");
+                Console.WriteLine($"  Can Hit: {(solution.CanHit ? "Yes" : "No")}");
             Console.WriteLine($"  Solution Valid: {(solution.SolutionValid ? "✓ Yes" : "✗ No")}\n");
         }
 
@@ -403,7 +401,9 @@ namespace Spacegun_Simulator.UI.Flows
             string? barrelLine2,
             string outcomeLine,
             bool evaded,
-            bool projectileIntercepted)
+            bool projectileIntercepted,
+            bool includeEarthImpactThreat,
+            Spacegun_Simulator.Core.EarthImpactThreat.Report? earthThreat)
         {
             var lines = new List<string>();
 
@@ -437,13 +437,13 @@ namespace Spacegun_Simulator.UI.Flows
                 if (diffConfig.IsTutorialMode)
                 {
                     hitTolerance = DifficultyConfig.TutorialBeachball.RadiusMeters;
-                    lines.Add($"  Hit tolerance: {hitTolerance:F1} m (beachball radius)");
+                    lines.Add($"  Hit Tolerance: {hitTolerance:F1} m (beachball radius)");
                 }
                 else
                 {
                     double diameterFromRcs = 2.0 * Math.Sqrt(targetRcs / Math.PI);
                     hitTolerance = diameterFromRcs * 0.5 * diffConfig.HitToleranceMultiplier * modeHitToleranceMultiplier;
-                    lines.Add($"  Hit tolerance: {hitTolerance:F1} m (from {targetRcs:F1} m² RCS)");
+                    lines.Add($"  Hit Tolerance: {hitTolerance:F1} m (from {targetRcs:F1} m² RCS)");
                 }
 
                 lines.Add($"✓ Accuracy Check: {(solution.CanHit ? "PASS" : "FAIL")}");
@@ -458,7 +458,7 @@ namespace Spacegun_Simulator.UI.Flows
             lines.Add(string.Empty);
             lines.Add("=== OVERALL SOLUTION VALIDITY ===");
             lines.Add($"Energy sufficient: {(solution.CanDestroy ? "✓ Yes" : "✗ No")}");
-            lines.Add($"Accuracy valid: {(solution.SolutionValid ? (solution.CanHit ? "✓ Yes" : "✗ No") : "N/A")}");
+            lines.Add($"Accuracy valid: {(solution.CanHit ? "✓ Yes" : "✗ No")}");
             lines.Add($"Solution valid: {(solution.SolutionValid ? "✓ Yes" : "✗ No")}");
 
             if (solution.CanDestroy && solution.CanHit)
@@ -475,6 +475,18 @@ namespace Spacegun_Simulator.UI.Flows
                 lines.Add("=== WEAPON STATUS ===");
                 if (!string.IsNullOrWhiteSpace(barrelLine1)) lines.Add(barrelLine1!);
                 if (!string.IsNullOrWhiteSpace(barrelLine2)) lines.Add(barrelLine2!);
+            }
+
+            if (includeEarthImpactThreat && earthThreat.HasValue)
+            {
+                var t = earthThreat.Value;
+                lines.Add(string.Empty);
+                lines.Add("=== EARTH IMPACT THREAT ===");
+                lines.Add("(Narrative check; does not affect combat resolution)");
+                lines.Add($"Enemy impact KE: {t.ImpactEnergyMJ:F0} MJ");
+                lines.Add($"Coupled Impact Energy: {t.CoupledImpactEnergyMJ:F0} MJ (×{DevelopmentTuning.EarthThreat.EnemyEarthThreatCoupling:F2})");
+                lines.Add($"Earth threshold: {t.ThresholdMJ:F0} MJ");
+                lines.Add($"Earth-cracking: {(t.ExceedsThreshold ? "YES" : "NO")}");
             }
 
             lines.Add(string.Empty);

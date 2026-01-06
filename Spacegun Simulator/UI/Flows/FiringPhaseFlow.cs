@@ -34,7 +34,7 @@ namespace Spacegun_Simulator.UI.Flows
                 var firingProblem = game.CurrentFiringProblem;
                 var target = game.CurrentWave?.Targets.Count > 0 ? game.CurrentWave.Targets[0] : null;
 
-                if (firingProblem == null || target == null || game.SelectedGunProjectileSpec == null)
+                if (firingProblem == null || target == null)
                 {
                     game.IsGameOver = true;
                     break;
@@ -45,7 +45,8 @@ namespace Spacegun_Simulator.UI.Flows
                 var calculator = new FiringSolution(
                     (float)resolved.ProjectileMassKg,
                     (float)resolved.EffectiveFractureEnergyMJ,
-                    target.Mass);
+                    target.Mass,
+                    enemyCrossSectionM2: target.CrossSection);
                 calculator.ConfigureProjectileModifiers(resolved);
 
                 float maxVelocity = (float)resolved.MaxLaunchVelocityMs;

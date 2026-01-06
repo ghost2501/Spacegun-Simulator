@@ -1,6 +1,7 @@
 ﻿namespace Spacegun_Simulator.Development.Projectiles
 {
     using Spacegun_Simulator.Development;
+    using Spacegun_Simulator.Core;
 
     // ============================================================================
     // PROJECTILE CONFIGURATION
@@ -18,12 +19,12 @@
 
         public ProjectileConfiguration()
         {
-            Mass = 10.0;
-            Length = 0.5;
+            Mass = DevelopmentTuning.ProjectileDefaults.Mass;
+            Length = DevelopmentTuning.ProjectileDefaults.Length;
             Type = ProjectileType.KineticPenetrator;
-            DragCoefficient = 0.3;
-            HasGuidance = false;
-            GuidanceAccuracy = 0.0;
+            DragCoefficient = DevelopmentTuning.ProjectileDefaults.DragCoefficient;
+            HasGuidance = DevelopmentTuning.ProjectileDefaults.HasGuidance;
+            GuidanceAccuracy = DevelopmentTuning.ProjectileDefaults.GuidanceAccuracy;
             PenetrationType = ArmorPenetrationType.KineticEnergy;
         }
     }

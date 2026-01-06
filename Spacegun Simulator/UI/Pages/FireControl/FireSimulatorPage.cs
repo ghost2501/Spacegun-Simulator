@@ -56,9 +56,9 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 		{
 			var game = ui.Game;
 			var firingProblem = game?.CurrentFiringProblem;
-			var spec = game?.SelectedGunProjectileSpec;
+			var target = game?.CurrentWave?.Targets.Count > 0 ? game.CurrentWave.Targets[0] : null;
 
-			if (game == null || firingProblem == null || spec == null)
+			if (game == null || firingProblem == null || target == null)
 			{
 				_diff = null;
 				_message = "✗ Firing context not initialized.";
@@ -68,13 +68,13 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 				return;
 			}
 
+			var resolved = game.ResolveShotStats(target);
+
 			_diff = DifficultyConfig.GetConfig(game.SelectedDifficulty);
 			_enemyPos = firingProblem.EnemyPosition;
 			_enemyVel = firingProblem.EnemyVelocity;
-			_projectileMassKg = spec.ProjectileMassKg;
-			_muzzleVelocity = spec.MuzzleVelocityMs;
-			if (_diff.IsTutorialMode)
-				_muzzleVelocity = Math.Min(_muzzleVelocity, DifficultyConfig.TutorialPotatoCannon.MuzzleVelocityMs);
+			_projectileMassKg = resolved.ProjectileMassKg;
+			_muzzleVelocity = resolved.MaxLaunchVelocityMs;
 
 			if (s_lastVelocity < 0 || s_lastVelocity > _muzzleVelocity)
 				s_lastVelocity = _muzzleVelocity;

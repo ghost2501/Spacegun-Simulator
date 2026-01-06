@@ -63,11 +63,36 @@ namespace Spacegun_Simulator.Core
         public const double TACTICAL_MAX_RANGE = 2_000_000.0;  // 2000 km - maximum engagement distance
 
         // ====================================================================
-        // Weapons tech base muzzle velocities (canonical source)
-        // Indexing: WeaponsTechBaseVelocity[techLevel - 1]
-        // Keep these values as the single source of truth for base muzzle speeds.
+        // Weapons muzzle velocity tuning
+        // - BaseMuzzleVelocityMs is the single source of truth (whole number).
+        // - Tech augments via multipliers.
         // ====================================================================
-        public static double[] WeaponsTechBaseVelocity => WeaponTuning.WeaponsTechBaseVelocity;
+        public static int BaseMuzzleVelocityMs
+        {
+            get => WeaponTuning.BaseMuzzleVelocityMs;
+            set => WeaponTuning.BaseMuzzleVelocityMs = Math.Max(1, value);
+        }
+
+        /// <summary>
+        /// Global multiplier applied to the player's base muzzle velocity.
+        /// Default is 1.0.
+        /// </summary>
+        public static double MuzzleVelocityMultiplier { get; set; } = 1.0;
+
+        public static double[] WeaponsTechVelocityMultipliers => WeaponTuning.WeaponsTechVelocityMultipliers;
+
+        // Legacy/compatibility: derived per-tech base velocities.
+        public static double[] WeaponsTechBaseVelocity
+        {
+            get
+            {
+                var mults = WeaponsTechVelocityMultipliers;
+                var arr = new double[mults.Length];
+                for (int i = 0; i < mults.Length; i++)
+                    arr[i] = BaseMuzzleVelocityMs * mults[i] * Math.Max(0.0, MuzzleVelocityMultiplier);
+                return arr;
+            }
+        }
 
         public static readonly WaveTier[] WaveTiers = new WaveTier[]
         {
@@ -168,8 +193,6 @@ namespace Spacegun_Simulator.Core
 
             Debug.Assert(TierEnemyMinVelocity.Length == TierCount, $"TierEnemyMinVelocity length ({TierEnemyMinVelocity.Length}) must equal TierCount ({TierCount}).");
             Debug.Assert(TierEnemyMaxVelocity.Length == TierCount, $"TierEnemyMaxVelocity length ({TierEnemyMaxVelocity.Length}) must equal TierCount ({TierCount}).");
-            Debug.Assert(TierPlayerMinVelocity.Length == TierCount, $"TierPlayerMinVelocity length ({TierPlayerMinVelocity.Length}) must equal TierCount ({TierCount}).");
-            Debug.Assert(TierPlayerMaxVelocity.Length == TierCount, $"TierPlayerMaxVelocity length ({TierPlayerMaxVelocity.Length}) must equal TierCount ({TierCount}).");
         }
 
         // ============================================================================
@@ -264,19 +287,28 @@ namespace Spacegun_Simulator.Core
         public static int TargetCountBase
         {
             get => EnemyTuning.TargetCountBase;
-            set => EnemyTuning.TargetCountBase = value;
+            set => DevelopmentTuning.Apply(new DevelopmentTuningConfig
+            {
+                EnemyTuning = new EnemyTuningConfig { TargetCountBase = value }
+            });
         }
 
         public static int TargetCountTierBonus
         {
             get => EnemyTuning.TargetCountTierBonus;
-            set => EnemyTuning.TargetCountTierBonus = value;
+            set => DevelopmentTuning.Apply(new DevelopmentTuningConfig
+            {
+                EnemyTuning = new EnemyTuningConfig { TargetCountTierBonus = value }
+            });
         }
 
         public static int TargetCountRandomMaxExclusive
         {
             get => EnemyTuning.TargetCountRandomMaxExclusive;
-            set => EnemyTuning.TargetCountRandomMaxExclusive = value;
+            set => DevelopmentTuning.Apply(new DevelopmentTuningConfig
+            {
+                EnemyTuning = new EnemyTuningConfig { TargetCountRandomMaxExclusive = value }
+            });
         }
 
         // Type pools
@@ -291,7 +323,10 @@ namespace Spacegun_Simulator.Core
         public static double StealthChanceForLateTiers
         {
             get => EnemyTuning.StealthChanceForLateTiers;
-            set => EnemyTuning.StealthChanceForLateTiers = value;
+            set => DevelopmentTuning.Apply(new DevelopmentTuningConfig
+            {
+                EnemyTuning = new EnemyTuningConfig { StealthChanceForLateTiers = value }
+            });
         }
 
         // ============================================================================
@@ -411,22 +446,11 @@ namespace Spacegun_Simulator.Core
         public static double[] TierEnemyMaxVelocity => TierVelocityTuning.TierEnemyMaxVelocity;
 
         /// <summary>
-        /// Maximum player gun velocity for each tier (m/s) - 150% of enemy max.
-        /// </summary>
-        public static double[] TierPlayerMaxVelocity => TierVelocityTuning.TierPlayerMaxVelocity;
-
-        /// <summary>
-        /// Minimum player gun velocity for each tier (m/s).
-        /// Set to the enemy max velocity so player can always reach the target.
-        /// </summary>
-        public static double[] TierPlayerMinVelocity => TierVelocityTuning.TierPlayerMinVelocity;
-
-        /// <summary>
-        /// Get velocity constraints for a specific tier.
+        /// Get enemy velocity constraints for a specific tier.
         /// Uses TierCount for bounds checking.
         /// </summary>
-        public static (double EnemyMin, double EnemyMax, double PlayerMin, double PlayerMax) GetTierVelocityConstraints(int tierIndex)
-            => TierVelocityTuning.GetTierVelocityConstraints(tierIndex, TierCount);
+        public static (double EnemyMin, double EnemyMax) GetTierEnemyVelocityConstraints(int tierIndex)
+            => TierVelocityTuning.GetTierEnemyVelocityConstraints(tierIndex, TierCount);
 
         /// <summary>
         /// Get player test velocity for a specific tier.
@@ -464,17 +488,54 @@ namespace Spacegun_Simulator.Core
     {
         private const string ConfigPath = "Config/GameConfig.json";
 
+        private static string? TryResolveConfigPath(string relativePath)
+        {
+            // Support running from:
+            // - project directory ("Config/..." exists)
+            // - repo root ("Spacegun Simulator/Config/..." exists)
+            // - bin output (if configs are copied alongside output)
+            //
+            // Keep this conservative: a small fixed set of probes.
+            string rel = relativePath.Replace('/', System.IO.Path.DirectorySeparatorChar);
+
+            string[] candidates = new[]
+            {
+                System.IO.Path.Combine(Environment.CurrentDirectory, rel),
+                System.IO.Path.Combine(Environment.CurrentDirectory, "Spacegun Simulator", rel),
+                System.IO.Path.Combine(AppContext.BaseDirectory, rel),
+            };
+
+            foreach (var candidate in candidates)
+            {
+                try
+                {
+                    if (System.IO.File.Exists(candidate))
+                        return candidate;
+                }
+                catch
+                {
+                    // Ignore and keep probing.
+                }
+            }
+
+            return null;
+        }
+
         public static void LoadIfExists()
         {
             try
             {
-                if (!System.IO.File.Exists(ConfigPath)) return;
-                var json = System.IO.File.ReadAllText(ConfigPath);
+                string? resolved = TryResolveConfigPath(ConfigPath);
+                if (resolved is null) return;
+
+                var json = System.IO.File.ReadAllText(resolved);
                 var cfg = JsonSerializer.Deserialize<GameConfig>(json);
                 if (cfg is null) return;
 
                 if (cfg.TotalWaves.HasValue) GameConstants.TotalWaves = cfg.TotalWaves.Value;
                 if (cfg.BarrelIntegrityLossPerShot.HasValue) GameConstants.DefaultBarrelWearPerShot = cfg.BarrelIntegrityLossPerShot.Value;
+                if (cfg.BaseMuzzleVelocityMs.HasValue) GameConstants.BaseMuzzleVelocityMs = cfg.BaseMuzzleVelocityMs.Value;
+                if (cfg.MuzzleVelocityMultiplier.HasValue) GameConstants.MuzzleVelocityMultiplier = Math.Clamp(cfg.MuzzleVelocityMultiplier.Value, 0.25, 3.0);
                 if (cfg.BudgetRewardBase.HasValue) GameConstants.BudgetRewardBase = cfg.BudgetRewardBase.Value;
                 if (cfg.BudgetRewardPerWave.HasValue) GameConstants.BudgetRewardPerWave = cfg.BudgetRewardPerWave.Value;
                 if (cfg.SteelRewardBase.HasValue) GameConstants.SteelRewardBase = cfg.SteelRewardBase.Value;
@@ -497,6 +558,8 @@ namespace Spacegun_Simulator.Core
         {
             public int? TotalWaves { get; set; }
             public double? BarrelIntegrityLossPerShot { get; set; }
+            public int? BaseMuzzleVelocityMs { get; set; }
+            public double? MuzzleVelocityMultiplier { get; set; }
             public double? BudgetRewardBase { get; set; }
             public double? BudgetRewardPerWave { get; set; }
             public double? SteelRewardBase { get; set; }

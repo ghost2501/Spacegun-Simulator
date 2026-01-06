@@ -33,7 +33,10 @@
         /// Range multiplier derived from barrel length.
         /// Baseline is 100.0 (default BarrelLength) => 1.0x.
         /// </summary>
-        public double RangeMultiplierFromBarrelLength => Math.Clamp(BarrelLength / 100.0, 0.5, 2.0);
+        public double RangeMultiplierFromBarrelLength => Math.Clamp(
+            BarrelLength / Math.Max(1e-6, WeaponsTuning.Gun.RangeReferenceBarrelLength),
+            WeaponsTuning.Gun.RangeMultiplierMin,
+            WeaponsTuning.Gun.RangeMultiplierMax);
 
         public PropulsionType PropulsionSystem { get; set; }
         public double PropellantMass { get; set; }
@@ -65,7 +68,7 @@
 
         // Initialize from canonical source in GameConstants (single source of truth)
         public double BaseWearPerShot { get; set; }
-        public double IntegrityFailureThreshold { get; set; } = 0.05;
+        public double IntegrityFailureThreshold { get; set; } = WeaponsTuning.Gun.IntegrityFailureThreshold;
 
         public double MaxSafePressure => CalculateMaxPressure();
         public double HeatPerShot => CalculateHeatGeneration();
@@ -73,25 +76,25 @@
 
         public GunConfiguration()
         {
-            BarrelLength = 100.0;
-            BoreDiameter = 0.5;
-            BarrelMaterial = "Steel";
-            BarrelIntegrity = 1.0;
-            FireControlQuality = 1.0;
-            PropulsionSystem = PropulsionType.Chemical;
-            PropellantMass = 50.0;
-            PropellantEnergyDensity = 5.0;
-            PowerCapacity = 100.0;
-            CapacitorEfficiency = 0.7;
-            CoolingSystem = CoolingSystem.Passive;
-            CoolingCapacity = 10.0;
-            AmmunitionCount = 10;
+            BarrelLength = WeaponsTuning.Gun.DefaultBarrelLength;
+            BoreDiameter = WeaponsTuning.Gun.DefaultBoreDiameter;
+            BarrelMaterial = WeaponsTuning.Gun.DefaultBarrelMaterial;
+            BarrelIntegrity = WeaponsTuning.Gun.DefaultBarrelIntegrity;
+            FireControlQuality = WeaponsTuning.Gun.DefaultFireControlQuality;
+            PropulsionSystem = WeaponsTuning.Gun.DefaultPropulsionSystem;
+            PropellantMass = WeaponsTuning.Gun.DefaultPropellantMass;
+            PropellantEnergyDensity = WeaponsTuning.Gun.DefaultPropellantEnergyDensity;
+            PowerCapacity = WeaponsTuning.Gun.DefaultPowerCapacity;
+            CapacitorEfficiency = WeaponsTuning.Gun.DefaultCapacitorEfficiency;
+            CoolingSystem = WeaponsTuning.Gun.DefaultCoolingSystem;
+            CoolingCapacity = WeaponsTuning.Gun.DefaultCoolingCapacity;
+            AmmunitionCount = WeaponsTuning.Gun.DefaultAmmunitionCount;
             DefaultProjectile = new ProjectileConfiguration();
 
+            IntegrityFailureThreshold = WeaponsTuning.Gun.IntegrityFailureThreshold;
+
             // Default base velocity for Weapons Tech Level 1 (canonical source)
-            BaseMuzzleVelocityMs = GameConstants.WeaponsTechBaseVelocity.Length > 0
-                ? GameConstants.WeaponsTechBaseVelocity[0]
-                : 80_000;
+            BaseMuzzleVelocityMs = GetBaseMuzzleVelocityForTechLevel(1);
 
             // Initialize wear tunable from canonical source
             BaseWearPerShot = GameConstants.DefaultBarrelWearPerShot;
@@ -102,27 +105,17 @@
 
         /// <summary>
         /// Get the base muzzle velocity for a given Weapons Tech level.
-        /// Values are read from GameConstants.WeaponsTechBaseVelocity to centralize tuning.
+        /// Values are derived from GameConstants.BaseMuzzleVelocityMs and tech multipliers.
         /// </summary>
         public static double GetBaseMuzzleVelocityForTechLevel(int weaponsTechLevel)
         {
-            if (weaponsTechLevel <= 0) weaponsTechLevel = 1;
-
-            int index = weaponsTechLevel - 1;
-            if (index >= 0 && index < GameConstants.WeaponsTechBaseVelocity.Length)
-                return GameConstants.WeaponsTechBaseVelocity[index];
-
-            // Fallback to first entry if out of range
-            return GameConstants.WeaponsTechBaseVelocity.Length > 0
-                ? GameConstants.WeaponsTechBaseVelocity[0]
-                : 80_000;
+            return WeaponTuning.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel)
+                   * Math.Clamp(GameConstants.MuzzleVelocityMultiplier, 0.25, 3.0);
         }
 
         public static PropulsionType GetPropulsionSystemForWeaponsTechLevel(int weaponsTechLevel)
         {
-            if (weaponsTechLevel <= 1) return PropulsionType.Chemical;
-            if (weaponsTechLevel == 2) return PropulsionType.Railgun;
-            return PropulsionType.Hybrid;
+            return WeaponTuning.GetPropulsionSystemForTechLevel(weaponsTechLevel);
         }
 
         public void UpdateBaseMuzzleVelocity(int weaponsTechLevel)
@@ -143,17 +136,20 @@
         public bool RegisterShot()
         {
             // Compute wear multiplier based on heat and pressure stresses
-            double heatFactor = HeatPerShot / Math.Max(1.0, CoolingCapacity); // >1 => overheated
+            double heatFactor = HeatPerShot / Math.Max(WeaponsTuning.Gun.WearHeatCoolingCapacityMin, CoolingCapacity); // >1 => overheated
             double pressureFactor = MaxSafePressure > 0 ? (HeatPerShot / MaxSafePressure) : 1.0;
 
             // Upgrade modifiers
             double upgradeModifier = GetUpgradeWearModifier();
 
             // Compose final wear for this shot
-            double perShotWear = BaseWearPerShot * Math.Max(0.1, heatFactor) * Math.Max(0.5, pressureFactor) * upgradeModifier;
+            double perShotWear = BaseWearPerShot
+                * Math.Max(WeaponsTuning.Gun.WearHeatFactorMin, heatFactor)
+                * Math.Max(WeaponsTuning.Gun.WearPressureFactorMin, pressureFactor)
+                * upgradeModifier;
 
             // Bound wear so it's not absurd for a single shot
-            perShotWear = Math.Clamp(perShotWear, 1e-6, 0.2); // min tiny wear, max 20% integrity loss per shot
+            perShotWear = Math.Clamp(perShotWear, WeaponsTuning.Gun.WearPerShotClampMin, WeaponsTuning.Gun.WearPerShotClampMax);
 
             ApplyWear(perShotWear);
 
@@ -206,10 +202,13 @@
         public int EstimatedShotsRemaining()
         {
             // estimate current per-shot wear with current state
-            double heatFactor = HeatPerShot / Math.Max(1.0, CoolingCapacity);
+            double heatFactor = HeatPerShot / Math.Max(WeaponsTuning.Gun.WearHeatCoolingCapacityMin, CoolingCapacity);
             double pressureFactor = MaxSafePressure > 0 ? (HeatPerShot / MaxSafePressure) : 1.0;
-            double perShotWear = BaseWearPerShot * Math.Max(0.1, heatFactor) * Math.Max(0.5, pressureFactor) * GetUpgradeWearModifier();
-            perShotWear = Math.Clamp(perShotWear, 1e-6, 0.2);
+            double perShotWear = BaseWearPerShot
+                * Math.Max(WeaponsTuning.Gun.WearHeatFactorMin, heatFactor)
+                * Math.Max(WeaponsTuning.Gun.WearPressureFactorMin, pressureFactor)
+                * GetUpgradeWearModifier();
+            perShotWear = Math.Clamp(perShotWear, WeaponsTuning.Gun.WearPerShotClampMin, WeaponsTuning.Gun.WearPerShotClampMax);
 
             if (perShotWear <= 0) return int.MaxValue;
             double workableIntegrity = Math.Max(0.0, BarrelIntegrity - IntegrityFailureThreshold);
@@ -234,29 +233,15 @@
 
             if (InstalledUpgrades == null || InstalledUpgrades.Count == 0) return modifier;
 
+            var map = WeaponsTuning.Gun.WearModifiersByUpgradeId;
+
             foreach (var id in InstalledUpgrades)
             {
-                switch (id)
-                {
-                    case "ReinforcedBarrel":
-                        modifier *= 0.6; // 40% less wear
-                        break;
-                    case "HighTempCoating":
-                        modifier *= 0.75; // 25% less heat wear
-                        break;
-                    case "RapidFire":
-                        modifier *= 1.5; // 50% more wear per shot for high ROF
-                        break;
-                    case "CeramicLiner":
-                        modifier *= 0.8;
-                        break;
-                    default:
-                        // Unknown upgrades are ignored for wear (future expansion)
-                        break;
-                }
+                if (map is not null && map.TryGetValue(id, out double mult))
+                    modifier *= mult;
             }
 
-            return Math.Max(0.1, modifier); // never reduce wear below 10% of base
+            return Math.Max(WeaponsTuning.Gun.UpgradeWearModifierMin, modifier);
         }
 
         // ====================================================================
@@ -265,14 +250,10 @@
 
         private double CalculateMaxPressure()
         {
-            double basePressure = BarrelMaterial switch
-            {
-                "Steel" => 500.0,
-                "Titanium" => 700.0,
-                "Composite" => 900.0,
-                "Exotic" => 1200.0,
-                _ => 500.0
-            };
+            var map = WeaponsTuning.Gun.MaxPressureByBarrelMaterial;
+            double basePressure = (map is not null && map.TryGetValue(BarrelMaterial, out double v))
+                ? v
+                : 500.0;
             return basePressure * BarrelIntegrity;
         }
 
@@ -286,10 +267,10 @@
             double bore = Math.Max(0.01, BoreDiameter);
             double areaScale = Math.Pow(bore / referenceBoreMeters, 2.0);
 
-            // Baseline ranges are chosen so legacy presets (incl. 100kg) and crafted cores (10-60kg)
-            // are supported by the default 0.5m bore.
+            // Baseline ranges are chosen so the default 0.5m bore supports baseline 5t
+            // player projectiles and allows up to 10t.
             double minKg = 0.3 * areaScale;
-            double maxKg = 200.0 * areaScale;
+            double maxKg = 10_000.0 * areaScale;
 
             minKg = Math.Max(0.01, minKg);
             maxKg = Math.Max(minKg, maxKg);
@@ -303,16 +284,12 @@
         public double GetMaxUsablePropellantEnergyDensity()
         {
             // "Steel" is treated as the baseline safe cap.
-            const double steelSafeCap = 5.0;
+            double steelSafeCap = WeaponsTuning.Gun.SteelSafePropellantEnergyDensityCap;
 
-            double materialMultiplier = BarrelMaterial switch
-            {
-                "Steel" => 1.0,
-                "Titanium" => 1.2,
-                "Composite" => 1.5,
-                "Exotic" => 2.0,
-                _ => 1.0
-            };
+            var map = WeaponsTuning.Gun.PropellantEnergyDensityCapMultiplierByBarrelMaterial;
+            double materialMultiplier = (map is not null && map.TryGetValue(BarrelMaterial, out double v))
+                ? v
+                : 1.0;
 
             return steelSafeCap * materialMultiplier;
         }
@@ -325,31 +302,25 @@
 
         private double CalculateHeatGeneration()
         {
-            double baseHeat = PropulsionSystem switch
-            {
-                PropulsionType.Chemical => PropellantMass * 0.3,
-                PropulsionType.Railgun => PowerCapacity * 0.5,
-                PropulsionType.Coilgun => PowerCapacity * 0.4,
-                PropulsionType.Hybrid => PropellantMass * 0.2 + PowerCapacity * 0.3,
-                _ => 0.0
-            };
+            string key = PropulsionSystem.ToString();
+            var massCoeffMap = WeaponsTuning.Gun.HeatGenerationCoefficientByPropulsion;
+            var powerCoeffMap = WeaponsTuning.Gun.HeatGenerationPowerCoefficientByPropulsion;
+            double massCoeff = (massCoeffMap is not null && massCoeffMap.TryGetValue(key, out double mc)) ? mc : 0.0;
+            double powerCoeff = (powerCoeffMap is not null && powerCoeffMap.TryGetValue(key, out double pc)) ? pc : 0.0;
+            double baseHeat = PropellantMass * massCoeff + PowerCapacity * powerCoeff;
             return baseHeat;
         }
 
         private double CalculateReloadTime()
         {
-            double baseTime = 30.0;
-            double coolingModifier = CoolingSystem switch
-            {
-                CoolingSystem.Passive => 1.0,
-                CoolingSystem.ActiveAir => 0.8,
-                CoolingSystem.Liquid => 0.6,
-                CoolingSystem.Cryogenic => 0.4,
-                _ => 1.0
-            };
+            double baseTime = WeaponsTuning.Gun.ReloadBaseTimeSeconds;
+            var map = WeaponsTuning.Gun.ReloadCoolingModifierByCoolingSystem;
+            double coolingModifier = (map is not null && map.TryGetValue(CoolingSystem.ToString(), out double v))
+                ? v
+                : 1.0;
 
             double heatRatio = HeatPerShot / CoolingCapacity;
-            if (heatRatio > 1.0)
+            if (heatRatio > WeaponsTuning.Gun.ReloadHeatRatioThreshold)
             {
                 baseTime *= heatRatio;
             }

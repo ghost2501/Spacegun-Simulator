@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DevelopmentTuning",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "Version": { "type": "integer", "minimum": 1 },
+
+    "EnemyTuning": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "TargetCountBase": { "type": "integer", "minimum": 0 },
+        "TargetCountTierBonus": { "type": "integer", "minimum": 0 },
+        "TargetCountRandomMaxExclusive": { "type": "integer", "minimum": 1 },
+
+        "EarlyTypes": { "type": "array", "items": { "type": "string" } },
+        "MidTypes": { "type": "array", "items": { "type": "string" } },
+        "LateTypes": { "type": "array", "items": { "type": "string" } },
+
+        "CrossSectionRanges": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["Min", "Max"],
+            "properties": {
+              "Min": { "type": "number" },
+              "Max": { "type": "number" }
+            }
+          }
+        },
+
+        "StealthChanceForLateTiers": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+      }
+    },
+
+    "TierVelocityTuning": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "TierEnemyMinVelocity": { "type": "array", "items": { "type": "number" } },
+        "TierEnemyMaxVelocity": { "type": "array", "items": { "type": "number" } }
+      }
+    },
+
+    "TechTreeTuning": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ResearchCostToLevel2": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["Budget", "Steel", "Exotic"],
+          "properties": {
+            "Budget": { "type": "integer", "minimum": 0 },
+            "Steel": { "type": "integer", "minimum": 0 },
+            "Exotic": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "ResearchCostToLevel3": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["Budget", "Steel", "Exotic"],
+          "properties": {
+            "Budget": { "type": "integer", "minimum": 0 },
+            "Steel": { "type": "integer", "minimum": 0 },
+            "Exotic": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "ProductionBonusByLevel": { "type": "array", "items": { "type": "number" }, "minItems": 3 }
+      }
+    },
+
+    "ProjectileDefaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Mass": { "type": "number", "minimum": 0.0 },
+        "Length": { "type": "number", "minimum": 0.0 },
+        "DragCoefficient": { "type": "number", "minimum": 0.0 },
+        "HasGuidance": { "type": "boolean" },
+        "GuidanceAccuracy": { "type": "number", "minimum": 0.0 },
+        "ImpactCoupling": { "type": "number", "minimum": 0.0 }
+      }
+    },
+
+    "EarthThreatTuning": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "EnemyEarthThreatCoupling": { "type": "number", "minimum": 0.0 },
+        "EarthDestructionThresholdMJ": { "type": "number", "minimum": 0.0 }
+      }
+    }
+  }
+}

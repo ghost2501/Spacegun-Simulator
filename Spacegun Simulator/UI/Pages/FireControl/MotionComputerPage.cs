@@ -123,7 +123,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 			{
 				var r = TargetMotionComputer.CalculateMotionAtTime(_pos, _vel, t);
 				bool inRange = r.PredictedDistance <= gunRange;
-				string status = inRange ? "IN RANGE" : "out range";
+				string status = inRange ? "IN RANGE" : "OUT OF RANGE";
 				string rangeStr = diff.FormatDistance(r.PredictedDistance);
 				_lines.Add(Clamp60($"{t,2}s  | {rangeStr,17} | {status}"));
 			}

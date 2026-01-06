@@ -122,7 +122,24 @@ namespace Spacegun_Simulator.UI
         // ============================================================
 
         public ConsoleKeyInfo ReadKey(bool intercept = true)
-            => Console.ReadKey(intercept);
+        {
+            var key = Console.ReadKey(intercept);
+
+            // Some terminals report Enter as Key=NoName with KeyChar='\r'/'\n'.
+            // Normalize so pages that check ConsoleKey.Enter behave consistently.
+            if (key.Key == ConsoleKey.NoName && (key.KeyChar == '\r' || key.KeyChar == '\n'))
+            {
+                return new ConsoleKeyInfo(
+                    keyChar: key.KeyChar,
+                    key: ConsoleKey.Enter,
+                    shift: (key.Modifiers & ConsoleModifiers.Shift) != 0,
+                    alt: (key.Modifiers & ConsoleModifiers.Alt) != 0,
+                    control: (key.Modifiers & ConsoleModifiers.Control) != 0
+                );
+            }
+
+            return key;
+        }
 
         // ============================================================
         // Optional hooks

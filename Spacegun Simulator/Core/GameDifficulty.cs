@@ -114,6 +114,14 @@ namespace Spacegun_Simulator.Core
         public double TargetRcsMultiplier { get; set; } = 1.0;
 
         /// <summary>
+        /// Optional per-tier multiplier applied to the final hit tolerance.
+        /// Use this to enforce a monotonic difficulty curve when later tiers would otherwise
+        /// become easier due to larger targets.
+        /// Length should equal GameConstants.TierCount.
+        /// </summary>
+        public double[]? TierHitToleranceMultipliers { get; set; }
+
+        /// <summary>
         /// Whether this difficulty skips resource allocation and development phases.
         /// Used for tutorial mode to streamline the experience.
         /// </summary>
@@ -223,17 +231,23 @@ namespace Spacegun_Simulator.Core
             // ================================================================
             // COMETS AND ASTEROIDS (Hard)
             // Hit tolerance: 0.5 × diameter × √(TargetRcsMultiplier)
-            // For a 10,000 ton ship (33.6m diameter): 0.5 × 33.6 × √10 ≈ 53m
-            // Strategy: Targets appear larger (10x RCS), making them easier to hit
+            // For a 10,000 ton ship (33.6m diameter): 0.5 × 33.6 × √1.6 ≈ 21m
+            // Strategy: Targets appear somewhat larger on radar, making them more forgiving than extreme
             // ================================================================
             GameDifficulty.CometsAndAsteroids => new DifficultyConfig
             {
                 Difficulty = GameDifficulty.CometsAndAsteroids,
                 DisplayName = "Comets and Asteroids (hard)",
                 NarrativeDescription =
-                    "• Tolerance: 100m*",
+                    "• Tolerance: 20m*",
                 HitToleranceMultiplier = 1.0,
-                TargetRcsMultiplier = 10.0,  // Asteroids appear 10x larger on radar
+                // Reduce the "targets appear larger" effect so early tiers are less forgiving.
+                // Note: hit tolerance scales with sqrt(TargetRcsMultiplier) due to area→diameter conversion.
+                TargetRcsMultiplier = 1.6,
+
+                // Per-tier hit tolerance scaling (applied after base hitbox derivation).
+                // Tuned for the Tuning Lab energy report curve target: 10, 6, 3, 0, 0 (CanHit/BallisticsOk).
+                TierHitToleranceMultipliers = [1.0, 0.11, 0.50, 0.0001, 0.0001],
 
                 LaunchDelayPrecision = new PrecisionConfig { DecimalPlaces = 4, Increment = 0.0001 },
                 ElevationPrecision = new PrecisionConfig { DecimalPlaces = 3, Increment = 0.001 },

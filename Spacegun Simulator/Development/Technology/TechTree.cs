@@ -1,5 +1,6 @@
 using Spacegun_Simulator.Economy;
 using Spacegun_Simulator.Development.Shared;
+using Spacegun_Simulator.Core;
 
 namespace Spacegun_Simulator.Development.Technology
 {
@@ -57,16 +58,8 @@ namespace Spacegun_Simulator.Development.Technology
             // Cost scales by level: II = moderate, III = expensive
             return nextLevel switch
             {
-                2 => new ResourceCost(  // Tier I → II
-                    budget: 500,
-                    steel: 300,
-                    exotic: 50
-                ),
-                3 => new ResourceCost(  // Tier II → III
-                    budget: 1500,
-                    steel: 800,
-                    exotic: 200
-                ),
+                2 => DevelopmentTuning.TechTree.ResearchCostToLevel2,
+                3 => DevelopmentTuning.TechTree.ResearchCostToLevel3,
                 _ => ResourceCost.None
             };
         }
@@ -116,12 +109,16 @@ namespace Spacegun_Simulator.Development.Technology
 
             // Get bonus multiplier from tech level
             int techLevel = CurrentLevel[requiredTech];
+            var bonuses = DevelopmentTuning.TechTree.ProductionBonusByLevel;
+            if (bonuses is null || bonuses.Length < 3)
+                return 1.0;
+
             return techLevel switch
             {
-                1 => 1.0,   // Base production
-                2 => 1.2,   // +20% bonus
-                3 => 1.5,   // +50% bonus
-                _ => 1.0
+                1 => bonuses[0],
+                2 => bonuses[1],
+                3 => bonuses[2],
+                _ => bonuses[0]
             };
         }
 

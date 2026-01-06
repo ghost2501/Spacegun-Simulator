@@ -111,6 +111,15 @@ namespace Spacegun_Simulator.Enemies
                 Targets = new List<EnemyTarget> { target }
             };
 
+            // Enforce a single source of truth for enemy speed.
+            // Detection uses restoredWave.AverageVelocity; engagement uses CachedEnemyVelocity magnitude.
+            if (snapshot.HasCachedVectors && restoredWave.CachedEnemyVelocity.HasValue)
+            {
+                double speed = restoredWave.CachedEnemyVelocity.Value.Magnitude;
+                restoredWave.AverageVelocity = speed;
+                target.Velocity = speed;
+            }
+
             return restoredWave;
         }
 

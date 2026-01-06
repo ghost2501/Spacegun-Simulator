@@ -63,8 +63,58 @@ public sealed class DetectionPage : PageBase
         _lines.Add("");
 
         _lines.Add("=== BALLISTIC REQUIREMENTS ===");
-        _lines.Add($"Enemy Mass Range: {archetype.MassRange.Min:N0} - {archetype.MassRange.Max:N0} metric tons");
-        _lines.Add($"Required Fracture Energy Range: {archetype.FractureEnergyRange.Min:N0} - {archetype.FractureEnergyRange.Max:N0} MJ");
+        var tier = GameConstants.GetTierForWave(game.CurrentWaveNumber);
+        int tierIndex = tier.TierIndex;
+
+        var mat = DevelopmentTuning.TierTargetMaterial;
+        int tierCount = GameConstants.TierCount;
+
+        bool hasMaterialTuning =
+            mat.TierEnemyMassTonsMin.Length >= tierCount &&
+            mat.TierEnemyMassTonsMax.Length >= tierCount &&
+            mat.TierEnemyDensityKgM3Min.Length >= tierCount &&
+            mat.TierEnemyDensityKgM3Max.Length >= tierCount &&
+            mat.TierEnemyBulkModulusGpaMin.Length >= tierCount &&
+            mat.TierEnemyBulkModulusGpaMax.Length >= tierCount;
+
+        if (hasMaterialTuning)
+        {
+            int safe = Math.Clamp(tierIndex, 0, tierCount - 1);
+
+            double massMinTons = mat.TierEnemyMassTonsMin[safe];
+            double massMaxTons = mat.TierEnemyMassTonsMax[safe];
+            if (massMaxTons < massMinTons) (massMinTons, massMaxTons) = (massMaxTons, massMinTons);
+
+            // Fracture energy bounds from the derived model:
+            // E ~ K * eps^2 * (mass/density)
+            double densityMin = mat.TierEnemyDensityKgM3Min[safe];
+            double densityMax = mat.TierEnemyDensityKgM3Max[safe];
+            if (densityMax < densityMin) (densityMin, densityMax) = (densityMax, densityMin);
+
+            double bulkMin = mat.TierEnemyBulkModulusGpaMin[safe];
+            double bulkMax = mat.TierEnemyBulkModulusGpaMax[safe];
+            if (bulkMax < bulkMin) (bulkMin, bulkMax) = (bulkMax, bulkMin);
+
+            double fractureMin = Spacegun_Simulator.Ballistics.BallisticsCalculator.CalculateFractureEnergyMJFromMassDensityAndBulkModulus(
+                massMinTons,
+                densityMax,
+                bulkMin,
+                mat.FractureStrain);
+            double fractureMax = Spacegun_Simulator.Ballistics.BallisticsCalculator.CalculateFractureEnergyMJFromMassDensityAndBulkModulus(
+                massMaxTons,
+                densityMin,
+                bulkMax,
+                mat.FractureStrain);
+
+            _lines.Add($"Enemy Mass Range: {massMinTons:N0} - {massMaxTons:N0} metric tons");
+            _lines.Add($"Required Fracture Energy Range: {fractureMin:N0} - {fractureMax:N0} MJ");
+        }
+        else
+        {
+            // Fallback for misconfigured tuning.
+            _lines.Add($"Enemy Mass Range: {archetype.MassRange.Min:N0} - {archetype.MassRange.Max:N0} metric tons");
+            _lines.Add($"Required Fracture Energy Range: {archetype.FractureEnergyRange.Min:N0} - {archetype.FractureEnergyRange.Max:N0} MJ");
+        }
         _lines.Add($"Difficulty: {DifficultyText.DescribeStars(archetype.BaseDifficultyRating)}");
         _lines.Add("");
 

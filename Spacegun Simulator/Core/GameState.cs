@@ -51,9 +51,6 @@ namespace Spacegun_Simulator.Core
         // Store the actual seconds available for precise calculation
         private double availableSecondsForGunRange = 0;
 
-        // ===== NEW: Selected gun/projectile spec for this wave =====
-        public GunProjectileSpec? SelectedGunProjectileSpec { get; set; }
-
         // Accumulated resources during allocation phase (time spent as tokens)
         public Dictionary<string, double> AccumulatedResources { get; private set; } = new();
 
@@ -279,6 +276,9 @@ namespace Spacegun_Simulator.Core
                 // Apply pre-generated trajectory data to ensure consistency
                 CurrentWave.CachedEnemyPosition = preGenProblem.EnemyPosition;
                 CurrentWave.CachedEnemyVelocity = preGenProblem.EnemyVelocity;
+                CurrentWave.AverageVelocity = preGenProblem.EnemyVelocity.Magnitude;
+                if (CurrentWave.Targets.Count > 0)
+                    CurrentWave.Targets[0].Velocity = CurrentWave.AverageVelocity;
                 CurrentWave.ApproachElevation = preGenProblem.ApproachElevation;
                 CurrentWave.ApproachAzimuth = preGenProblem.ApproachAzimuth;
                 CurrentWave.CachedCorrectLaunchDelayTime = preGenProblem.CorrectLaunchDelayTime;
@@ -318,7 +318,22 @@ namespace Spacegun_Simulator.Core
             {
                 IsGameOver = true;
                 result.WaveDetected = false;
-                result.Message = "Wave not detected until impact. GLOBAL DESTRUCTION.";
+
+                try
+                {
+                    var threat = EarthImpactThreat.Compute(CurrentWave!);
+                    string verdict = threat.ExceedsThreshold ? "YES" : "NO";
+                    result.Message =
+                        "Wave not detected until impact. GLOBAL DESTRUCTION." +
+                        $"\nImpact KE: {threat.ImpactEnergyMJ:F0} MJ" +
+                        $" (×coupling={DevelopmentTuning.EarthThreat.EnemyEarthThreatCoupling:F2} → {threat.CoupledImpactEnergyMJ:F0} MJ)" +
+                        $" | Threshold: {threat.ThresholdMJ:F0} MJ" +
+                        $" | Earth-cracking: {verdict}";
+                }
+                catch
+                {
+                    result.Message = "Wave not detected until impact. GLOBAL DESTRUCTION.";
+                }
                 return result;
             }
 
@@ -419,6 +434,22 @@ namespace Spacegun_Simulator.Core
             if (target == null) throw new ArgumentNullException(nameof(target));
             if (Gun == null) throw new InvalidOperationException("GameState.Gun is null.");
 
+            // Tutorial mode is fully predetermined and does not use modular projectile configuration.
+            if (DifficultyConfig.IsTutorialMode)
+            {
+                return new ResolvedShotStats(
+                    ProjectileMassKg: DifficultyConfig.TutorialPotatoCannon.ProjectileMassKg,
+                    MaxLaunchVelocityMs: DifficultyConfig.TutorialPotatoCannon.MuzzleVelocityMs,
+                    EffectiveFractureEnergyMJ: Math.Max(0.0, target.FractureEnergy),
+                    Penetration: 1.0,
+                    AdditionalHitToleranceMultiplier: 1.0,
+                    PropulsionDeltaVCapacityMs: 0.0,
+                    PropulsionBurnDurationSeconds: 1.0,
+                    PropulsionReferenceMassKg: 10.0,
+                    ProjectileDefenseRating: 0.0
+                );
+            }
+
             int weaponsTechLevel = 1;
             if (TechTree?.CurrentLevel != null && TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Weapons, out int w))
                 weaponsTechLevel = Math.Max(1, w);
@@ -426,11 +457,12 @@ namespace Spacegun_Simulator.Core
             // Keep GunConfiguration synchronized with Weapons tech.
             Gun.UpdateBaseMuzzleVelocity(weaponsTechLevel);
 
+            EnsureCraftedProjectileInitialized();
+
             double projectileMassKg =
                 CraftedProjectile?.MassKg
-                ?? SelectedGunProjectileSpec?.ProjectileMassKg
                 ?? Gun.DefaultProjectile?.Mass
-                ?? 10.0;
+                ?? DevelopmentTuning.ProjectileDefaults.Mass;
 
             var (minMassKg, maxMassKg) = Gun.GetSupportedProjectileMassRangeKg();
             if (projectileMassKg < minMassKg || projectileMassKg > maxMassKg)
@@ -443,10 +475,32 @@ namespace Spacegun_Simulator.Core
 
             double penetration = CraftedProjectile?.Enhancement?.Penetration ?? 1.0;
             penetration = Math.Max(0.1, penetration);
+
+            double baseImpactCoupling = DevelopmentTuning.ProjectileDefaults.ImpactCoupling;
+            double enhancementImpactCoupling = CraftedProjectile?.Enhancement?.ImpactCoupling ?? 1.0;
+
+            double couplingReferenceMassKg = Math.Max(0.01, DevelopmentTuning.ProjectileDefaults.ImpactCouplingReferenceMassKg);
+            double couplingMassExponent = Math.Max(0.0, DevelopmentTuning.ProjectileDefaults.ImpactCouplingMassExponent);
+            double couplingMassScale = couplingMassExponent > 0.0
+                ? Math.Pow(couplingReferenceMassKg / Math.Max(0.01, projectileMassKg), couplingMassExponent)
+                : 1.0;
+
+            double couplingTechPerLevel = Math.Max(0.0, DevelopmentTuning.ProjectileDefaults.ImpactCouplingTechMultiplierPerWeaponsLevel);
+            double couplingTechScale = couplingTechPerLevel != 1.0
+                ? Math.Pow(couplingTechPerLevel, Math.Max(0, weaponsTechLevel - 1))
+                : 1.0;
+
+            double impactCoupling = Math.Clamp(
+                baseImpactCoupling * couplingMassScale * couplingTechScale * enhancementImpactCoupling,
+                0.0001,
+                100.0);
+
             double defense01 = Math.Clamp(target.Defense, 0.0, 1.0);
             double defenseScale = Math.Max(0.0, GameModeTuning.Current.FractureEnergyDefenseScale);
             double armoredFractureEnergyMJ = Math.Max(0.0, target.FractureEnergy * (1.0 + defenseScale * defense01));
-            double effectiveFractureEnergyMJ = Math.Max(0.0, armoredFractureEnergyMJ / penetration);
+            // Penetration and impact coupling both reduce the required kinetic energy to achieve the same damage.
+            // Coupling represents the fraction of KE that actually couples into destructive internal work.
+            double effectiveFractureEnergyMJ = Math.Max(0.0, armoredFractureEnergyMJ / (penetration * impactCoupling));
 
             double additionalHitToleranceMultiplier = CraftedProjectile?.Enhancement?.HitToleranceBonus ?? 1.0;
             additionalHitToleranceMultiplier = Math.Max(0.1, additionalHitToleranceMultiplier);
@@ -478,6 +532,29 @@ namespace Spacegun_Simulator.Core
                 PropulsionReferenceMassKg: Math.Max(0.01, referenceMass),
                 ProjectileDefenseRating: Math.Clamp(projectileDefense, 0.0, 1.0)
             );
+        }
+
+        private void EnsureCraftedProjectileInitialized()
+        {
+            if (CraftedProjectile != null)
+                return;
+
+            int projectilesTechLevel = 1;
+            if (TechTree?.CurrentLevel != null && TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Projectiles, out int p))
+                projectilesTechLevel = Math.Max(1, p);
+
+            var core = ProjectileCore.All
+                .FirstOrDefault(c => c is not null && c.RequiredTechLevel <= projectilesTechLevel)
+                ?? ProjectileCore.All.FirstOrDefault();
+
+            if (core == null)
+                return;
+
+            CraftedProjectile = new CraftedProjectile(
+                core: core,
+                propulsion: PropulsionSystem.None,
+                enhancement: ProjectileEnhancement.None,
+                gunBaseMuzzleVelocityMs: Gun.BaseMuzzleVelocityMs);
         }
 
         internal Random CreateFiringRng(string purpose) => CreateDeterministicRng($"Firing|{purpose}", CurrentWaveNumber);
@@ -769,28 +846,6 @@ namespace Spacegun_Simulator.Core
             var tier = GameConstants.GetTierForWave(CurrentWaveNumber);
             var diffConfig = DifficultyConfig.GetConfig(SelectedDifficulty);
 
-            // ===== SET DEFAULT WEAPON BASED ON DIFFICULTY =====
-            // CRITICAL: Always check IsTutorialMode first, then set appropriate weapon
-            if (SelectedGunProjectileSpec == null)
-            {
-                if (diffConfig.IsTutorialMode)
-                {
-                    // Tutorial mode: Use potato cannon
-                    SelectedGunProjectileSpec = GunProjectileSpec.PotatoCannon;
-                }
-                else
-                {
-                    // Non-tutorial modes: Use the recommended factory method
-                    SelectedGunProjectileSpec = GunProjectileSpec.CreateDefaultForTier(tier.TierIndex);
-                }
-            }
-            // ===== CRITICAL FIX: Verify weapon matches difficulty mode =====
-            // If we're NOT in tutorial mode but have the potato cannon, override it
-            else if (!diffConfig.IsTutorialMode && SelectedGunProjectileSpec.Id == "potato")
-            {
-                SelectedGunProjectileSpec = GunProjectileSpec.CreateDefaultForTier(tier.TierIndex);
-            }
-
             // ===== CRITICAL: Only generate if NOT already generated =====
             // If CurrentFiringProblem already exists, reuse it (from a prior call or load)
             double effectiveRangeForWave = diffConfig.IsTutorialMode
@@ -819,7 +874,8 @@ namespace Spacegun_Simulator.Core
                     var solver = new FiringSolution(
                         (float)resolved.ProjectileMassKg,
                         (float)resolved.EffectiveFractureEnergyMJ,
-                        target.Mass);
+                        target.Mass,
+                        enemyCrossSectionM2: target.CrossSection);
                     solver.ConfigureProjectileModifiers(resolved);
 
                     FiringProblem firingProblem = null!;
@@ -1120,8 +1176,11 @@ namespace Spacegun_Simulator.Core
                     var tier = GameConstants.GetTierForWave(waveNumber);
                     int tierIndex = tier.TierIndex;
 
-                    var (_, _, playerMin, playerMax) = GameConstants.GetTierVelocityConstraints(tierIndex);
-                    float campaignReferenceVelocity = (float)playerMax;
+                    // No tier-based player velocity cap. Use the gun's current base muzzle velocity
+                    // (augmented by barrel length + integrity effects) as the campaign reference.
+                    double barrelEfficiency = Math.Min(1.0, Gun.BarrelLength / 200.0);
+                    double barrelMultiplier = (0.5 + 0.5 * barrelEfficiency);
+                    float campaignReferenceVelocity = (float)(Gun.BaseMuzzleVelocityMs * barrelMultiplier * Gun.BarrelIntegrity);
 
                     // FIX: Use actual target data from generated wave instead of hardcoded values
                     var target = wave.Targets[0];

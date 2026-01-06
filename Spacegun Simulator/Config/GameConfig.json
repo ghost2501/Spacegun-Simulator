@@ -1,6 +1,7 @@
 ﻿{
   "BarrelIntegrityLossPerShot": 0.01,
-}
+  "BaseMuzzleVelocityMs": 720000,
+  "MuzzleVelocityMultiplier": 1,
   "BudgetRewardBase": 100,
   "BudgetRewardPerWave": 10,
   "SteelRewardBase": 50,

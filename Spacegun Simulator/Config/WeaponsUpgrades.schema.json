@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WeaponsUpgrades",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["Version", "Upgrades"],
+  "properties": {
+    "Version": { "type": "integer", "minimum": 1 },
+    "Upgrades": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["Id", "Name", "Description", "Cost"],
+        "properties": {
+          "Id": { "type": "string", "minLength": 1 },
+          "Name": { "type": "string" },
+          "Description": { "type": "string" },
+          "Cost": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["Budget", "Steel", "Exotic"],
+            "properties": {
+              "Budget": { "type": "number", "minimum": 0.0 },
+              "Steel": { "type": "number", "minimum": 0.0 },
+              "Exotic": { "type": "number", "minimum": 0.0 }
+            }
+          },
+          "Prerequisites": { "type": "array", "items": { "type": "string" } },
+          "StatModifiers": { "type": "object", "additionalProperties": { "type": "number" } },
+          "MinWeaponsTechLevel": { "type": "integer", "minimum": 1 },
+          "MinProjectilesTechLevel": { "type": "integer", "minimum": 1 },
+          "RequiresGuidanceMod": { "type": "boolean" },
+          "RequiresPropulsion": { "type": "string", "enum": ["Chemical", "NonChemical"] },
+          "Parameters": { "type": "object", "additionalProperties": { "type": "number" } }
+        }
+      }
+    }
+  }
+}

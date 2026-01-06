@@ -69,56 +69,86 @@ public sealed class GunDevelopmentPage : PageBase
         // Also note: chemical propellant energy density is material-capped at runtime via
         // GunConfiguration.GetEffectivePropellantEnergyDensity().
 
-        // Mirrors the legacy gun upgrade list.
-        _upgrades.Add(new UpgradeOption(
-            Name: "Barrel Repair",
-            Description: "Restore barrel integrity to 100%",
-            Cost: new ResourceCost(budget: 100, steel: 50, exotic: 0),
-            Apply: game => game.Gun.BarrelIntegrity = 1.0
-        ));
+        var defs = WeaponsUpgrades.Definitions;
+        if (defs is null || defs.Count == 0)
+            return;
 
-        if (game.Gun.PropulsionSystem == Spacegun_Simulator.Development.PropulsionType.Chemical)
+        bool isChemical = game.Gun.PropulsionSystem == Spacegun_Simulator.Development.PropulsionType.Chemical;
+
+        foreach (var def in defs)
         {
+            if (def.MinWeaponsTechLevel.HasValue && weaponsTech < def.MinWeaponsTechLevel.Value)
+                continue;
+            if (def.MinProjectilesTechLevel.HasValue && projectilesTech < def.MinProjectilesTechLevel.Value)
+                continue;
+            if (def.RequiresGuidanceMod && !hasGuidanceMod)
+                continue;
+            if (!string.IsNullOrWhiteSpace(def.RequiresPropulsion))
+            {
+                if (string.Equals(def.RequiresPropulsion, "Chemical", StringComparison.OrdinalIgnoreCase) && !isChemical)
+                    continue;
+                if (string.Equals(def.RequiresPropulsion, "NonChemical", StringComparison.OrdinalIgnoreCase) && isChemical)
+                    continue;
+            }
+
             _upgrades.Add(new UpgradeOption(
-                Name: "Propellant Optimization",
-                Description: "Increase propellant energy density by 20% (material-capped)",
-                Cost: new ResourceCost(budget: 150, steel: 80, exotic: 20),
-                Apply: g => g.Gun.PropellantEnergyDensity = Math.Max(0.0, g.Gun.PropellantEnergyDensity * 1.2)
+                Name: def.Name,
+                Description: def.Description,
+                Cost: def.Cost,
+                Apply: g => ApplyUpgradeDefinition(def, g)
             ));
         }
-        else
+    }
+
+    private static void ApplyUpgradeDefinition(WeaponsUpgrades.UpgradeDefinition def, GameState game)
+    {
+        if (def is null) return;
+
+        // Keep upgrade math identical to the legacy implementation, but source all numbers from JSON.
+        switch (def.Id)
         {
-            _upgrades.Add(new UpgradeOption(
-                Name: "Power Capacitor Upgrade",
-                Description: "Increase power capacity by 20%",
-                Cost: new ResourceCost(budget: 150, steel: 80, exotic: 20),
-                Apply: g => g.Gun.PowerCapacity = Math.Max(0.0, g.Gun.PowerCapacity * 1.2)
-            ));
+            case "BarrelRepair":
+                {
+                    double setTo = def.Parameters.TryGetValue("SetIntegrityTo", out double v) ? v : 1.0;
+                    game.Gun.BarrelIntegrity = setTo;
+                    break;
+                }
+
+            case "PropellantOptimization":
+                {
+                    double mult = def.Parameters.TryGetValue("Multiplier", out double v) ? v : 1.0;
+                    game.Gun.PropellantEnergyDensity = Math.Max(0.0, game.Gun.PropellantEnergyDensity * mult);
+                    break;
+                }
+
+            case "PowerCapacitorUpgrade":
+                {
+                    double mult = def.Parameters.TryGetValue("Multiplier", out double v) ? v : 1.0;
+                    game.Gun.PowerCapacity = Math.Max(0.0, game.Gun.PowerCapacity * mult);
+                    break;
+                }
+
+            case "BarrelExtension":
+                {
+                    double mult = def.Parameters.TryGetValue("Multiplier", out double v) ? v : 1.0;
+                    double max = def.Parameters.TryGetValue("Max", out double m) ? m : double.PositiveInfinity;
+                    game.Gun.BarrelLength = Math.Min(max, game.Gun.BarrelLength * mult);
+                    break;
+                }
+
+            case "GuidanceCalibration":
+                {
+                    double mult = def.Parameters.TryGetValue("Multiplier", out double v) ? v : 1.0;
+                    double minInput = def.Parameters.TryGetValue("MinInput", out double mi) ? mi : 0.1;
+                    double max = def.Parameters.TryGetValue("Max", out double mx) ? mx : double.PositiveInfinity;
+                    game.Gun.Guidance = Math.Min(max, Math.Max(minInput, game.Gun.Guidance) * mult);
+                    break;
+                }
+
+            default:
+                // Unknown IDs are no-ops (future expansion).
+                break;
         }
-
-        _upgrades.Add(new UpgradeOption(
-            Name: "Barrel Extension",
-            Description: "Increase barrel length by 10% (improves effective range)",
-            Cost: new ResourceCost(budget: 180, steel: 140, exotic: 20),
-            Apply: game => game.Gun.BarrelLength = Math.Min(200.0, game.Gun.BarrelLength * 1.10)
-        ));
-
-        if (hasGuidanceMod && projectilesTech >= 3)
-        {
-            _upgrades.Add(new UpgradeOption(
-                Name: "Guidance Calibration",
-                Description: "Improve guidance to counter enemy maneuverability (+15%)",
-                Cost: new ResourceCost(budget: 220, steel: 100, exotic: 40),
-                Apply: game => game.Gun.Guidance = Math.Min(3.0, Math.Max(0.1, game.Gun.Guidance) * 1.15)
-            ));
-        }
-
-        _upgrades.Add(new UpgradeOption(
-            Name: "Reinforced Barrel",
-            Description: "Reduce barrel degradation per shot by 50%",
-            Cost: new ResourceCost(budget: 200, steel: 120, exotic: 40),
-            Apply: _ => { /* Future: implement barrel reinforcement tracking */ }
-        ));
     }
 
     protected override void RenderBody(UiContext ui)
@@ -185,7 +215,7 @@ public sealed class GunDevelopmentPage : PageBase
         {
             _lines.Add($"  Power Capacity: {game.Gun.PowerCapacity:F0} MW");
         }
-        _lines.Add($"  Guidance: {game.Gun.Guidance:F2}x");
+        _lines.Add($"  Guidance Quality (x): {game.Gun.Guidance:F2}x");
         _lines.Add($"  Weapons Tech Level: {weaponsTech}");
         _lines.Add(string.Empty);
 

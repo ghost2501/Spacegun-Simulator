@@ -1,25 +1,41 @@
 namespace Spacegun_Simulator.Development.Weapons
 {
     /// <summary>
-    /// Weapon-related tuning values kept under Development/Weapons for discoverability.
-    /// GameConstants forwards to these values to preserve legacy call sites.
+    /// Weapon-related tuning values. Values are config-backed via Core/WeaponsTuning.
     /// </summary>
     public static class WeaponTuning
     {
-        /// <summary>
-        /// Canonical barrel wear tunable. This can be overridden by config at runtime.
-        /// </summary>
-        public static double DefaultBarrelWearPerShot = 0.0005; // 0.05% per nominal shot
+        public readonly record struct WeaponsTechTuning(
+            int TechLevel,
+            string Name,
+            PropulsionType PropulsionSystem,
+            double MuzzleVelocityMultiplier,
+            double BarrelWearMultiplier = 1.0,
+            double FireControlQualityMultiplier = 1.0,
+            double ProjectileMassMultiplier = 1.0,
+            double PenetrationMultiplier = 1.0
+        );
 
-        /// <summary>
-        /// Weapons tech base muzzle velocities (m/s).
-        /// Indexing: WeaponsTechBaseVelocity[techLevel - 1].
-        /// </summary>
-        public static readonly double[] WeaponsTechBaseVelocity =
+        public static double DefaultBarrelWearPerShot
         {
-            80_000.0,   // Tech level 1 - Chemical baseline (80 km/s)
-            160_000.0,  // Tech level 2 - Railgun baseline (160 km/s)
-            350_000.0   // Tech level 3 - Plasma/advanced baseline (350 km/s)
-        };
+            get => global::Spacegun_Simulator.Core.WeaponsTuning.DefaultBarrelWearPerShot;
+            set => global::Spacegun_Simulator.Core.WeaponsTuning.DefaultBarrelWearPerShot = value;
+        }
+
+        public static int BaseMuzzleVelocityMs
+        {
+            get => global::Spacegun_Simulator.Core.WeaponsTuning.BaseMuzzleVelocityMs;
+            set => global::Spacegun_Simulator.Core.WeaponsTuning.BaseMuzzleVelocityMs = value;
+        }
+
+        public static WeaponsTechTuning[] WeaponsTechLevels => global::Spacegun_Simulator.Core.WeaponsTuning.WeaponsTechLevels;
+
+        public static double[] WeaponsTechVelocityMultipliers => global::Spacegun_Simulator.Core.WeaponsTuning.WeaponsTechVelocityMultipliers;
+
+        public static PropulsionType GetPropulsionSystemForTechLevel(int weaponsTechLevel)
+            => global::Spacegun_Simulator.Core.WeaponsTuning.GetPropulsionSystemForTechLevel(weaponsTechLevel);
+
+        public static double GetBaseMuzzleVelocityForTechLevel(int weaponsTechLevel)
+            => global::Spacegun_Simulator.Core.WeaponsTuning.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel);
     }
 }

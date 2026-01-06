@@ -17,10 +17,26 @@
 
   <ItemGroup>
     <None Remove="Config\GameConfig.json" />
+    <None Remove="Config\DevelopmentTuning.json" />
+    <None Remove="Config\WeaponsTuning.json" />
+    <None Remove="Config\WeaponsUpgrades.json" />
+    <None Remove="Config\ProjectilesCatalog.json" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="Config\GameConfig.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Config\DevelopmentTuning.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Config\WeaponsTuning.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Config\WeaponsUpgrades.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Config\ProjectilesCatalog.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

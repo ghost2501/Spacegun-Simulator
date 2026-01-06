@@ -91,14 +91,6 @@ public sealed class FiringPhasePage : PageBase
             return;
         }
 
-        if (game.SelectedGunProjectileSpec == null)
-        {
-            _lines.Add("✗ Critical error: No weapon selected!");
-            _lines.Add("");
-            _lines.Add("Press any key...");
-            return;
-        }
-
         var resolved = game.ResolveShotStats(target);
         double muzzleVelocity = resolved.MaxLaunchVelocityMs;
         double projectileMass = resolved.ProjectileMassKg;
@@ -106,7 +98,8 @@ public sealed class FiringPhasePage : PageBase
         var calculator = new FiringSolution(
             (float)projectileMass,
             (float)resolved.EffectiveFractureEnergyMJ,
-            target.Mass);
+            target.Mass,
+            enemyCrossSectionM2: target.CrossSection);
         calculator.ConfigureProjectileModifiers(resolved);
 
         float requiredImpactVelocity = calculator.CalculateRequiredVelocity();
@@ -128,8 +121,8 @@ public sealed class FiringPhasePage : PageBase
         _lines.Add($"Max Muzzle Velocity: {FiringPhaseFormatter.FormatVelocity(muzzleVelocity, game.SelectedDifficulty)} m/s");
         _lines.Add($"Barrel Integrity: {game.Gun.BarrelIntegrity:P2}");
         bool hasGuidanceMod = (game.CraftedProjectile?.Enhancement?.Id == "guidance") || game.Gun.DefaultProjectile.HasGuidance;
-        _lines.Add($"Has Guidance System: {(hasGuidanceMod ? "Yes" : "No")}");
-        _lines.Add($"Guidance: {game.Gun.Guidance:F2}x");
+        _lines.Add($"Guidance System Installed: {(hasGuidanceMod ? "Yes" : "No")}");
+        _lines.Add($"Guidance Quality (x): {game.Gun.Guidance:F2}x");
         _lines.Add($"Gun Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(game.CurrentWaveNumber).MaxEffectiveGunRange)}");
         _lines.Add("");
 
@@ -207,7 +200,7 @@ public sealed class FiringPhasePage : PageBase
         var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (FiringPhasePage requires GameState).");
         var firingResult = _firingResult ?? throw new InvalidOperationException("Firing result was not computed. (Expected OnEnter to run.)");
 
-        if (!firingResult.CanReachTarget || game.CurrentWave == null || game.CurrentFiringProblem == null || game.SelectedGunProjectileSpec == null)
+            if (!firingResult.CanReachTarget || game.CurrentWave == null || game.CurrentFiringProblem == null)
         {
             game.IsGameOver = true;
             return PageResult.Exit;

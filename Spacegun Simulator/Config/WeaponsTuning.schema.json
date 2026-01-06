@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WeaponsTuning",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "Version": { "type": "integer", "minimum": 1 },
+    "BaseMuzzleVelocityMs": { "type": "integer", "minimum": 1 },
+    "DefaultBarrelWearPerShot": { "type": "number", "minimum": 0.0 },
+
+    "WeaponsTechLevels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["TechLevel", "Name", "PropulsionSystem", "MuzzleVelocityMultiplier"],
+        "properties": {
+          "TechLevel": { "type": "integer", "minimum": 1 },
+          "Name": { "type": "string" },
+          "PropulsionSystem": { "type": "string" },
+          "MuzzleVelocityMultiplier": { "type": "number", "minimum": 0.0 },
+          "BarrelWearMultiplier": { "type": "number", "minimum": 0.0 },
+          "FireControlQualityMultiplier": { "type": "number", "minimum": 0.0 },
+          "ProjectileMassMultiplier": { "type": "number", "minimum": 0.0 },
+          "PenetrationMultiplier": { "type": "number", "minimum": 0.0 }
+        }
+      }
+    },
+
+    "GunTuning": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "DefaultBarrelLength": { "type": "number", "minimum": 0.0 },
+        "DefaultBoreDiameter": { "type": "number", "minimum": 0.0 },
+        "DefaultBarrelMaterial": { "type": "string" },
+        "DefaultBarrelIntegrity": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "DefaultFireControlQuality": { "type": "number", "minimum": 0.0 },
+        "DefaultPropulsionSystem": { "type": "string" },
+        "DefaultPropellantMass": { "type": "number", "minimum": 0.0 },
+        "DefaultPropellantEnergyDensity": { "type": "number", "minimum": 0.0 },
+        "DefaultPowerCapacity": { "type": "number", "minimum": 0.0 },
+        "DefaultCapacitorEfficiency": { "type": "number", "minimum": 0.0 },
+        "DefaultCoolingSystem": { "type": "string" },
+        "DefaultCoolingCapacity": { "type": "number", "minimum": 0.0 },
+        "DefaultAmmunitionCount": { "type": "integer", "minimum": 0 },
+
+        "IntegrityFailureThreshold": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+
+        "RangeReferenceBarrelLength": { "type": "number", "minimum": 0.000001 },
+        "RangeMultiplierMin": { "type": "number" },
+        "RangeMultiplierMax": { "type": "number" },
+
+        "WearHeatCoolingCapacityMin": { "type": "number", "minimum": 0.000001 },
+        "WearHeatFactorMin": { "type": "number", "minimum": 0.0 },
+        "WearPressureFactorMin": { "type": "number", "minimum": 0.0 },
+        "WearPerShotClampMin": { "type": "number", "minimum": 0.0 },
+        "WearPerShotClampMax": { "type": "number", "minimum": 0.0 },
+
+        "UpgradeWearModifierMin": { "type": "number", "minimum": 0.0 },
+        "WearModifiersByUpgradeId": { "type": "object", "additionalProperties": { "type": "number" } },
+
+        "MaxPressureByBarrelMaterial": { "type": "object", "additionalProperties": { "type": "number" } },
+
+        "SteelSafePropellantEnergyDensityCap": { "type": "number", "minimum": 0.0 },
+        "PropellantEnergyDensityCapMultiplierByBarrelMaterial": { "type": "object", "additionalProperties": { "type": "number", "minimum": 0.0 } },
+
+        "HeatGenerationCoefficientByPropulsion": { "type": "object", "additionalProperties": { "type": "number" } },
+        "HeatGenerationPowerCoefficientByPropulsion": { "type": "object", "additionalProperties": { "type": "number" } },
+
+        "ReloadBaseTimeSeconds": { "type": "number", "minimum": 0.0 },
+        "ReloadCoolingModifierByCoolingSystem": { "type": "object", "additionalProperties": { "type": "number", "minimum": 0.0 } },
+        "ReloadHeatRatioThreshold": { "type": "number", "minimum": 0.0 }
+      }
+    }
+  }
+}
