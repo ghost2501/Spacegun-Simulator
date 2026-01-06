@@ -51,5 +51,6 @@
         public const string DiagnosticsUiPageLauncher = "DiagnosticsUiPageLauncher";
         public const string DiagnosticsTestHarness = "DiagnosticsTestHarness";
         public const string DiagnosticsTuningLab = "DiagnosticsTuningLab";
+        public const string DiagnosticsTuningLabEnergyCsvColumns = "DiagnosticsTuningLabEnergyCsvColumns";
     }
 }

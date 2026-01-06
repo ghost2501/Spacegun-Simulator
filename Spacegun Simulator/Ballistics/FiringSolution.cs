@@ -64,12 +64,78 @@ namespace Spacegun_Simulator.Ballistics
     public class FiringSolution
     {
         private const double GRAVITY = 9.81;
-        private const double STANDARD_SHIP_DENSITY_KG_M3 = 500.0;
-        private const double METRIC_TONS_TO_KG = 1000.0;
+
+        private static List<double> SolveCubicReal(double a3, double a2, double a1, double a0)
+        {
+            var roots = new List<double>(3);
+
+            const double eps = 1e-12;
+            if (Math.Abs(a3) < eps)
+            {
+                // Degenerate: quadratic/linear.
+                if (Math.Abs(a2) < eps)
+                {
+                    if (Math.Abs(a1) < eps) return roots;
+                    roots.Add(-a0 / a1);
+                    return roots;
+                }
+
+                double disc = (a1 * a1) - (4.0 * a2 * a0);
+                if (disc < 0) return roots;
+                double sqrt = Math.Sqrt(disc);
+                roots.Add((-a1 - sqrt) / (2.0 * a2));
+                roots.Add((-a1 + sqrt) / (2.0 * a2));
+                return roots;
+            }
+
+            // Normalize: x^3 + ax^2 + bx + c = 0
+            double a = a2 / a3;
+            double b = a1 / a3;
+            double c = a0 / a3;
+
+            // Depressed cubic: x = u - a/3
+            double aOver3 = a / 3.0;
+            double p = b - (a * a) / 3.0;
+            double q = (2.0 * a * a * a) / 27.0 - (a * b) / 3.0 + c;
+
+            double halfQ = q / 2.0;
+            double thirdP = p / 3.0;
+            double discC = (halfQ * halfQ) + (thirdP * thirdP * thirdP);
+
+            if (discC > eps)
+            {
+                // One real root.
+                double sqrtDisc = Math.Sqrt(discC);
+                double u = Math.Cbrt(-halfQ + sqrtDisc);
+                double v = Math.Cbrt(-halfQ - sqrtDisc);
+                roots.Add((u + v) - aOver3);
+                return roots;
+            }
+
+            if (Math.Abs(discC) <= eps)
+            {
+                // Multiple real roots, at least two equal.
+                double u = Math.Cbrt(-halfQ);
+                roots.Add((2.0 * u) - aOver3);
+                roots.Add((-u) - aOver3);
+                return roots;
+            }
+
+            // Three distinct real roots.
+            double r = Math.Sqrt(-thirdP * thirdP * thirdP);
+            double phi = Math.Acos(Math.Clamp(-halfQ / r, -1.0, 1.0));
+            double t = 2.0 * Math.Sqrt(-thirdP);
+
+            roots.Add(t * Math.Cos(phi / 3.0) - aOver3);
+            roots.Add(t * Math.Cos((phi + 2.0 * Math.PI) / 3.0) - aOver3);
+            roots.Add(t * Math.Cos((phi + 4.0 * Math.PI) / 3.0) - aOver3);
+            return roots;
+        }
 
         private float projectileMass;
         private float enemyFractureEnergy;
         private double enemyMass;
+        private double enemyCrossSectionM2;
 
         // Projectile modifiers (resolved at fire time)
         // Delta-V affects impact KE only (trajectory remains constant-velocity per solver model).
@@ -78,11 +144,16 @@ namespace Spacegun_Simulator.Ballistics
         private double propulsionBurnDurationSeconds = 1.0;
         private double propulsionReferenceMassKg = 10.0;
 
-        public FiringSolution(float projectileMass, float enemyFractureEnergy, double enemyMass = 10000.0)
+        public FiringSolution(
+            float projectileMass,
+            float enemyFractureEnergy,
+            double enemyMass = 10000.0,
+            double enemyCrossSectionM2 = 0.0)
         {
             this.projectileMass = projectileMass;
             this.enemyFractureEnergy = enemyFractureEnergy;
             this.enemyMass = enemyMass;
+            this.enemyCrossSectionM2 = enemyCrossSectionM2;
         }
 
         public void ConfigureProjectileModifiers(
@@ -199,15 +270,14 @@ namespace Spacegun_Simulator.Ballistics
         }
 
         /// <summary>
-        /// Calculate hit tolerance as 0.5 × target diameter, modified by difficulty settings.
-        /// 
-        /// DIFFICULTY MODIFIERS:
-        /// - PotatoCannonsAndBeachballs: Fixed 1m tolerance (beachball radius)
-        /// - NuclearOption: 100x tolerance (warhead blast radius)
-        /// - CometsAndAsteroids: Target RCS already 10x larger (asteroid size)
-        /// - RealSpacegunSimulator: No modifiers (pure ballistics)
+        /// Calculate hit tolerance as 0.5 × target diameter, derived from target RCS area (m^2)
+        /// and modified by difficulty settings.
         /// </summary>
-        private float CalculateHitTolerance(double rcsMultiplier = 1.0, double toleranceMultiplier = 1.0, GameDifficulty difficulty = GameDifficulty.RealSpacegunSimulator)
+        private float CalculateHitTolerance(
+            double rcsMultiplier = 1.0,
+            double toleranceMultiplier = 1.0,
+            GameDifficulty difficulty = GameDifficulty.RealSpacegunSimulator,
+            int waveNumber = 0)
         {
             // TUTORIAL MODE: Fixed 1m tolerance (beachball radius)
             // The mass-based diameter calculation doesn't work for lightweight objects
@@ -217,21 +287,36 @@ namespace Spacegun_Simulator.Ballistics
                 return (float)DifficultyConfig.TutorialBeachball.RadiusMeters;  // 1.0m
             }
 
-            // STANDARD MODE: Calculate diameter from mass using ship density formula
-            double diameterM = BallisticsCalculator.CalculateDiameterFromMass(enemyMass);
-
-            // Apply RCS multiplier (affects apparent size)
-            if (rcsMultiplier > 1.0)
+            // STANDARD MODE: Derive diameter from RCS area.
+            // Canonical meaning: enemyCrossSectionM2 is an area in m^2.
+            double baseCrossSectionM2 = enemyCrossSectionM2;
+            if (baseCrossSectionM2 <= 0.0)
             {
-                double rcsLinear = Math.Sqrt(rcsMultiplier);
-                diameterM *= rcsLinear;
+                // Back-compat fallback: infer cross-section from mass using the shared density assumption.
+                double fallbackDiameterM = BallisticsCalculator.CalculateDiameterFromMass(enemyMass);
+                double fallbackRadiusM = Math.Max(0.0, fallbackDiameterM) * 0.5;
+                baseCrossSectionM2 = Math.PI * fallbackRadiusM * fallbackRadiusM;
             }
+
+            double effectiveCrossSectionM2 = Math.Max(0.0, baseCrossSectionM2) * Math.Max(0.0, rcsMultiplier);
+            double diameterM = 2.0 * Math.Sqrt(effectiveCrossSectionM2 / Math.PI);
 
             // Base tolerance is 0.5 × diameter
             double baseTolerance = diameterM * 0.5;
 
+            // Optional per-tier tolerance scaling.
+            // Default to 1.0 if no per-tier overrides are configured.
+            double tierToleranceMult = 1.0;
+            var tierMults = diffConfig.TierHitToleranceMultipliers;
+            if (tierMults is { Length: > 0 } && waveNumber > 0)
+            {
+                int tierIndex = GameConstants.GetTierForWave(waveNumber).TierIndex;
+                tierIndex = Math.Clamp(tierIndex, 0, tierMults.Length - 1);
+                tierToleranceMult = Math.Max(0.0, tierMults[tierIndex]);
+            }
+
             // Apply tolerance multiplier (for warhead blast radius)
-            return (float)(baseTolerance * toleranceMultiplier * additionalHitToleranceMultiplier);
+            return (float)(baseTolerance * toleranceMultiplier * additionalHitToleranceMultiplier * tierToleranceMult);
         }
 
         /// <summary>
@@ -325,6 +410,38 @@ namespace Spacegun_Simulator.Ballistics
                 Vector3 cachedEnemyPosition = wave.CachedEnemyPosition.Value;
                 Vector3 cachedEnemyVelocity = wave.CachedEnemyVelocity.Value;
 
+                // Ensure detection and engagement agree on the exact same speed.
+                // Detection uses wave.AverageVelocity; engagement uses cachedEnemyVelocity magnitude.
+                // We force wave.AverageVelocity (and target.Velocity) to match the cached vector.
+                double cachedSpeed = cachedEnemyVelocity.Magnitude;
+                wave.AverageVelocity = cachedSpeed;
+                if (wave.Targets.Count > 0)
+                    wave.Targets[0].Velocity = cachedSpeed;
+
+                // If a wave was generated with cached vectors but without a cached "correct" solution
+                // (e.g., gun range changed and the firing problem was regenerated), compute a fresh
+                // baseline now and persist it back onto the wave.
+                bool hasCachedSolution = wave.CachedCorrectVelocity > 0.0f;
+                if (!hasCachedSolution)
+                {
+                    if (!GenerateCachedSolution(
+                        cachedEnemyPosition,
+                        cachedEnemyVelocity,
+                        playerGunMaxVelocity,
+                        gunEffectiveRange,
+                        wave.WaveNumber,
+                        out var computedCachedSolution))
+                    {
+                        var (fallbackElev, fallbackAzim) = CartesianToAngles(cachedEnemyPosition);
+                        computedCachedSolution = (0.0f, (float)fallbackElev, (float)fallbackAzim, playerGunMaxVelocity);
+                    }
+
+                    wave.CachedCorrectLaunchDelayTime = computedCachedSolution.LaunchDelayTime;
+                    wave.CachedCorrectElevation = computedCachedSolution.Elevation;
+                    wave.CachedCorrectAzimuth = computedCachedSolution.Azimuth;
+                    wave.CachedCorrectVelocity = computedCachedSolution.Velocity;
+                }
+
                 return new FiringProblem
                 {
                     EnemyPosition = cachedEnemyPosition,
@@ -376,7 +493,26 @@ namespace Spacegun_Simulator.Ballistics
             // How long should this take? 5-30 seconds (player has time to react)
             float interceptTime = 5f + (float)(rng.NextDouble() * 25f);
             Vector3 displacement = interceptPoint - enemyAtT0;
-            Vector3 enemyVelocity = (displacement * (1.0 / interceptTime));
+
+            // IMPORTANT: The wave's speed is generated during detection phase (wave.AverageVelocity)
+            // and displayed/used as the warning-time velocity. Engagement must use the exact same speed.
+            // We pick a direction from the geometry above, then scale to wave.AverageVelocity.
+            double dispMag = displacement.Magnitude;
+            Vector3 direction;
+            if (dispMag > 1e-9)
+            {
+                direction = displacement / dispMag;
+            }
+            else
+            {
+                // Degenerate geometry: default toward the origin.
+                double posMag = enemyAtT0.Magnitude;
+                direction = posMag > 1e-9 ? (enemyAtT0 / -posMag) : new Vector3(-1.0, 0.0, 0.0);
+            }
+
+            Vector3 enemyVelocity = direction * wave.AverageVelocity;
+            if (wave.Targets.Count > 0)
+                wave.Targets[0].Velocity = wave.AverageVelocity;
 
             // ===== Cache vectors =====
             wave.CachedEnemyPosition = enemyAtT0;
@@ -385,28 +521,28 @@ namespace Spacegun_Simulator.Ballistics
             wave.ApproachAzimuth = approachAzim;
             wave.IsRestoredFromSave = false;
 
-            // STEP 5: Generate cached firing solution (fast heuristic)
-            // Prefer a truly valid solution (accounts for gravity/lead/hit tolerance).
-            // Fall back to the heuristic if the full search fails.
-            if (!FindValidSolution(
+            // STEP 5: Generate cached firing solution (fast heuristic).
+            // This is intended as a baseline/hint, not as a proof of solvability.
+            // Diagnostics and gameplay validation use CalculateSolution (and can run more robust searches if needed).
+            if (!GenerateCachedSolution(
                 enemyAtT0,
                 enemyVelocity,
                 playerGunMaxVelocity,
                 gunEffectiveRange,
+                wave.WaveNumber,
                 out var cachedSolution))
             {
-                if (!GenerateCachedSolution(
-                    enemyAtT0,
-                    enemyVelocity,
-                    playerGunMaxVelocity,
-                    gunEffectiveRange,
-                    out cachedSolution))
-                {
-                    // This should NEVER happen with constrained geometry.
-                    throw new InvalidOperationException(
-                        $"FATAL: Could not generate a valid firing solution for this wave geometry.");
-                }
+                // Last-resort baseline: aim directly at the current target position at max velocity.
+                var (fallbackElev, fallbackAzim) = CartesianToAngles(enemyAtT0);
+                cachedSolution = (0.0f, (float)fallbackElev, (float)fallbackAzim, playerGunMaxVelocity);
             }
+
+            // Persist the cached "correct" solution onto the wave so subsequent calls that reuse cached
+            // vectors (e.g., after gun range changes) do not regress to default zero values.
+            wave.CachedCorrectLaunchDelayTime = cachedSolution.LaunchDelayTime;
+            wave.CachedCorrectElevation = cachedSolution.Elevation;
+            wave.CachedCorrectAzimuth = cachedSolution.Azimuth;
+            wave.CachedCorrectVelocity = cachedSolution.Velocity;
 
             return new FiringProblem
             {
@@ -433,6 +569,7 @@ namespace Spacegun_Simulator.Ballistics
             Vector3 enemyVelocity,
             float maxGunVelocity,
             float gunEffectiveRange,
+            int waveNumber,
             out (float LaunchDelayTime, float Elevation, float Azimuth, float Velocity) solution)
         {
             solution = default;
@@ -469,11 +606,13 @@ namespace Spacegun_Simulator.Ballistics
             float azimMin = (float)estimatedAzim - 45f;
             float azimMax = (float)estimatedAzim + 45f;
 
-            for (float engagementTime = 2f; engagementTime <= maxSearchTime; engagementTime += 1f)  // FINER time steps
+            for (float engagementTime = 0f; engagementTime <= maxSearchTime; engagementTime += 0.5f)  // FINER time steps
             {
                 Vector3 enemyAtT = CalculateEnemyPosition(engagementTime, enemyInitialPosition, enemyVelocity);
 
-                if (enemyAtT.Z <= 0) continue;
+                // NOTE: Do not reject Z<=0 here.
+                // In this coordinate system, valid engagement geometry can cross Z=0 within the allowed window,
+                // and the solver itself does not require Z>0.
                 if (enemyAtT.Magnitude > gunEffectiveRange) continue;
 
                 // Finer angle searches
@@ -486,7 +625,7 @@ namespace Spacegun_Simulator.Ballistics
                         Vector3 direction = enemyAtT;  // From gun to enemy at time T
                         double distanceToEnemy = direction.Magnitude;
 
-                        for (float flightTime = 1f; flightTime <= Math.Min(30f, engagementTime); flightTime += 0.5f)  // FINER flight times
+                        for (float flightTime = 1f; flightTime <= 30f; flightTime += 0.5f)  // FINER flight times
                         {
                             // Estimate required velocity for this geometry
                             double estimatedVelNeeded = distanceToEnemy / flightTime;
@@ -531,7 +670,7 @@ namespace Spacegun_Simulator.Ballistics
                 for (float delayOffset = -0.5f; delayOffset <= 0.5f; delayOffset += 0.05f)
                 {
                     float engagementTime = baseDelay + delayOffset;
-                    if (engagementTime < 2f || engagementTime > maxSearchTime) continue;
+                    if (engagementTime < 0f || engagementTime > maxSearchTime) continue;
 
                     for (float elevOffset = -3f; elevOffset <= 3f; elevOffset += 0.3f)
                     {
@@ -549,7 +688,7 @@ namespace Spacegun_Simulator.Ballistics
                                 float vel = baseVel + velOffset;
                                 if (vel < minSearchVelocity || vel > maxGunVelocity) continue;
 
-                                for (float flightTime = 0.1f; flightTime <= Math.Min(30f, engagementTime); flightTime += 0.05f)
+                                for (float flightTime = 0.1f; flightTime <= 30f; flightTime += 0.05f)
                                 {
                                     Vector3 enemyAtIntercept = CalculateEnemyPosition(engagementTime + flightTime, enemyInitialPosition, enemyVelocity);
                                     Vector3 projectileAtIntercept = CalculateProjectilePosition(flightTime, vel, elev, azim);
@@ -559,9 +698,25 @@ namespace Spacegun_Simulator.Ballistics
 
                                     if (distance < hitTolerance && enemyAtIntercept.Magnitude <= gunEffectiveRange)
                                     {
-                                        //Console.WriteLine($"      ✓ Solution found: T+{engagementTime:F2}s, elev={elev:F1}°, azim={azim:F1}°, vel={vel:F0}m/s");
-                                        solution = (engagementTime, elev, azim, vel);
-                                        return true;
+                                        // Validate using the authoritative solver so we never cache an invalid "correct" solution.
+                                        var check = CalculateSolution(
+                                            enemyInitialPosition,
+                                            enemyVelocity,
+                                            engagementTime,
+                                            elev,
+                                            azim,
+                                            vel,
+                                            maxGunVelocity,
+                                            gunEffectiveRange,
+                                            waveNumber,
+                                            enemyMass,
+                                            GameDifficulty.RealSpacegunSimulator);
+
+                                        if (check.SolutionValid)
+                                        {
+                                            solution = (engagementTime, elev, azim, vel);
+                                            return true;
+                                        }
                                     }
                                 }
                             }
@@ -571,6 +726,196 @@ namespace Spacegun_Simulator.Ballistics
             }
 
             //Console.WriteLine($"      ✗ Fine search found no solutions");
+            return false;
+        }
+
+        private bool TryFindDeterministicValidSolution(
+            Vector3 enemyInitialPosition,
+            Vector3 enemyVelocity,
+            float maxGunVelocity,
+            float gunEffectiveRange,
+            int waveNumber,
+            out (float LaunchDelayTime, float Elevation, float Azimuth, float Velocity) solution)
+        {
+            solution = default;
+
+            static (double elevDeg, double azimDeg) CartesianToAnglesLocal(Vector3 position)
+            {
+                double horizontalDistance = Math.Sqrt(position.X * position.X + position.Y * position.Y);
+                double elevationRad = Math.Atan2(position.Z, horizontalDistance);
+                double elevationDeg = elevationRad * 180.0 / Math.PI;
+
+                double azimuthRad = Math.Atan2(position.X, position.Y);
+                double azimuthDeg = azimuthRad * 180.0 / Math.PI;
+                if (azimuthDeg < 0) azimuthDeg += 360.0;
+                return (elevationDeg, azimuthDeg);
+            }
+
+            static bool TrySolveInterceptTime(Vector3 relativePositionAtLaunch, Vector3 targetVelocity, double projectileSpeed, out double flightTime)
+            {
+                // Solve |r + v*t| = s*t where s=projectileSpeed.
+                double rv = (relativePositionAtLaunch.X * targetVelocity.X)
+                          + (relativePositionAtLaunch.Y * targetVelocity.Y)
+                          + (relativePositionAtLaunch.Z * targetVelocity.Z);
+                double vv = (targetVelocity.X * targetVelocity.X)
+                          + (targetVelocity.Y * targetVelocity.Y)
+                          + (targetVelocity.Z * targetVelocity.Z);
+                double rr = (relativePositionAtLaunch.X * relativePositionAtLaunch.X)
+                          + (relativePositionAtLaunch.Y * relativePositionAtLaunch.Y)
+                          + (relativePositionAtLaunch.Z * relativePositionAtLaunch.Z);
+
+                double a = vv - (projectileSpeed * projectileSpeed);
+                double b = 2.0 * rv;
+                double c = rr;
+
+                const double eps = 1e-9;
+                if (Math.Abs(a) < eps)
+                {
+                    if (Math.Abs(b) < eps)
+                    {
+                        flightTime = 0;
+                        return false;
+                    }
+
+                    double t = -c / b;
+                    if (t > 0)
+                    {
+                        flightTime = t;
+                        return true;
+                    }
+
+                    flightTime = 0;
+                    return false;
+                }
+
+                double disc = (b * b) - (4.0 * a * c);
+                if (disc < 0)
+                {
+                    flightTime = 0;
+                    return false;
+                }
+
+                double sqrt = Math.Sqrt(disc);
+                double t1 = (-b - sqrt) / (2.0 * a);
+                double t2 = (-b + sqrt) / (2.0 * a);
+
+                double tMin = double.PositiveInfinity;
+                if (t1 > 0) tMin = Math.Min(tMin, t1);
+                if (t2 > 0) tMin = Math.Min(tMin, t2);
+
+                if (double.IsInfinity(tMin))
+                {
+                    flightTime = 0;
+                    return false;
+                }
+
+                flightTime = tMin;
+                return true;
+            }
+
+            // Match solver's allowed delay window per tier.
+            var tier = GameConstants.GetTierForWave(waveNumber);
+            double maxLaunchDelayTime = tier.TierIndex switch
+            {
+                0 => 60.0,
+                1 => 120.0,
+                2 => 180.0,
+                _ => 180.0
+            };
+
+            double[] velFracs = new[] { 1.0, 0.85, 0.70 };
+            double[] elevOffsets = new[] { 0.0, 0.25, 0.5, 1.0, 2.0, -0.25, -0.5, -1.0 };
+            double[] azimOffsets = new[] { 0.0, -2.0, 2.0, -1.0, 1.0, -0.5, 0.5 };
+
+            bool bestHitFound = false;
+            double bestHitDeviation = double.PositiveInfinity;
+            bool bestHitHasEnergy = false;
+            (float delay, float elev, float azim, float vel) bestHit = default;
+
+            foreach (double frac in velFracs)
+            {
+                double v = Math.Max(1.0, maxGunVelocity * frac);
+
+                for (double delay = 0.0; delay <= maxLaunchDelayTime; delay += 1.0)
+                {
+                    Vector3 enemyAtLaunch = enemyInitialPosition + (enemyVelocity * delay);
+                    if (!TrySolveInterceptTime(enemyAtLaunch, enemyVelocity, v, out double tof))
+                        continue;
+
+                    tof = Math.Clamp(tof, 0.001, 300.0);
+                    Vector3 enemyAtIntercept = enemyAtLaunch + (enemyVelocity * tof);
+                    if (enemyAtIntercept.Magnitude > gunEffectiveRange)
+                        continue;
+
+                    double drop = 0.5 * 9.81 * tof * tof;
+                    var aimPoint = new Vector3(enemyAtIntercept.X, enemyAtIntercept.Y, enemyAtIntercept.Z + drop);
+                    var (elevBase, azimBase) = CartesianToAnglesLocal(aimPoint);
+
+                    foreach (double de in elevOffsets)
+                    {
+                        double elev = elevBase + de;
+                        if (elev < -89.9 || elev > 89.9) continue;
+
+                        foreach (double da in azimOffsets)
+                        {
+                            double azim = azimBase + da;
+                            if (azim < 0) azim += 360.0;
+                            if (azim >= 360.0) azim -= 360.0;
+
+                            var res = CalculateSolution(
+                                enemyInitialPosition,
+                                enemyVelocity,
+                                delay,
+                                elev,
+                                azim,
+                                v,
+                                (float)maxGunVelocity,
+                                (float)gunEffectiveRange,
+                                waveNumber,
+                                enemyMass,
+                                GameDifficulty.RealSpacegunSimulator);
+
+                            // Prefer fully successful solutions first.
+                            if (res.CanHit && res.CanDestroy)
+                            {
+                                solution = ((float)delay, (float)elev, (float)azim, (float)v);
+                                return true;
+                            }
+
+                            // Otherwise, keep the best accuracy-only solution so the game can
+                            // surface "can hit but can't destroy" as a meaningful state.
+                            if (res.CanHit)
+                            {
+                                double dev = Math.Max(0.0, res.InterceptDeviation);
+                                bool take = !bestHitFound;
+
+                                // Prefer smaller deviation; on ties, prefer higher velocity.
+                                if (bestHitFound)
+                                {
+                                    const double devEps = 1e-6;
+                                    if (dev + devEps < bestHitDeviation) take = true;
+                                    else if (Math.Abs(dev - bestHitDeviation) <= devEps && v > bestHit.vel) take = true;
+                                }
+
+                                if (take)
+                                {
+                                    bestHitFound = true;
+                                    bestHitDeviation = dev;
+                                    bestHitHasEnergy = res.CanDestroy;
+                                    bestHit = ((float)delay, (float)elev, (float)azim, (float)v);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (bestHitFound)
+            {
+                solution = bestHit;
+                return true;
+            }
+
             return false;
         }
 
@@ -642,6 +987,12 @@ namespace Spacegun_Simulator.Ballistics
 
             //Console.WriteLine($"  ✓ All parameter validations passed");
 
+            float hitTolerance = CalculateHitTolerance(
+                diffConfig.TargetRcsMultiplier,
+                diffConfig.HitToleranceMultiplier,
+                difficulty,
+                waveNumber);
+
             float minVelocity = CalculateRequiredVelocity();
             // Energy is computed after estimating intercept flight time, so propulsion Delta-V can
             // contribute to impact KE without changing trajectory math.
@@ -649,58 +1000,83 @@ namespace Spacegun_Simulator.Ballistics
             Vector3 bestInterceptPoint = Vector3.Zero;
             double bestDeviation = double.MaxValue;
             double bestFlightTime = 0.0;
+            bool foundInRange = false;
 
-            double horizontalVelocity = playerLaunchVelocity * Math.Cos(playerTargetElevation * Math.PI / 180.0);
-            double estimatedMaxFlightTime = horizontalVelocity > 0
-                ? (gunEffectiveRange * 1.5) / horizontalVelocity
-                : 60.0;
+            // Analytic closest-approach solve.
+            // We minimize D(t)=|P(t)-E(t)|^2 over flight time t>=0, where:
+            // P(t) is projectile ballistic position after firing (with gravity in Z)
+            // E(t) is enemy linear motion from engagement start.
+            // D'(t)=0 yields a cubic, which we solve exactly for candidate extrema.
 
-            //Console.WriteLine($"  Estimated max flight time: {estimatedMaxFlightTime:F5}s");
-            //Console.WriteLine($"  Searching for intercept point with fine time resolution...");
+            double elevRad = playerTargetElevation * Math.PI / 180.0;
+            double azimRad = playerTargetAzimuth * Math.PI / 180.0;
+            double vz = playerLaunchVelocity * Math.Sin(elevRad);
+            double vH = playerLaunchVelocity * Math.Cos(elevRad);
+            double vx = vH * Math.Sin(azimRad);
+            double vy = vH * Math.Cos(azimRad);
 
-            // IMPORTANT: Fixed-step scans can miss the hit window at high velocities.
-            // Example: at 135 km/s, a 1ms step jumps 135m. If hit tolerance is ~10m,
-            // the best point can be entirely skipped. Use adaptive refinement instead.
-            double maxT = Math.Max(0.001, estimatedMaxFlightTime);
-            double dt = maxT / 1000.0;
-            dt = Math.Clamp(dt, 1e-5, 0.05);
+            Vector3 enemyAtLaunch = CalculateEnemyPosition(playerLaunchDelayTime, enemyInitialPosition, enemyVelocityVector);
 
-            void Consider(double testFlightTime)
+            double dvx = vx - enemyVelocityVector.X;
+            double dvy = vy - enemyVelocityVector.Y;
+            double dvz = vz - enemyVelocityVector.Z;
+
+            // Cubic coefficients for D'(t)=0 (see derivation in chat).
+            // c3 t^3 + c2 t^2 + c1 t + c0 = 0
+            double c3 = 0.5 * GRAVITY * GRAVITY;
+            double c2 = -1.5 * GRAVITY * dvz;
+            double c1 = (dvx * dvx) + (dvy * dvy) + (dvz * dvz) + (enemyAtLaunch.Z * GRAVITY);
+            double c0 = (-dvx * enemyAtLaunch.X) + (-dvy * enemyAtLaunch.Y) - (enemyAtLaunch.Z * dvz);
+
+            double horizontalVelocity = Math.Max(1.0, vH);
+            double estimatedMaxFlightTime = (gunEffectiveRange * 1.5) / horizontalVelocity;
+            double maxT = Math.Clamp(estimatedMaxFlightTime, 0.001, 300.0);
+
+            void ConsiderCandidate(double t)
             {
-                Vector3 projectileAtFlight = CalculateProjectilePosition(testFlightTime, playerLaunchVelocity, playerTargetElevation, playerTargetAzimuth);
-                Vector3 enemyAtFlight = CalculateEnemyPosition(playerLaunchDelayTime + testFlightTime, enemyInitialPosition, enemyVelocityVector);
+                if (t <= 0.0 || t > maxT) return;
+
+                Vector3 projectileAtFlight = CalculateProjectilePosition(t, playerLaunchVelocity, playerTargetElevation, playerTargetAzimuth);
+                Vector3 enemyAtFlight = enemyAtLaunch + (enemyVelocityVector * t);
+                if (enemyAtFlight.Magnitude > gunEffectiveRange) return;
 
                 Vector3 deviation = projectileAtFlight - enemyAtFlight;
                 double distance = deviation.Magnitude;
-
                 if (distance < bestDeviation)
                 {
+                    foundInRange = true;
                     bestDeviation = distance;
-                    bestFlightTime = testFlightTime;
+                    bestFlightTime = t;
                     bestInterceptPoint = enemyAtFlight;
                 }
             }
 
-            // Coarse scan
-            for (double t = dt; t <= maxT; t += dt)
+            // Endpoints + cubic extrema.
+            ConsiderCandidate(0.001);
+            ConsiderCandidate(maxT);
+
+            foreach (double root in SolveCubicReal(c3, c2, c1, c0))
             {
-                Consider(t);
+                ConsiderCandidate(root);
             }
 
-            // Local refinements around the best coarse time.
-            for (int refine = 0; refine < 3; refine++)
+            // Small neighborhood sampling around best t to counter numerical edge cases.
+            if (foundInRange)
             {
-                double window = dt;
-                double start = Math.Max(0.001, bestFlightTime - window);
-                double end = Math.Min(maxT, bestFlightTime + window);
-                double fineDt = window / 10.0;
-
-                for (double t = start; t <= end; t += fineDt)
+                double step = Math.Clamp(hitTolerance / Math.Max(1.0, playerLaunchVelocity + enemyVelocityVector.Magnitude), 1e-4, 0.02);
+                for (int i = -5; i <= 5; i++)
                 {
-                    Consider(t);
+                    ConsiderCandidate(bestFlightTime + i * step);
                 }
+            }
 
-                dt = fineDt;
+            if (!foundInRange)
+            {
+                // No in-range intercept point was ever considered.
+                // Return a consistent invalid result rather than accidentally using (0,0,0).
+                double impactVelocityEstimate = playerLaunchVelocity + CalculateEffectiveDeltaV(0.0);
+                double playerKeMjEstimate = BallisticsCalculator.CalculateKineticEnergyMJ(this.projectileMass, impactVelocityEstimate);
+                return InvalidResult(enemyAtLaunch, playerLaunchDelayTime, playerKeMjEstimate);
             }
 
             //Console.WriteLine($"  Best intercept found at T+{playerLaunchDelayTime + bestFlightTime:F5}s (flight time: {bestFlightTime:F5}s)");
@@ -722,12 +1098,6 @@ namespace Spacegun_Simulator.Ballistics
             }
 
             //Console.WriteLine($"  ✓ Range check passed (margin: {gunEffectiveRange - interceptDistance:F0} m)");
-
-            // Calculate hit tolerance WITH difficulty modifiers
-            float hitTolerance = CalculateHitTolerance(
-                diffConfig.TargetRcsMultiplier,
-                diffConfig.HitToleranceMultiplier,
-                difficulty);  // Pass difficulty for tutorial mode check
 
             //Console.WriteLine($"  Hit tolerance: {hitTolerance:F1} m, Actual deviation: {bestDeviation:F1} m");
 
@@ -881,56 +1251,153 @@ namespace Spacegun_Simulator.Ballistics
             Vector3 enemyVelocity,
             float maxGunVelocity,
             float gunEffectiveRange,
+            int waveNumber,
             out (float LaunchDelayTime, float Elevation, float Azimuth, float Velocity) solution)
         {
             solution = default;
 
             double enemySpeed = enemyVelocity.Magnitude;
-            if (enemySpeed < 1.0) return false;  // Enemy not moving
+            if (enemySpeed < 1e-6) return false;
 
-            // HEURISTIC 1: Estimate engagement time based on range and speed
-            // Use ~40% of max search window (doesn't need to be at midpoint)
-            float estimatedEngagementTime = Math.Min(15f, (float)(gunEffectiveRange / enemySpeed * 0.4f));
-
-            // HEURISTIC 2: Where will the enemy be at this time?
-            Vector3 enemyAtEngagement = CalculateEnemyPosition(estimatedEngagementTime, enemyInitialPosition, enemyVelocity);
-            double distanceToEnemy = enemyAtEngagement.Magnitude;
-
-            // HEURISTIC 3: If enemy is out of range, adjust engagement time
-            if (distanceToEnemy > gunEffectiveRange)
+            static bool TrySolveInterceptTime(Vector3 relativePositionAtLaunch, Vector3 targetVelocity, double projectileSpeed, out double flightTime)
             {
-                estimatedEngagementTime *= (float)(gunEffectiveRange / distanceToEnemy * 0.9f);
-                enemyAtEngagement = CalculateEnemyPosition(estimatedEngagementTime, enemyInitialPosition, enemyVelocity);
-                distanceToEnemy = enemyAtEngagement.Magnitude;
+                // Solve |r + v*t| = s*t where s=projectileSpeed.
+                // Quadratic: (v·v - s^2) t^2 + 2(r·v) t + (r·r) = 0
+                double rv = (relativePositionAtLaunch.X * targetVelocity.X)
+                          + (relativePositionAtLaunch.Y * targetVelocity.Y)
+                          + (relativePositionAtLaunch.Z * targetVelocity.Z);
+                double vv = (targetVelocity.X * targetVelocity.X)
+                          + (targetVelocity.Y * targetVelocity.Y)
+                          + (targetVelocity.Z * targetVelocity.Z);
+                double rr = (relativePositionAtLaunch.X * relativePositionAtLaunch.X)
+                          + (relativePositionAtLaunch.Y * relativePositionAtLaunch.Y)
+                          + (relativePositionAtLaunch.Z * relativePositionAtLaunch.Z);
+
+                double a = vv - (projectileSpeed * projectileSpeed);
+                double b = 2.0 * rv;
+                double c = rr;
+
+                const double eps = 1e-9;
+                if (Math.Abs(a) < eps)
+                {
+                    if (Math.Abs(b) < eps)
+                    {
+                        flightTime = 0;
+                        return false;
+                    }
+
+                    double t = -c / b;
+                    if (t > 0)
+                    {
+                        flightTime = t;
+                        return true;
+                    }
+
+                    flightTime = 0;
+                    return false;
+                }
+
+                double disc = (b * b) - (4.0 * a * c);
+                if (disc < 0)
+                {
+                    flightTime = 0;
+                    return false;
+                }
+
+                double sqrt = Math.Sqrt(disc);
+                double t1 = (-b - sqrt) / (2.0 * a);
+                double t2 = (-b + sqrt) / (2.0 * a);
+
+                double tMin = double.PositiveInfinity;
+                if (t1 > 0) tMin = Math.Min(tMin, t1);
+                if (t2 > 0) tMin = Math.Min(tMin, t2);
+
+                if (double.IsInfinity(tMin))
+                {
+                    flightTime = 0;
+                    return false;
+                }
+
+                flightTime = tMin;
+                return true;
             }
 
-            if (distanceToEnemy > gunEffectiveRange) return false;
-
-            // HEURISTIC 4: Get angles to enemy at engagement time
-            var (targetElev, targetAzim) = CartesianToAngles(enemyAtEngagement);
-
-            // HEURISTIC 5: Use 85% of max velocity (conservative, gives margin)
-            float firingVelocity = maxGunVelocity * 0.85f;
-
-            // HEURISTIC 6: Estimate flight time
-            float estimatedFlightTime = (float)(distanceToEnemy / firingVelocity);
-
-            // HEURISTIC 7: Verify it's reasonable (flight time < 30s, common in our engagement window)
-            if (estimatedFlightTime > 30f)
+            // Match solver's allowed delay window per tier.
+            var tier = GameConstants.GetTierForWave(waveNumber);
+            double maxLaunchDelayTime = tier.TierIndex switch
             {
-                // Too long - increase velocity
-                firingVelocity = maxGunVelocity;
-                estimatedFlightTime = (float)(distanceToEnemy / firingVelocity);
+                0 => 60.0,
+                1 => 120.0,
+                2 => 180.0,
+                _ => 180.0
+            };
+
+            // Small, deterministic candidate set.
+            double[] delayCandidates = new[] { 0.0, 1.0, 2.0, 5.0, 10.0, 15.0, 20.0, 30.0, 45.0, 60.0, 90.0, 120.0, 150.0, 180.0 };
+            double[] velFracs = new[] { 1.0, 0.85, 0.70 };
+            double[] elevOffsets = new[] { 0.0, 0.25, -0.25, 0.5, -0.5 };
+            double[] azimOffsets = new[] { 0.0, 0.5, -0.5 };
+
+            foreach (double frac in velFracs)
+            {
+                double v = Math.Max(1.0, maxGunVelocity * frac);
+
+                foreach (double delay in delayCandidates)
+                {
+                    if (delay > maxLaunchDelayTime)
+                        continue;
+
+                    Vector3 enemyAtLaunch = enemyInitialPosition + (enemyVelocity * delay);
+                    if (!TrySolveInterceptTime(enemyAtLaunch, enemyVelocity, v, out double tof))
+                        continue;
+
+                    tof = Math.Clamp(tof, 0.000001, 300.0);
+                    Vector3 enemyAtIntercept = enemyAtLaunch + (enemyVelocity * tof);
+                    if (enemyAtIntercept.Magnitude > gunEffectiveRange)
+                        continue;
+
+                    // Gravity compensation: aim above the predicted point by the drop distance.
+                    double drop = 0.5 * GRAVITY * tof * tof;
+                    var aimPoint = new Vector3(enemyAtIntercept.X, enemyAtIntercept.Y, enemyAtIntercept.Z + drop);
+                    var (elevBase, azimBase) = CartesianToAngles(aimPoint);
+
+                    foreach (double de in elevOffsets)
+                    {
+                        double elev = elevBase + de;
+                        if (elev < -89.9 || elev > 89.9)
+                            continue;
+
+                        foreach (double da in azimOffsets)
+                        {
+                            double azim = azimBase + da;
+                            if (azim < 0) azim += 360.0;
+                            if (azim >= 360.0) azim -= 360.0;
+
+                            // Validate against the solver using the strict non-tutorial rules.
+                            var res = CalculateSolution(
+                                enemyInitialPosition,
+                                enemyVelocity,
+                                delay,
+                                elev,
+                                azim,
+                                v,
+                                maxGunVelocity,
+                                gunEffectiveRange,
+                                waveNumber,
+                                enemyMass,
+                                GameDifficulty.RealSpacegunSimulator);
+
+                            if (res.SolutionValid && res.CanHit)
+                            {
+                                solution = ((float)delay, (float)elev, (float)azim, (float)v);
+                                return true;
+                            }
+                        }
+                    }
+                }
             }
 
-            // NOTE: With stealth penalties applied to effective gun range, engagement distances can shrink
-            // enough that even conservative firing velocities yield very short flight times. This is still
-            // a valid engagement geometry, so don't fail the cached solution just because the flight time is small.
-            if (estimatedFlightTime < 0.05f) return false;  // Too fast / degenerate geometry
-
-            // Return the cached solution (will be reused for all player attempts on this wave)
-            solution = (estimatedEngagementTime, (float)targetElev, (float)targetAzim, firingVelocity);
-            return true;
+            return false;
         }
     }
 }

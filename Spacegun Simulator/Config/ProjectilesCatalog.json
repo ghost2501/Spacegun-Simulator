@@ -1,0 +1,161 @@
+{
+  "Version": 1,
+  "Cores": [
+    {
+      "Id": "light",
+      "Name": "Light Core",
+      "Description": "10kg tungsten dart - entry-level penetrator",
+      "MassKg": 10,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 50, "Steel": 30, "Exotic": 0 }
+    },
+    {
+      "Id": "standard",
+      "Name": "Standard Core",
+      "Description": "15kg dense penetrator - reliable workhorse",
+      "MassKg": 15,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 100, "Steel": 80, "Exotic": 10 }
+    },
+    {
+      "Id": "heavy",
+      "Name": "Heavy Core",
+      "Description": "25kg armored slug - high mass",
+      "MassKg": 25,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 200, "Steel": 180, "Exotic": 30 }
+    },
+    {
+      "Id": "ultra",
+      "Name": "Ultra-Dense Core",
+      "Description": "50kg exotic alloy - devastating impact",
+      "MassKg": 50,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 400, "Steel": 300, "Exotic": 80 }
+    }
+  ],
+  "PropulsionSystems": [
+    {
+      "Id": "none",
+      "Name": "No Propulsion",
+      "Description": "Unpowered projectile - uses gun velocity only",
+      "DeltaVCapacityMs": 0,
+      "BurnDurationSeconds": 1,
+      "ReferenceMassKg": 10,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 0, "Steel": 0, "Exotic": 0 }
+    },
+    {
+      "Id": "solid_rocket",
+      "Name": "Solid Rocket Booster",
+      "Description": "Quick-burn solid fuel - +20 km/s over 2 seconds",
+      "DeltaVCapacityMs": 20000,
+      "BurnDurationSeconds": 2,
+      "ReferenceMassKg": 15,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 80, "Steel": 40, "Exotic": 10 }
+    },
+    {
+      "Id": "liquid_sustainer",
+      "Name": "Liquid Fuel Sustainer",
+      "Description": "Extended burn liquid fuel - +40 km/s over 8 seconds",
+      "DeltaVCapacityMs": 40000,
+      "BurnDurationSeconds": 8,
+      "ReferenceMassKg": 20,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 150, "Steel": 80, "Exotic": 30 }
+    },
+    {
+      "Id": "ion_drive",
+      "Name": "Ion Thruster Array",
+      "Description": "Continuous ion propulsion - +80 km/s over 20 seconds",
+      "DeltaVCapacityMs": 80000,
+      "BurnDurationSeconds": 20,
+      "ReferenceMassKg": 10,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 300, "Steel": 100, "Exotic": 80 }
+    },
+    {
+      "Id": "plasma_accel",
+      "Name": "Plasma Accelerator",
+      "Description": "High-energy plasma burst - +120 km/s over 3 seconds",
+      "DeltaVCapacityMs": 120000,
+      "BurnDurationSeconds": 3,
+      "ReferenceMassKg": 25,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 400, "Steel": 150, "Exotic": 100 }
+    }
+  ],
+  "Enhancements": [
+    {
+      "Id": "none",
+      "Name": "No Enhancement",
+      "Description": "Standard projectile without modifications",
+      "HitToleranceBonus": 1.0,
+      "Penetration": 1.0,
+      "DefenseBonus": 0.0,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 0, "Steel": 0, "Exotic": 0 }
+    },
+    {
+      "Id": "guidance",
+      "Name": "Guidance Package",
+      "Description": "Terminal guidance for improved accuracy",
+      "HitToleranceBonus": 2.0,
+      "Penetration": 1.0,
+      "DefenseBonus": 0.0,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 200, "Steel": 50, "Exotic": 50 }
+    },
+    {
+      "Id": "shaped",
+      "Name": "Shaped Charge",
+      "Description": "Focused energy on impact - 25% more effective damage",
+      "HitToleranceBonus": 1.0,
+      "Penetration": 1.25,
+      "DefenseBonus": 0.0,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 150, "Steel": 80, "Exotic": 30 }
+    },
+    {
+      "Id": "armor_piercing",
+      "Name": "Armor Piercing Tip",
+      "Description": "Hardened tip for dense targets - 15% damage boost",
+      "HitToleranceBonus": 1.0,
+      "Penetration": 1.15,
+      "DefenseBonus": 0.0,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 80, "Steel": 60, "Exotic": 10 }
+    },
+    {
+      "Id": "fragmentation",
+      "Name": "Fragmentation Shell",
+      "Description": "Larger hit tolerance, slight damage penalty",
+      "HitToleranceBonus": 1.75,
+      "Penetration": 0.9,
+      "DefenseBonus": 0.0,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 120, "Steel": 70, "Exotic": 20 }
+    },
+    {
+      "Id": "countermeasures",
+      "Name": "Countermeasure Package",
+      "Description": "Decoys and ablatives - improves projectile survivability",
+      "HitToleranceBonus": 1.0,
+      "Penetration": 0.98,
+      "DefenseBonus": 0.25,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 140, "Steel": 60, "Exotic": 30 }
+    },
+    {
+      "Id": "hardened",
+      "Name": "Hardened Casing",
+      "Description": "Hardened casing - major survivability boost",
+      "HitToleranceBonus": 1.0,
+      "Penetration": 0.96,
+      "DefenseBonus": 0.50,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 260, "Steel": 120, "Exotic": 60 }
+    }
+  ]
+}

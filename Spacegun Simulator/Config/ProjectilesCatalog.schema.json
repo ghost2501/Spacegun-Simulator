@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProjectilesCatalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["Version", "Cores", "PropulsionSystems", "Enhancements"],
+  "properties": {
+    "Version": { "type": "integer", "minimum": 1 },
+    "Cores": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/core" }
+    },
+    "PropulsionSystems": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/propulsion" }
+    },
+    "Enhancements": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/enhancement" }
+    }
+  },
+  "$defs": {
+    "resourceCost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Budget", "Steel", "Exotic"],
+      "properties": {
+        "Budget": { "type": "number", "minimum": 0 },
+        "Steel": { "type": "number", "minimum": 0 },
+        "Exotic": { "type": "number", "minimum": 0 }
+      }
+    },
+    "core": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Id", "Name", "Description", "MassKg", "RequiredTechLevel", "Cost"],
+      "properties": {
+        "Id": { "type": "string", "minLength": 1 },
+        "Name": { "type": "string", "minLength": 1 },
+        "Description": { "type": "string" },
+        "MassKg": { "type": "number", "minimum": 0 },
+        "RequiredTechLevel": { "type": "integer", "minimum": 1 },
+        "Cost": { "$ref": "#/$defs/resourceCost" }
+      }
+    },
+    "propulsion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Id", "Name", "Description", "DeltaVCapacityMs", "BurnDurationSeconds", "ReferenceMassKg", "RequiredTechLevel", "Cost"],
+      "properties": {
+        "Id": { "type": "string", "minLength": 1 },
+        "Name": { "type": "string", "minLength": 1 },
+        "Description": { "type": "string" },
+        "DeltaVCapacityMs": { "type": "number", "minimum": 0 },
+        "BurnDurationSeconds": { "type": "number", "minimum": 0 },
+        "ReferenceMassKg": { "type": "number", "minimum": 0 },
+        "RequiredTechLevel": { "type": "integer", "minimum": 1 },
+        "Cost": { "$ref": "#/$defs/resourceCost" }
+      }
+    },
+    "enhancement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Id", "Name", "Description", "HitToleranceBonus", "Penetration", "DefenseBonus", "RequiredTechLevel", "Cost"],
+      "properties": {
+        "Id": { "type": "string", "minLength": 1 },
+        "Name": { "type": "string", "minLength": 1 },
+        "Description": { "type": "string" },
+        "HitToleranceBonus": { "type": "number", "minimum": 0 },
+        "Penetration": { "type": "number", "minimum": 0 },
+        "DefenseBonus": { "type": "number" },
+        "RequiredTechLevel": { "type": "integer", "minimum": 1 },
+        "Cost": { "$ref": "#/$defs/resourceCost" }
+      }
+    }
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "$schema": "./WeaponsTuning.schema.json",
+  "Version": 1,
+
+  "WeaponsTechLevels": [
+    {
+      "TechLevel": 1,
+      "Name": "Chemical",
+      "PropulsionSystem": "Chemical",
+      "MuzzleVelocityMultiplier": 1.0,
+      "BarrelWearMultiplier": 1.0,
+      "FireControlQualityMultiplier": 1.0,
+      "ProjectileMassMultiplier": 1.0,
+      "PenetrationMultiplier": 1.0
+    },
+    {
+      "TechLevel": 2,
+      "Name": "Railgun",
+      "PropulsionSystem": "Railgun",
+      "MuzzleVelocityMultiplier": 2.0,
+      "BarrelWearMultiplier": 1.0,
+      "FireControlQualityMultiplier": 1.0,
+      "ProjectileMassMultiplier": 1.0,
+      "PenetrationMultiplier": 1.0
+    },
+    {
+      "TechLevel": 3,
+      "Name": "Hybrid",
+      "PropulsionSystem": "Hybrid",
+      "MuzzleVelocityMultiplier": 4.0,
+      "BarrelWearMultiplier": 1.0,
+      "FireControlQualityMultiplier": 1.0,
+      "ProjectileMassMultiplier": 1.0,
+      "PenetrationMultiplier": 1.0
+    }
+  ],
+
+  "GunTuning": {
+    "DefaultBarrelLength": 100.0,
+    "DefaultBoreDiameter": 0.5,
+    "DefaultBarrelMaterial": "Steel",
+    "DefaultBarrelIntegrity": 1.0,
+    "DefaultFireControlQuality": 1.0,
+    "DefaultPropulsionSystem": "Chemical",
+    "DefaultPropellantMass": 50.0,
+    "DefaultPropellantEnergyDensity": 5.0,
+    "DefaultPowerCapacity": 100.0,
+    "DefaultCapacitorEfficiency": 0.7,
+    "DefaultCoolingSystem": "Passive",
+    "DefaultCoolingCapacity": 10.0,
+    "DefaultAmmunitionCount": 10,
+
+    "IntegrityFailureThreshold": 0.05,
+
+    "RangeReferenceBarrelLength": 100.0,
+    "RangeMultiplierMin": 0.5,
+    "RangeMultiplierMax": 2.0,
+
+    "WearHeatCoolingCapacityMin": 1.0,
+    "WearHeatFactorMin": 0.1,
+    "WearPressureFactorMin": 0.5,
+    "WearPerShotClampMin": 0.000001,
+    "WearPerShotClampMax": 0.2,
+
+    "UpgradeWearModifierMin": 0.1,
+
+    "MaxPressureByBarrelMaterial": {
+      "Steel": 500.0,
+      "Titanium": 700.0,
+      "Composite": 900.0,
+      "Exotic": 1200.0
+    },
+
+    "SteelSafePropellantEnergyDensityCap": 5.0,
+    "PropellantEnergyDensityCapMultiplierByBarrelMaterial": {
+      "Steel": 1.0,
+      "Titanium": 1.2,
+      "Composite": 1.5,
+      "Exotic": 2.0
+    },
+
+    "HeatGenerationCoefficientByPropulsion": {
+      "Chemical": 0.3,
+      "Hybrid": 0.2
+    },
+    "HeatGenerationPowerCoefficientByPropulsion": {
+      "Railgun": 0.5,
+      "Coilgun": 0.4,
+      "Hybrid": 0.3
+    },
+
+    "ReloadBaseTimeSeconds": 30.0,
+    "ReloadCoolingModifierByCoolingSystem": {
+      "Passive": 1.0,
+      "ActiveAir": 0.8,
+      "Liquid": 0.6,
+      "Cryogenic": 0.4
+    },
+    "ReloadHeatRatioThreshold": 1.0
+  }
+}

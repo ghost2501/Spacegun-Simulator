@@ -295,7 +295,8 @@ public sealed class ProjectileDevelopmentPage : PageBase
         if (game.CurrentWave?.Archetype != null)
         {
             double penetration = Math.Max(0.1, crafted.Enhancement?.Penetration ?? 1.0);
-            double requiredMJ = game.CurrentWave.Archetype.FractureEnergyRange.Min / penetration;
+            double baseRequiredMJ = game.CurrentWave.Targets.Count > 0 ? game.CurrentWave.Targets[0].FractureEnergy : 0.0;
+            double requiredMJ = baseRequiredMJ / penetration;
             bool meets = crafted.RawKineticEnergyMJ >= requiredMJ;
             _lines.Add(string.Empty);
             _lines.Add(Clamp60($"  Target Requirement: {(meets ? "✓ MEETS REQUIREMENT" : "✗ INSUFFICIENT ENERGY")}"));
@@ -421,11 +422,7 @@ public sealed class ProjectileDevelopmentPage : PageBase
                 });
 
             case Step.Summary:
-                {
-                    var result = HandleSummaryInput(game, key);
-                    RebuildLines(ui);
-                    return result;
-                }
+                return HandleSummaryInput(game, key);
 
             case Step.Result:
                 return PageResult.Back(PageId.WeaponDevelopment);

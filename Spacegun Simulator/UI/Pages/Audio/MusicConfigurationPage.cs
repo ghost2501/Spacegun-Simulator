@@ -661,14 +661,20 @@ public sealed class MusicConfigurationPage : PageBase
         {
             case ConsoleKey.UpArrow:
             case ConsoleKey.DownArrow:
-                        case ConsoleKey.PageUp:
-                        case ConsoleKey.PageDown:
-				if (IsMasterRowSelected())
-				{
-					float delta = key.Key == ConsoleKey.PageUp ? 0.10f : -0.10f;
-					PageMusicSystem.AdjustGlobal("Master", delta);
-					return PageResult.Stay;
-				}
+                // Always allow navigation off the master row.
+                return HandleListNavigation(key);
+
+            case ConsoleKey.PageUp:
+            case ConsoleKey.PageDown:
+                // Coarse adjust master volume while the master row is selected.
+                // PageUp/PageDown are treated as coarse controls elsewhere too.
+                if (IsMasterRowSelected())
+                {
+                    float delta = key.Key == ConsoleKey.PageUp ? 0.10f : -0.10f;
+                    PageMusicSystem.AdjustGlobal("Master", delta);
+                    return PageResult.Stay;
+                }
+
                 return HandleListNavigation(key);
 
             case ConsoleKey.LeftArrow:

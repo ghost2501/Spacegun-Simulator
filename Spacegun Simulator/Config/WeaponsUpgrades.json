@@ -1,0 +1,73 @@
+{
+  "$schema": "./WeaponsUpgrades.schema.json",
+  "Version": 1,
+  "Upgrades": [
+    {
+      "Id": "BarrelRepair",
+      "Name": "Barrel Repair",
+      "Description": "Restore barrel integrity to 100%",
+      "Cost": { "Budget": 100, "Steel": 50, "Exotic": 0 },
+      "Parameters": { "SetIntegrityTo": 1.0 }
+    },
+    {
+      "Id": "PropellantOptimization",
+      "Name": "Propellant Optimization",
+      "Description": "Increase propellant energy density by 20% (material-capped)",
+      "Cost": { "Budget": 150, "Steel": 80, "Exotic": 20 },
+      "RequiresPropulsion": "Chemical",
+      "Parameters": { "Multiplier": 1.2 }
+    },
+    {
+      "Id": "PowerCapacitorUpgrade",
+      "Name": "Power Capacitor Upgrade",
+      "Description": "Increase power capacity by 20%",
+      "Cost": { "Budget": 150, "Steel": 80, "Exotic": 20 },
+      "RequiresPropulsion": "NonChemical",
+      "Parameters": { "Multiplier": 1.2 }
+    },
+    {
+      "Id": "BarrelExtension",
+      "Name": "Barrel Extension",
+      "Description": "Increase barrel length by 10% (improves effective range)",
+      "Cost": { "Budget": 180, "Steel": 140, "Exotic": 20 },
+      "Parameters": { "Multiplier": 1.1, "Max": 200.0 }
+    },
+    {
+      "Id": "GuidanceCalibration",
+      "Name": "Guidance Calibration",
+      "Description": "Improve guidance to counter enemy maneuverability (+15%)",
+      "Cost": { "Budget": 220, "Steel": 100, "Exotic": 40 },
+      "MinProjectilesTechLevel": 3,
+      "RequiresGuidanceMod": true,
+      "Parameters": { "Multiplier": 1.15, "MinInput": 0.1, "Max": 3.0 }
+    },
+    {
+      "Id": "ReinforcedBarrel",
+      "Name": "Reinforced Barrel",
+      "Description": "Reduce barrel degradation per shot by 50%",
+      "Cost": { "Budget": 200, "Steel": 120, "Exotic": 40 },
+      "Parameters": { "WearMultiplier": 0.6 }
+    },
+    {
+      "Id": "HighTempCoating",
+      "Name": "High Temperature Coating",
+      "Description": "Reduce heat-driven wear",
+      "Cost": { "Budget": 0, "Steel": 0, "Exotic": 0 },
+      "Parameters": { "WearMultiplier": 0.75 }
+    },
+    {
+      "Id": "RapidFire",
+      "Name": "Rapid Fire",
+      "Description": "Increase wear per shot for higher ROF",
+      "Cost": { "Budget": 0, "Steel": 0, "Exotic": 0 },
+      "Parameters": { "WearMultiplier": 1.5 }
+    },
+    {
+      "Id": "CeramicLiner",
+      "Name": "Ceramic Liner",
+      "Description": "Reduce wear moderately",
+      "Cost": { "Budget": 0, "Steel": 0, "Exotic": 0 },
+      "Parameters": { "WearMultiplier": 0.8 }
+    }
+  ]
+}

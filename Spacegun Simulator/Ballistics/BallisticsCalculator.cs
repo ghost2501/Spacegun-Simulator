@@ -36,6 +36,49 @@
         }
 
         /// <summary>
+        /// Calculate radar cross-section area (m^2) assuming a spherical target.
+        /// Mass is in metric tons; density is in kg/m^3.
+        /// </summary>
+        public static double CalculateCrossSectionAreaM2FromMassAndDensity(double massTons, double densityKgM3)
+        {
+            densityKgM3 = Math.Max(0.0, densityKgM3);
+            if (massTons <= 0.0 || densityKgM3 <= 0.0) return 0.0;
+
+            double diameterMeters = CalculateDiameterFromMass(massTons, densityKgM3);
+            double radiusMeters = Math.Max(0.0, diameterMeters) * 0.5;
+            return Math.PI * radiusMeters * radiusMeters;
+        }
+
+        /// <summary>
+        /// Derive a fracture energy requirement (MJ) from mass, density, and bulk modulus.
+        /// Uses a simple strain-energy model:
+        ///   E = 1/2 * K * eps^2 * V
+        /// where K is bulk modulus (Pa), eps is a dimensionless fracture strain, and V is volume (m^3).
+        /// Mass is in metric tons; density is in kg/m^3; bulk modulus is in GPa.
+        /// </summary>
+        public static double CalculateFractureEnergyMJFromMassDensityAndBulkModulus(
+            double massTons,
+            double densityKgM3,
+            double bulkModulusGpa,
+            double fractureStrain)
+        {
+            densityKgM3 = Math.Max(0.0, densityKgM3);
+            bulkModulusGpa = Math.Max(0.0, bulkModulusGpa);
+            fractureStrain = Math.Max(0.0, fractureStrain);
+
+            if (massTons <= 0.0 || densityKgM3 <= 0.0 || bulkModulusGpa <= 0.0 || fractureStrain <= 0.0)
+                return 0.0;
+
+            double massKg = massTons * 1000.0;
+            double volumeM3 = massKg / densityKgM3;
+
+            // GPa -> Pa
+            double bulkPa = bulkModulusGpa * 1_000_000_000.0;
+            double energyJ = 0.5 * bulkPa * fractureStrain * fractureStrain * volumeM3;
+            return Math.Max(0.0, energyJ / 1_000_000.0);
+        }
+
+        /// <summary>
         /// Compute a target fracture energy (MJ) from mass (tons).
         /// Default specific energy is chosen so 1 ton -> ~10 MJ when specificEnergyJPerKg = 10000.
         /// </summary>

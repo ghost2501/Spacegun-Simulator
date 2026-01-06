@@ -62,8 +62,55 @@ public sealed class DevelopmentPage : PageBase
             var archetype = game.CurrentWave.Archetype;
             _lines.Add("=== TARGET REQUIREMENT ===");
             _lines.Add($"  Archetype: {archetype.Name}");
-            _lines.Add($"  Fracture Energy Needed: {archetype.FractureEnergyRange.Min:N0} - {archetype.FractureEnergyRange.Max:N0} MJ");
-            _lines.Add($"  Mass: {archetype.MassRange.Min:N0} - {archetype.MassRange.Max:N0} metric tons");
+
+            var mat = DevelopmentTuning.TierTargetMaterial;
+            int tierCount = GameConstants.TierCount;
+            int tierIndex = GameConstants.GetTierForWave(game.CurrentWaveNumber).TierIndex;
+
+            bool hasMaterialTuning =
+                mat.TierEnemyMassTonsMin.Length >= tierCount &&
+                mat.TierEnemyMassTonsMax.Length >= tierCount &&
+                mat.TierEnemyDensityKgM3Min.Length >= tierCount &&
+                mat.TierEnemyDensityKgM3Max.Length >= tierCount &&
+                mat.TierEnemyBulkModulusGpaMin.Length >= tierCount &&
+                mat.TierEnemyBulkModulusGpaMax.Length >= tierCount;
+
+            if (hasMaterialTuning)
+            {
+                int safe = Math.Clamp(tierIndex, 0, tierCount - 1);
+
+                double massMinTons = mat.TierEnemyMassTonsMin[safe];
+                double massMaxTons = mat.TierEnemyMassTonsMax[safe];
+                if (massMaxTons < massMinTons) (massMinTons, massMaxTons) = (massMaxTons, massMinTons);
+
+                double densityMin = mat.TierEnemyDensityKgM3Min[safe];
+                double densityMax = mat.TierEnemyDensityKgM3Max[safe];
+                if (densityMax < densityMin) (densityMin, densityMax) = (densityMax, densityMin);
+
+                double bulkMin = mat.TierEnemyBulkModulusGpaMin[safe];
+                double bulkMax = mat.TierEnemyBulkModulusGpaMax[safe];
+                if (bulkMax < bulkMin) (bulkMin, bulkMax) = (bulkMax, bulkMin);
+
+                double fractureMin = BallisticsCalculator.CalculateFractureEnergyMJFromMassDensityAndBulkModulus(
+                    massMinTons,
+                    densityMax,
+                    bulkMin,
+                    mat.FractureStrain);
+                double fractureMax = BallisticsCalculator.CalculateFractureEnergyMJFromMassDensityAndBulkModulus(
+                    massMaxTons,
+                    densityMin,
+                    bulkMax,
+                    mat.FractureStrain);
+
+                _lines.Add($"  Fracture Energy Needed: {fractureMin:N0} - {fractureMax:N0} MJ");
+                _lines.Add($"  Mass: {massMinTons:N0} - {massMaxTons:N0} metric tons");
+            }
+            else
+            {
+                _lines.Add($"  Fracture Energy Needed: {archetype.FractureEnergyRange.Min:N0} - {archetype.FractureEnergyRange.Max:N0} MJ");
+                _lines.Add($"  Mass: {archetype.MassRange.Min:N0} - {archetype.MassRange.Max:N0} metric tons");
+            }
+
             _lines.Add($"  Difficulty: {BallisticsCalculator.GetDifficultyDescription(archetype.BaseDifficultyRating)}");
             _lines.Add("");
         }

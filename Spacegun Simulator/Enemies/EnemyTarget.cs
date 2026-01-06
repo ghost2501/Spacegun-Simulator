@@ -29,9 +29,8 @@ namespace Spacegun_Simulator.Enemies
         public double Velocity { get; set; }
 
         /// <summary>
-        /// Radar cross-section in square meters.
-        /// Larger values = easier to detect and track.
-        /// Used in detection range calculations.
+        /// Radar cross-section area in square meters (m^2).
+        /// Larger values = easier to detect and track and (in this game) a larger effective hitbox.
         /// </summary>
         public double CrossSection { get; set; }
 
@@ -65,6 +64,18 @@ namespace Spacegun_Simulator.Enemies
         /// Used for difficulty assessment and damage calculations.
         /// </summary>
         public double Mass { get; set; }
+
+        /// <summary>
+        /// Effective density in kg/m^3 used for geometry derivation.
+        /// This is a gameplay/tuning property (not a rigorous material simulation).
+        /// </summary>
+        public double DensityKgM3 { get; set; }
+
+        /// <summary>
+        /// Effective bulk modulus in GPa used as a hardness/strength proxy.
+        /// Used by the derived fracture energy model.
+        /// </summary>
+        public double BulkModulusGpa { get; set; }
 
         /// <summary>
         /// Fracture Energy required in megajoules (MJ) to destroy this target.

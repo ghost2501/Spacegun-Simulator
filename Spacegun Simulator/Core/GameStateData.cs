@@ -1,7 +1,6 @@
 using Spacegun_Simulator.Enemies;
 using Spacegun_Simulator.Ballistics;
 using Spacegun_Simulator.Development;
-using Spacegun_Simulator.Development.Projectiles;
 using Spacegun_Simulator.Development.Technology;
 using Spacegun_Simulator.Events;
 
@@ -62,9 +61,6 @@ namespace Spacegun_Simulator.Core
         public long AvailableYears { get; set; }
         public long RemainingYears { get; set; }
         public double AvailableSecondsForGunRange { get; set; }
-
-        // ===== SELECTED GUN/PROJECTILE SPEC =====
-        public string SelectedGunProjectileSpecId { get; set; } = string.Empty;
 
         // Timestamp
         public string SaveTimestamp { get; set; } = string.Empty;
@@ -194,8 +190,6 @@ namespace Spacegun_Simulator.Core
                 CurrentWaveTargetOffense = gameState.CurrentWave?.Targets?[0]?.Offense ?? 0,
                 CurrentWaveTargetMass = gameState.CurrentWave?.Targets?[0]?.Mass ?? 0,
                 CurrentWaveTargetFractureEnergy = gameState.CurrentWave?.Targets?[0]?.FractureEnergy ?? 0,
-
-                SelectedGunProjectileSpecId = gameState.SelectedGunProjectileSpec?.Id ?? string.Empty,
 
                 CampaignEnemyTypeId = gameState.CampaignEnemyType?.Id ?? string.Empty,
                 CampaignEnemyTypeArchetypeId = gameState.CampaignEnemyType?.Archetype?.Id ?? string.Empty,
@@ -396,36 +390,6 @@ namespace Spacegun_Simulator.Core
                     CorrectAzimuth = FiringProblemCorrectAzimuth,
                     CorrectVelocity = FiringProblemCorrectVelocity
                 };
-            }
-
-            // Resolve selected projectile spec (robust fallback if saved id is missing or obsolete)
-            if (!string.IsNullOrEmpty(SelectedGunProjectileSpecId))
-            {
-                var spec = GunProjectileSpec.All.FirstOrDefault(s => s.Id == SelectedGunProjectileSpecId);
-                if (spec != null)
-                {
-                    gameState.SelectedGunProjectileSpec = spec;
-                }
-                else
-                {
-                    // saved id not found (legacy removal/mismatch) — choose sensible default by tier
-                    var tier = GameConstants.GetTierForWave(gameState.CurrentWaveNumber);
-                    gameState.SelectedGunProjectileSpec = GunProjectileSpec.CreateDefaultForTier(tier.TierIndex);
-                }
-            }
-            else
-            {
-                // No saved ID — pick tutorial potato or tier default
-                var diff = DifficultyConfig.GetConfig(gameState.SelectedDifficulty);
-                if (diff.IsTutorialMode)
-                {
-                    gameState.SelectedGunProjectileSpec = GunProjectileSpec.PotatoCannon;
-                }
-                else
-                {
-                    var tier = GameConstants.GetTierForWave(gameState.CurrentWaveNumber);
-                    gameState.SelectedGunProjectileSpec = GunProjectileSpec.CreateDefaultForTier(tier.TierIndex);
-                }
             }
 
             if (!string.IsNullOrEmpty(CampaignEnemyTypeId))

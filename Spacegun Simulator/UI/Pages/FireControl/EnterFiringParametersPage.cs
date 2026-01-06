@@ -236,6 +236,12 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 
             if (key.Key == ConsoleKey.F)
             {
+                if (!TryCommitCurrentInputBuffer())
+                {
+                    BuildLines();
+                    EnsureSelectionVisible(ui);
+                    return PageResult.Stay;
+                }
                 Submitted = true;
                 return PageResult.Exit;
             }
@@ -245,6 +251,12 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
                 if (_selection == FirstSelectable())
                     return PageResult.Back();
 
+                if (!TryCommitCurrentInputBuffer())
+                {
+                    BuildLines();
+                    EnsureSelectionVisible(ui);
+                    return PageResult.Stay;
+                }
                 MoveSelection(-1);
                 BuildLines();
                 return PageResult.Stay;
@@ -269,11 +281,23 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
                     _scroll += pageStep;
                     return PageResult.Stay;
                 case ConsoleKey.UpArrow:
+                    if (!TryCommitCurrentInputBuffer())
+                    {
+                        BuildLines();
+                        EnsureSelectionVisible(ui);
+                        return PageResult.Stay;
+                    }
                     MoveSelection(-1);
                     BuildLines();
                     EnsureSelectionVisible(ui);
                     return PageResult.Stay;
                 case ConsoleKey.DownArrow:
+                    if (!TryCommitCurrentInputBuffer())
+                    {
+                        BuildLines();
+                        EnsureSelectionVisible(ui);
+                        return PageResult.Stay;
+                    }
                     MoveSelection(1);
                     BuildLines();
                     EnsureSelectionVisible(ui);
@@ -351,76 +375,93 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 
             if (key.Key == ConsoleKey.Enter)
             {
-                _message = "";
+                if (!TryCommitCurrentInputBuffer())
+                {
+                    BuildLines();
+                    EnsureSelectionVisible(ui);
+                    return PageResult.Stay;
+                }
 
                 switch (_selection)
                 {
                     case Selection.InputDelay:
-                        if (!TryAcceptDouble(_inputBuffer, out double d, fallback: LaunchDelaySeconds) || d < 0)
-                        {
-                            _message = "✗ Invalid delay (>=0).";
-                            _inputBuffer = "";
-                            BuildLines();
-                            return PageResult.Stay;
-                        }
-                        LaunchDelaySeconds = d;
-                        _inputBuffer = "";
                         SetSelection(Selection.InputElevation);
-                        BuildLines();
-                        EnsureSelectionVisible(ui);
-                        return PageResult.Stay;
-
+                        break;
                     case Selection.InputElevation:
-                        if (!TryAcceptDouble(_inputBuffer, out double e, fallback: TargetElevationDegrees) || e < -90 || e > 90)
-                        {
-                            _message = "✗ Invalid elevation (-90..90).";
-                            _inputBuffer = "";
-                            BuildLines();
-                            return PageResult.Stay;
-                        }
-                        TargetElevationDegrees = e;
-                        _inputBuffer = "";
                         SetSelection(Selection.InputAzimuth);
-                        BuildLines();
-                        EnsureSelectionVisible(ui);
-                        return PageResult.Stay;
-
+                        break;
                     case Selection.InputAzimuth:
-                        if (!TryAcceptDouble(_inputBuffer, out double a, fallback: TargetAzimuthDegrees))
-                        {
-                            _message = "✗ Invalid azimuth.";
-                            _inputBuffer = "";
-                            BuildLines();
-                            return PageResult.Stay;
-                        }
-                        a %= 360.0;
-                        if (a < 0) a += 360.0;
-                        TargetAzimuthDegrees = a;
-                        _inputBuffer = "";
                         SetSelection(Selection.InputVelocity);
-                        BuildLines();
-                        EnsureSelectionVisible(ui);
-                        return PageResult.Stay;
-
+                        break;
                     case Selection.InputVelocity:
-                        if (!TryAcceptDouble(_inputBuffer, out double v, fallback: LaunchVelocityMs) || v < 0 || v > _maxVelocity)
-                        {
-                            _message = "✗ Invalid velocity.";
-                            _inputBuffer = "";
-                            BuildLines();
-                            return PageResult.Stay;
-                        }
-                        LaunchVelocityMs = v;
-                        _inputBuffer = "";
-
                         _message = "Ready. Press (F)ire to commit.";
-                        BuildLines();
-                        EnsureSelectionVisible(ui);
-                        return PageResult.Stay;
+                        break;
                 }
+
+                BuildLines();
+                EnsureSelectionVisible(ui);
+                return PageResult.Stay;
             }
 
             return PageResult.Stay;
+        }
+
+        private bool TryCommitCurrentInputBuffer()
+        {
+            if (string.IsNullOrWhiteSpace(_inputBuffer))
+                return true;
+
+            _message = "";
+
+            switch (_selection)
+            {
+                case Selection.InputDelay:
+                    if (!TryAcceptDouble(_inputBuffer, out double d, fallback: LaunchDelaySeconds) || d < 0)
+                    {
+                        _message = "✗ Invalid delay (>=0).";
+                        return false;
+                    }
+                    LaunchDelaySeconds = d;
+                    _inputBuffer = "";
+                    return true;
+
+                case Selection.InputElevation:
+                    if (!TryAcceptDouble(_inputBuffer, out double e, fallback: TargetElevationDegrees) || e < -90 || e > 90)
+                    {
+                        _message = "✗ Invalid elevation (-90..90).";
+                        return false;
+                    }
+                    TargetElevationDegrees = e;
+                    _inputBuffer = "";
+                    return true;
+
+                case Selection.InputAzimuth:
+                    if (!TryAcceptDouble(_inputBuffer, out double a, fallback: TargetAzimuthDegrees))
+                    {
+                        _message = "✗ Invalid azimuth.";
+                        return false;
+                    }
+                    a %= 360.0;
+                    if (a < 0) a += 360.0;
+                    TargetAzimuthDegrees = a;
+                    _inputBuffer = "";
+                    return true;
+
+                case Selection.InputVelocity:
+                    if (!TryAcceptDouble(_inputBuffer, out double v, fallback: LaunchVelocityMs) || v < 0 || v > _maxVelocity)
+                    {
+                        _message = "✗ Invalid velocity.";
+                        return false;
+                    }
+                    LaunchVelocityMs = v;
+                    _inputBuffer = "";
+                    return true;
+
+                default:
+                    // Non-input selections should never accumulate a buffer, but be safe.
+                    _inputBuffer = "";
+                    return true;
+            }
         }
 
         private static bool TryAcceptDouble(string input, out double value, double fallback)

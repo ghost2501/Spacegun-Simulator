@@ -2,7 +2,9 @@ using Spacegun_Simulator.UI;
 using Spacegun_Simulator.UI.Diagnostics;
 using Spacegun_Simulator.UI.Flows;
 using Spacegun_Simulator.UI.Pages.Core;
+using Spacegun_Simulator.Ballistics;
 using Spacegun_Simulator.Enemies;
+using Spacegun_Simulator.Development.Weapons;
 using Spacegun_Simulator.Tests;
 
 namespace Spacegun_Simulator.Core
@@ -33,7 +35,17 @@ namespace Spacegun_Simulator.Core
                 return;
             }
 
+            if (args.Any(a => string.Equals(a, "--tuninglab-report", StringComparison.OrdinalIgnoreCase)))
+            {
+                RunTuningLabEnergyReport();
+                return;
+            }
+
             GameConfigLoader.LoadIfExists();
+            DevelopmentTuningLoader.LoadIfExists();
+            WeaponsTuningLoader.LoadIfExists();
+            WeaponsUpgradesLoader.LoadIfExists();
+            ProjectilesCatalogLoader.LoadIfExists();
 
             // Save files should live in a per-user location (no admin required).
             // Best-effort migrate any legacy install-relative saves.
@@ -131,9 +143,17 @@ namespace Spacegun_Simulator.Core
         {
             Console.WriteLine("TuningLab smoke: computing tuning curve...");
 
+            // Match the tuning harness and main game: load config/tuning overrides.
+            GameConfigLoader.LoadIfExists();
+            DevelopmentTuningLoader.LoadIfExists();
+            WeaponsTuningLoader.LoadIfExists();
+            WeaponsUpgradesLoader.LoadIfExists();
+            ProjectilesCatalogLoader.LoadIfExists();
+
             var res = FireSimulatorDiagnostics.ComputeTuningCurveByTier(
                 ruleset: EnemyGenerationRuleset.Full,
                 difficulty: GameDifficulty.CometsAndAsteroids,
+                weaponsTechLevel: 1,
                 radarLevel: 1,
                 overrideEnemyMass: false,
                 enemyMassKg: 1_000_000.0,
@@ -152,7 +172,7 @@ namespace Spacegun_Simulator.Core
                 overrideMuzzleVelocityMultiplier: false,
                 muzzleVelocityMultiplier: 1.0,
                 overrideProjectileMass: false,
-                projectileMassKg: 100.0,
+                projectileMassKg: 10.0,
                 overrideProjectileDefense: false,
                 projectileDefense: 0.0,
                 overridePenetration: false,
@@ -165,9 +185,16 @@ namespace Spacegun_Simulator.Core
                 propulsionBurnDurationSeconds: 1.0,
                 overridePropulsionReferenceMass: false,
                 propulsionReferenceMassKg: 10.0,
-                samplesPerWave: 1,
-                shotsPerSample: 200,
-                simulateAimError: false);
+                samplesPerWave: 3,
+                shotsPerSample: 20,
+                simulateAimError: false,
+                smoothTierSampling: true,
+                overrideEnemyVelocity: false,
+                enemyVelocityMs: 0.0,
+                overrideEnemyDensity: false,
+                enemyDensityGcm3: 7.85,
+                overrideEnemyMaterialStrength: false,
+                enemyBulkModulusGpa: 200.0);
 
             int tierCount = Math.Min(
                 res.ExpectedHitRateByTier.Length,
@@ -179,6 +206,237 @@ namespace Spacegun_Simulator.Core
                 Console.WriteLine(
                     $"Tier {i}: Det={res.DetectionRateByTier[i]:F3} BallisticsOK={res.BallisticsOkRateByTier[i]:F3} ExpectedHit={res.ExpectedHitRateByTier[i]:F3} ObservedHit={res.ObservedHitRateByTier[i]:F3}");
             }
+
+            try
+            {
+                double baseV = Math.Max(1.0, WeaponTuning.GetBaseMuzzleVelocityForTechLevel(1));
+                double barrelEfficiency = Math.Min(1.0, 100.0 / 200.0);
+                double barrelVelocityMultiplier = (0.5 + 0.5 * barrelEfficiency);
+                double effV = baseV * barrelVelocityMultiplier;
+                Console.WriteLine($"Smoke tuning: WeaponTech1BaseV={baseV:F0} m/s, BarrelMult={barrelVelocityMultiplier:F3}, EffectiveMaxV={effV:F0} m/s");
+                Console.WriteLine($"Smoke tuning: TierEnemyMaxVelocity=[{string.Join(", ", GameConstants.TierEnemyMaxVelocity.Select(v => v.ToString("F0")))}] m/s");
+            }
+            catch { }
+
+            // Extra debug: validate a single sample in tiers 0/1/2 using the solver's cached inputs.
+            // This helps distinguish energy gating vs geometry/accuracy invalidity.
+            try
+            {
+                const double barrelLengthMeters = 100.0;
+                double barrelEfficiency = Math.Min(1.0, barrelLengthMeters / 200.0);
+                double barrelVelocityMultiplier = (0.5 + 0.5 * barrelEfficiency);
+                double maxGunVelocity = Math.Max(1.0, WeaponTuning.GetBaseMuzzleVelocityForTechLevel(1) * barrelVelocityMultiplier);
+
+                var campaignType = EnemyType.GenerateForCampaign(new Random(4242));
+                foreach (int waveNumber in new[] { 1, 6, 11 })
+                {
+                    var rng = new Random(StableSeed($"smoke-sample|wave{waveNumber}"));
+                    var wave = EnemyWave.GenerateWave(waveNumber, rng, EnemyGenerationRuleset.Full, campaignType);
+                    var target = wave.Targets[0];
+
+                    var tier = GameConstants.GetTierForWave(waveNumber);
+                    double gunRangeMeters = tier.MaxEffectiveGunRange;
+
+                    double defenseScale = Math.Max(0.0, GameModeTuning.Current.FractureEnergyDefenseScale);
+                    double armoredFracture = Math.Max(0.0, target.FractureEnergy * (1.0 + defenseScale * Math.Clamp(target.Defense, 0.0, 1.0)));
+                    double effectiveFractureEnergy = armoredFracture; // penetration=1.0
+
+                    var calc = new FiringSolution(
+                        projectileMass: 10.0f,
+                        enemyFractureEnergy: (float)effectiveFractureEnergy,
+                        enemyMass: target.Mass,
+                        enemyCrossSectionM2: target.CrossSection);
+                    calc.ConfigureProjectileModifiers(
+                        additionalHitToleranceMultiplier: 1.0,
+                        propulsionDeltaVCapacityMs: 0.0,
+                        propulsionBurnDurationSeconds: 1.0,
+                        propulsionReferenceMassKg: 10.0);
+
+                    var problem = calc.GenerateFiringProblem(
+                        wave,
+                        playerGunMaxVelocity: (float)maxGunVelocity,
+                        gunEffectiveRange: (float)gunRangeMeters,
+                        rng: new Random(StableSeed($"smoke-problem|wave{waveNumber}")));
+
+                    var sol = calc.CalculateSolution(
+                        problem.EnemyPosition,
+                        problem.EnemyVelocity,
+                        problem.CorrectLaunchDelayTime,
+                        problem.CorrectElevation,
+                        problem.CorrectAzimuth,
+                        problem.CorrectVelocity,
+                        (float)maxGunVelocity,
+                        (float)gunRangeMeters,
+                        waveNumber,
+                        target.Mass,
+                        GameDifficulty.CometsAndAsteroids);
+
+                    // Also ask the tuning harness's baseline search what the best shot is for this geometry.
+                    // This helps confirm whether the issue is in cached hints or in the solver itself.
+                    string baselineInfo = string.Empty;
+                    if (FireSimulatorDiagnostics.TryFindBaselineBallisticSolution(
+                        calculator: calc,
+                        enemyPosition: problem.EnemyPosition,
+                        enemyVelocity: problem.EnemyVelocity,
+                        maxGunVelocity: maxGunVelocity,
+                        gunEffectiveRange: gunRangeMeters,
+                        waveNumber: waveNumber,
+                        enemyMass: target.Mass,
+                        difficulty: GameDifficulty.CometsAndAsteroids,
+                        requireDestroy: true,
+                        baseline: out var baseline,
+                        result: out var baselineRes))
+                    {
+                        baselineInfo = $" | BaselineFound: Hit={baselineRes.CanHit} Destroy={baselineRes.CanDestroy} Dev={baselineRes.InterceptDeviation:F1}m (delay={baseline.DelaySeconds:F1} elev={baseline.ElevDeg:F2} azim={baseline.AzimDeg:F2} v={baseline.VelocityMs:F0})";
+                    }
+                    else
+                    {
+                        baselineInfo = $" | BaselineMissBest: Destroy={baselineRes.CanDestroy} Dev={baselineRes.InterceptDeviation:F1}m (delay={baseline.DelaySeconds:F1} elev={baseline.ElevDeg:F2} azim={baseline.AzimDeg:F2} v={baseline.VelocityMs:F0})";
+                    }
+
+                    double keMj = BallisticsCalculator.CalculateKineticEnergyMJ(10.0, sol.ImpactVelocityMs > 0 ? sol.ImpactVelocityMs : problem.CorrectVelocity);
+                    Console.WriteLine(
+                        $"Tier {tier.TierIndex} sample (wave {waveNumber}): Mass={target.Mass * 1000.0:F0}kg RCS={target.CrossSection:F1}m^2 Fracture={effectiveFractureEnergy:F0}MJ KE~={keMj:F0}MJ Cached: Valid={sol.SolutionValid} Hit={sol.CanHit} Destroy={sol.CanDestroy} Dev={sol.InterceptDeviation:F1}m{baselineInfo}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Tier 0 sample: ERROR: {ex.Message}");
+            }
+        }
+
+        private static void RunTuningLabEnergyReport()
+        {
+            Console.WriteLine("TuningLab report: computing tier energy/feasibility breakdown...");
+
+            // Load config/tuning overrides so the report matches gameplay.
+            GameConfigLoader.LoadIfExists();
+            DevelopmentTuningLoader.LoadIfExists();
+            WeaponsTuningLoader.LoadIfExists();
+            WeaponsUpgradesLoader.LoadIfExists();
+            ProjectilesCatalogLoader.LoadIfExists();
+
+            // Optional CLI overrides to make this report match a specific Tuning Lab setup.
+            // Examples:
+            //   --tuninglab-report --samples=10 --muzzle=2.0
+            //   --tuninglab-report --samples=10 --muzzle=2.0 --tech=2 --radar=2
+            int GetIntArg(string name, int fallback)
+            {
+                try
+                {
+                    var arg = Environment.GetCommandLineArgs()
+                        .FirstOrDefault(a => a.StartsWith(name + "=", StringComparison.OrdinalIgnoreCase));
+                    if (arg is null) return fallback;
+                    var raw = arg[(name.Length + 1)..];
+                    return int.TryParse(raw, out var v) ? v : fallback;
+                }
+                catch { return fallback; }
+            }
+
+            double GetDoubleArg(string name, double fallback)
+            {
+                try
+                {
+                    var arg = Environment.GetCommandLineArgs()
+                        .FirstOrDefault(a => a.StartsWith(name + "=", StringComparison.OrdinalIgnoreCase));
+                    if (arg is null) return fallback;
+                    var raw = arg[(name.Length + 1)..];
+                    return double.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v)
+                        ? v
+                        : fallback;
+                }
+                catch { return fallback; }
+            }
+
+            int samplesPerTier = GetIntArg("--samples", 75);
+            int weaponsTechLevel = GetIntArg("--tech", 1);
+            int radarLevel = GetIntArg("--radar", 1);
+            double muzzleVelocityMultiplier = GetDoubleArg("--muzzle", 1.0);
+
+            var report = FireSimulatorDiagnostics.ComputeTuningEnergyReportByTier(
+                ruleset: EnemyGenerationRuleset.Full,
+                difficulty: GameDifficulty.CometsAndAsteroids,
+                weaponsTechLevel: weaponsTechLevel,
+                radarLevel: radarLevel,
+                overrideEnemyMass: false,
+                enemyMassKg: 1_000_000.0,
+                overrideEnemyFractureEnergy: false,
+                enemyFractureEnergy: 10_000.0,
+                overrideEnemyDensity: false,
+                enemyDensityGcm3: 7.85,
+                overrideEnemyMaterialStrength: false,
+                enemyBulkModulusGpa: 200.0,
+                overrideEnemyManeuverability: false,
+                enemyManeuverability: 1.0,
+                overrideEnemyOffense: false,
+                enemyOffense: 1.0,
+                overrideEnemyDefense: false,
+                enemyDefense: 1.0,
+                overrideBarrelLength: false,
+                barrelLength: 100.0,
+                overrideFireControlQuality: false,
+                fireControlQuality: 1.0,
+                overrideMuzzleVelocityMultiplier: true,
+                muzzleVelocityMultiplier: muzzleVelocityMultiplier,
+                overrideProjectileMass: false,
+                projectileMassKg: 10.0,
+                overrideProjectileDefense: false,
+                projectileDefense: 0.0,
+                overridePenetration: false,
+                penetration: 1.0,
+                overrideHitToleranceMultiplier: false,
+                hitToleranceMultiplier: 1.0,
+                overridePropulsionDeltaV: false,
+                propulsionDeltaVCapacityMs: 0.0,
+                overridePropulsionBurnDuration: false,
+                propulsionBurnDurationSeconds: 1.0,
+                overridePropulsionReferenceMass: false,
+                propulsionReferenceMassKg: 10.0,
+                overrideEnemyVelocity: false,
+                enemyVelocityMs: 0.0,
+                samplesPerTier: samplesPerTier,
+                smoothTierSampling: true);
+
+            string csvPath = FireSimulatorDiagnostics.WriteTuningLabEnergyReportCsv(report, includeMissedButDetected: true);
+            Console.WriteLine($"TuningLab report: wrote {csvPath}");
+
+            // Small console summary for quick tuning iteration.
+            for (int t = 0; t < Math.Min(GameConstants.TierCount, report.SamplesByTier.Length); t++)
+            {
+                int detCount = report.DetectedByTier[t];
+                int detDenom = Math.Max(1, detCount);
+                int energyOkCount = report.EnergySufficientByTier[t];
+                int canHitCount = report.CanHitByTier[t];
+                int ballisticsOkCount = report.BallisticsOkByTier[t];
+                int energyGatedCount = report.EnergyGatedByTier[t];
+                int missedButDetectedCount = Math.Max(0, detCount - canHitCount);
+
+                double energySufficientRate = (double)energyOkCount / detDenom;
+                double canHitRate = (double)canHitCount / detDenom;
+                double ballisticsOkRate = (double)ballisticsOkCount / detDenom;
+                double energyGateRate = (double)energyGatedCount / detDenom;
+                double missedButDetectedRate = (double)missedButDetectedCount / detDenom;
+
+                Console.WriteLine(
+                    $"Tier {t}: Det={report.DetectedByTier[t]}/{report.SamplesByTier[t]} " +
+                    $"EnergyOk={energyOkCount}/{detCount} ({energySufficientRate:F3}) " +
+                    $"CanHit={canHitCount}/{detCount} ({canHitRate:F3}) " +
+                    $"MissedButDetected={missedButDetectedCount}/{detCount} ({missedButDetectedRate:F3}) " +
+                    $"BallisticsOk={ballisticsOkCount}/{detCount} ({ballisticsOkRate:F3}) " +
+                    $"EnergyGated={energyGatedCount}/{detCount} ({energyGateRate:F3}) " +
+                    $"AvgKE={report.AvgKineticEnergyMJByTier[t]:F0}MJ AvgFracture={report.AvgEffectiveFractureEnergyMJByTier[t]:F0}MJ " +
+                    $"AvgKE/Frac={report.AvgKeToFractureRatioByTier[t]:F3}"
+                );
+            }
+        }
+
+        private static int StableSeed(string key)
+        {
+            using var sha = System.Security.Cryptography.SHA256.Create();
+            byte[] bytes = System.Text.Encoding.UTF8.GetBytes(key ?? string.Empty);
+            byte[] hash = sha.ComputeHash(bytes);
+            int seed = BitConverter.ToInt32(hash, 0);
+            return seed == int.MinValue ? 0 : Math.Abs(seed);
         }
 
         private static void RunTuningLabHeadless()
@@ -228,11 +486,16 @@ namespace Spacegun_Simulator.Core
             var res = FireSimulatorDiagnostics.ComputeTuningCurveByTier(
                 ruleset: ruleset,
                 difficulty: difficulty,
+                weaponsTechLevel: 1,
                 radarLevel: radarLevel,
                 overrideEnemyMass: overrideEnemyMass,
                 enemyMassKg: enemyMassKg,
                 overrideEnemyFractureEnergy: overrideEnemyFractureEnergy,
                 enemyFractureEnergy: enemyFractureEnergy,
+                overrideEnemyDensity: false,
+                enemyDensityGcm3: 7.85,
+                overrideEnemyMaterialStrength: false,
+                enemyBulkModulusGpa: 200.0,
                 overrideEnemyManeuverability: overrideEnemyManeuverability,
                 enemyManeuverability: enemyManeuverability,
                 overrideEnemyOffense: overrideEnemyOffense,
@@ -261,21 +524,32 @@ namespace Spacegun_Simulator.Core
                 propulsionReferenceMassKg: propulsionReferenceMassKg,
                 samplesPerWave: samplesPerWave,
                 shotsPerSample: shotsPerSample,
-                simulateAimError: simulateAimError);
+                simulateAimError: simulateAimError,
+                smoothTierSampling: false,
+                overrideEnemyVelocity: false,
+                enemyVelocityMs: 0.0);
 
             try
             {
                 string csvPath = FireSimulatorDiagnostics.AppendTuningLabRunCsv(
                     ruleset: ruleset,
                     difficulty: difficulty,
+                    weaponsTechLevel: 1,
                     radarLevel: radarLevel,
                     samplesPerWave: samplesPerWave,
                     shotsPerSample: shotsPerSample,
                     simulateAimError: simulateAimError,
+                    smoothTierSampling: false,
+                    overrideEnemyDensity: false,
+                    enemyDensityGcm3: 0.0,
+                    overrideEnemyMaterialStrength: false,
+                    enemyBulkModulusGpa: 0.0,
                     overrideEnemyMass: overrideEnemyMass,
                     enemyMassKg: enemyMassKg,
                     overrideEnemyFractureEnergy: overrideEnemyFractureEnergy,
                     enemyFractureEnergy: enemyFractureEnergy,
+                    overrideEnemyVelocity: false,
+                    enemyVelocityMs: 0.0,
                     overrideEnemyManeuverability: overrideEnemyManeuverability,
                     enemyManeuverability: enemyManeuverability,
                     overrideEnemyOffense: overrideEnemyOffense,
