@@ -6,24 +6,14 @@ namespace Spacegun_Simulator.Core
 {
     public static class ProjectilesCatalogLoader
     {
-        private static readonly JsonSerializerOptions JsonOptions = new()
-        {
-            PropertyNameCaseInsensitive = true,
-            ReadCommentHandling = JsonCommentHandling.Skip,
-            AllowTrailingCommas = true,
-        };
-
         public static void LoadIfExists(string relativePath = "Config/ProjectilesCatalog.json")
         {
             try
             {
-                if (!File.Exists(relativePath))
+                // Deserialize as raw DTOs first, then map to runtime objects.
+                if (!ConfigJson.TryDeserializeFile<ProjectilesCatalogJson>(relativePath, out var cfg))
                     return;
 
-                var json = File.ReadAllText(relativePath);
-
-                // Deserialize as raw DTOs first, then map to runtime objects.
-                var cfg = JsonSerializer.Deserialize<ProjectilesCatalogJson>(json, JsonOptions);
                 if (cfg is null)
                     return;
 

@@ -5,55 +5,39 @@ namespace Spacegun_Simulator.Core
 {
     public static class WeaponsUpgradesLoader
     {
-        private static readonly JsonSerializerOptions JsonOptions = new()
-        {
-            PropertyNameCaseInsensitive = true,
-            ReadCommentHandling = JsonCommentHandling.Skip,
-            AllowTrailingCommas = true,
-        };
-
         public static void LoadIfExists(string relativePath = "Config/WeaponsUpgrades.json")
         {
-            try
+            if (!ConfigJson.TryDeserializeFile<WeaponsUpgradesConfig>(relativePath, out var cfg))
+                return;
+
+            if (cfg?.Upgrades is null)
+                return;
+
+            var defs = new List<WeaponsUpgrades.UpgradeDefinition>(cfg.Upgrades.Length);
+
+            foreach (var u in cfg.Upgrades)
             {
-                if (!File.Exists(relativePath))
-                    return;
-
-                var json = File.ReadAllText(relativePath);
-                var cfg = JsonSerializer.Deserialize<WeaponsUpgradesConfig>(json, JsonOptions);
-                if (cfg?.Upgrades is null)
-                    return;
-
-                var defs = new List<WeaponsUpgrades.UpgradeDefinition>(cfg.Upgrades.Length);
-
-                foreach (var u in cfg.Upgrades)
-                {
-                    var cost = u.Cost?.ToResourceCost() ?? ResourceCost.None;
-                    defs.Add(new WeaponsUpgrades.UpgradeDefinition(
-                        Id: u.Id,
-                        Name: u.Name,
-                        Description: u.Description,
-                        Cost: cost,
-                        Prerequisites: u.Prerequisites ?? Array.Empty<string>(),
-                        StatModifiers: u.StatModifiers ?? new Dictionary<string, double>(),
-                        MinWeaponsTechLevel: u.MinWeaponsTechLevel,
-                        MinProjectilesTechLevel: u.MinProjectilesTechLevel,
-                        RequiresGuidanceMod: u.RequiresGuidanceMod ?? false,
-                        RequiresPropulsion: u.RequiresPropulsion,
-                        Parameters: u.Parameters ?? new Dictionary<string, double>()
-                    ));
-                }
-
-                WeaponsUpgrades.Apply(defs);
-
-                // Optional: treat upgrade definitions as the single source of truth for wear modifiers.
-                // This is safe because it only affects guns that actually have InstalledUpgrades set.
-                ApplyWearModifiersFromUpgrades(defs);
+                var cost = u.Cost?.ToResourceCost() ?? ResourceCost.None;
+                defs.Add(new WeaponsUpgrades.UpgradeDefinition(
+                    Id: u.Id,
+                    Name: u.Name,
+                    Description: u.Description,
+                    Cost: cost,
+                    Prerequisites: u.Prerequisites ?? Array.Empty<string>(),
+                    StatModifiers: u.StatModifiers ?? new Dictionary<string, double>(),
+                    MinWeaponsTechLevel: u.MinWeaponsTechLevel,
+                    MinProjectilesTechLevel: u.MinProjectilesTechLevel,
+                    RequiresGuidanceMod: u.RequiresGuidanceMod ?? false,
+                    RequiresPropulsion: u.RequiresPropulsion,
+                    Parameters: u.Parameters ?? new Dictionary<string, double>()
+                ));
             }
-            catch
-            {
-                // Keep game runnable if config is malformed.
-            }
+
+            WeaponsUpgrades.Apply(defs);
+
+            // Optional: treat upgrade definitions as the single source of truth for wear modifiers.
+            // This is safe because it only affects guns that actually have InstalledUpgrades set.
+            ApplyWearModifiersFromUpgrades(defs);
         }
 
         private static void ApplyWearModifiersFromUpgrades(IReadOnlyList<WeaponsUpgrades.UpgradeDefinition> defs)
