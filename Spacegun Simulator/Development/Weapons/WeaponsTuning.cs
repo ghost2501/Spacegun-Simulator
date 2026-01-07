@@ -1,5 +1,4 @@
 using Spacegun_Simulator.Development;
-using Spacegun_Simulator.Development.Weapons;
 
 namespace Spacegun_Simulator.Core
 {
@@ -9,11 +8,22 @@ namespace Spacegun_Simulator.Core
     /// </summary>
     public static class WeaponsTuning
     {
+        public readonly record struct WeaponsTechTuning(
+            int TechLevel,
+            string Name,
+            PropulsionType PropulsionSystem,
+            double MuzzleVelocityMultiplier,
+            double BarrelWearMultiplier = 1.0,
+            double FireControlQualityMultiplier = 1.0,
+            double ProjectileMassMultiplier = 1.0,
+            double PenetrationMultiplier = 1.0
+        );
+
         // Canonical weapon wear + base velocity are still mutable (config can override).
         public static double DefaultBarrelWearPerShot { get; set; } = 0.0005;
         public static int BaseMuzzleVelocityMs { get; set; } = 80_000;
 
-        public static WeaponTuning.WeaponsTechTuning[] WeaponsTechLevels { get; private set; } = CreateDefaultTechLevels();
+        public static WeaponsTechTuning[] WeaponsTechLevels { get; private set; } = CreateDefaultTechLevels();
         public static double[] WeaponsTechVelocityMultipliers { get; private set; } = CreateVelocityMultipliers(CreateDefaultTechLevels());
 
         public static GunTuningValues Gun { get; private set; } = GunTuningValues.CreateDefaults();
@@ -28,7 +38,7 @@ namespace Spacegun_Simulator.Core
 
             if (cfg.WeaponsTechLevels is { Length: > 0 })
             {
-                var levels = new WeaponTuning.WeaponsTechTuning[cfg.WeaponsTechLevels.Length];
+                var levels = new WeaponsTechTuning[cfg.WeaponsTechLevels.Length];
                 for (int i = 0; i < levels.Length; i++)
                 {
                     var row = cfg.WeaponsTechLevels[i];
@@ -40,7 +50,7 @@ namespace Spacegun_Simulator.Core
                         propulsion = parsed;
                     }
 
-                    levels[i] = new WeaponTuning.WeaponsTechTuning(
+                    levels[i] = new WeaponsTechTuning(
                         TechLevel: Math.Max(1, row.TechLevel),
                         Name: row.Name ?? "",
                         PropulsionSystem: propulsion,
@@ -82,21 +92,21 @@ namespace Spacegun_Simulator.Core
             return BaseMuzzleVelocityMs * WeaponsTechVelocityMultipliers[index];
         }
 
-        private static WeaponTuning.WeaponsTechTuning[] CreateDefaultTechLevels() =>
+        private static WeaponsTechTuning[] CreateDefaultTechLevels() =>
         [
-            new WeaponTuning.WeaponsTechTuning(
+            new WeaponsTechTuning(
                 TechLevel: 1,
                 Name: "Chemical",
                 PropulsionSystem: PropulsionType.Chemical,
                 MuzzleVelocityMultiplier: 1.0
             ),
-            new WeaponTuning.WeaponsTechTuning(
+            new WeaponsTechTuning(
                 TechLevel: 2,
                 Name: "Railgun",
                 PropulsionSystem: PropulsionType.Railgun,
                 MuzzleVelocityMultiplier: 2.0
             ),
-            new WeaponTuning.WeaponsTechTuning(
+            new WeaponsTechTuning(
                 TechLevel: 3,
                 Name: "Hybrid",
                 PropulsionSystem: PropulsionType.Hybrid,
@@ -104,7 +114,7 @@ namespace Spacegun_Simulator.Core
             )
         ];
 
-        private static double[] CreateVelocityMultipliers(WeaponTuning.WeaponsTechTuning[] techLevels)
+        private static double[] CreateVelocityMultipliers(WeaponsTechTuning[] techLevels)
         {
             var arr = new double[Math.Max(1, techLevels.Length)];
             for (int i = 0; i < arr.Length; i++)

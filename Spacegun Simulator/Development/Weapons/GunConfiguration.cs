@@ -109,13 +109,13 @@
         /// </summary>
         public static double GetBaseMuzzleVelocityForTechLevel(int weaponsTechLevel)
         {
-            return WeaponTuning.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel)
+            return WeaponsTuning.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel)
                    * Math.Clamp(GameConstants.MuzzleVelocityMultiplier, 0.25, 3.0);
         }
 
         public static PropulsionType GetPropulsionSystemForWeaponsTechLevel(int weaponsTechLevel)
         {
-            return WeaponTuning.GetPropulsionSystemForTechLevel(weaponsTechLevel);
+            return WeaponsTuning.GetPropulsionSystemForTechLevel(weaponsTechLevel);
         }
 
         public void UpdateBaseMuzzleVelocity(int weaponsTechLevel)

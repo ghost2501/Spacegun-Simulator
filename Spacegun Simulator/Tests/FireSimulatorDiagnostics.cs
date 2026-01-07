@@ -289,11 +289,11 @@ namespace Spacegun_Simulator.Tests
             // Copy the 'in' parameter to a local so we can safely reference it in lambdas.
             var res = result;
 
-            int maxTech = Math.Max(1, WeaponTuning.WeaponsTechVelocityMultipliers.Length);
+            int maxTech = Math.Max(1, WeaponsTuning.WeaponsTechVelocityMultipliers.Length);
             weaponsTechLevel = Math.Clamp(weaponsTechLevel, 1, maxTech);
 
             // Effective projectile launch velocity (kph) for this run (tier-independent).
-            double baseMaxGunVelocity = Math.Max(1.0, WeaponTuning.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel));
+            double baseMaxGunVelocity = Math.Max(1.0, WeaponsTuning.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel));
             double effectiveVelMs = Math.Max(1.0, baseMaxGunVelocity * muzzleVelocityMultiplier);
             double barrelEfficiency = Math.Min(1.0, barrelLengthMeters / 200.0);
             double barrelVelocityMultiplier = (0.5 + 0.5 * barrelEfficiency);
@@ -774,7 +774,7 @@ namespace Spacegun_Simulator.Tests
             var campaignRng = new Random(StableSeed($"tuning|{rulesetLabel}|{difficultyLabel}|campaign"));
             var campaignType = EnemyType.GenerateForCampaign(campaignRng);
 
-            int maxTech = Math.Max(1, WeaponTuning.WeaponsTechVelocityMultipliers.Length);
+            int maxTech = Math.Max(1, WeaponsTuning.WeaponsTechVelocityMultipliers.Length);
             weaponsTechLevel = Math.Clamp(weaponsTechLevel, 1, maxTech);
 
             const double defaultBarrelLength = 100.0;
@@ -789,7 +789,7 @@ namespace Spacegun_Simulator.Tests
             const double defaultPropulsionReferenceMassKg = 5000.0;
 
             // Player muzzle velocity is tier-independent; tiers only affect enemy/wave values.
-            double baseMaxGunVelocity = Math.Max(1.0, WeaponTuning.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel));
+            double baseMaxGunVelocity = Math.Max(1.0, WeaponsTuning.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel));
             double effectiveBarrelLength = overrideBarrelLength ? barrelLength : defaultBarrelLength;
             double effectiveFireControl = overrideFireControlQuality ? fireControlQuality : defaultFireControlQuality;
             double effectiveProjectileMass = overrideProjectileMass ? projectileMassKg : defaultProjectileMassKg;
@@ -2258,7 +2258,7 @@ namespace Spacegun_Simulator.Tests
                 _ => difficulty.ToString()
             };
 
-            int maxTech = Math.Max(1, WeaponTuning.WeaponsTechVelocityMultipliers.Length);
+            int maxTech = Math.Max(1, WeaponsTuning.WeaponsTechVelocityMultipliers.Length);
             weaponsTechLevel = Math.Clamp(weaponsTechLevel, 1, maxTech);
 
             const double defaultBarrelLength = 100.0;
@@ -2295,7 +2295,7 @@ namespace Spacegun_Simulator.Tests
                 : 1.0;
             double impactCoupling = Math.Clamp(baseImpactCoupling * couplingMassScale * couplingTechScale, 0.0001, 100.0);
 
-            double baseMaxGunVelocity = Math.Max(1.0, WeaponTuning.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel));
+            double baseMaxGunVelocity = Math.Max(1.0, WeaponsTuning.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel));
             double effectiveMaxGunVelocity = Math.Max(1.0, baseMaxGunVelocity * effectiveMuzzleVelocityMult);
             double barrelEfficiency = Math.Min(1.0, effectiveBarrelLength / 200.0);
             double barrelVelocityMultiplier = (0.5 + 0.5 * barrelEfficiency);

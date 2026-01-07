@@ -209,7 +209,7 @@ namespace Spacegun_Simulator.Core
 
             try
             {
-                double baseV = Math.Max(1.0, WeaponTuning.GetBaseMuzzleVelocityForTechLevel(1));
+                double baseV = Math.Max(1.0, WeaponsTuning.GetBaseMuzzleVelocityForTechLevel(1));
                 double barrelEfficiency = Math.Min(1.0, 100.0 / 200.0);
                 double barrelVelocityMultiplier = (0.5 + 0.5 * barrelEfficiency);
                 double effV = baseV * barrelVelocityMultiplier;
@@ -225,7 +225,7 @@ namespace Spacegun_Simulator.Core
                 const double barrelLengthMeters = 100.0;
                 double barrelEfficiency = Math.Min(1.0, barrelLengthMeters / 200.0);
                 double barrelVelocityMultiplier = (0.5 + 0.5 * barrelEfficiency);
-                double maxGunVelocity = Math.Max(1.0, WeaponTuning.GetBaseMuzzleVelocityForTechLevel(1) * barrelVelocityMultiplier);
+                double maxGunVelocity = Math.Max(1.0, WeaponsTuning.GetBaseMuzzleVelocityForTechLevel(1) * barrelVelocityMultiplier);
 
                 var campaignType = EnemyType.GenerateForCampaign(new Random(4242));
                 foreach (int waveNumber in new[] { 1, 6, 11 })

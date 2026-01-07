@@ -1133,7 +1133,7 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
                         break;
                     case Field.WeaponsTechLevel:
                     {
-                        int maxTech = Math.Max(1, WeaponTuning.WeaponsTechVelocityMultipliers.Length);
+                        int maxTech = Math.Max(1, WeaponsTuning.WeaponsTechVelocityMultipliers.Length);
                         _weaponsTechLevel = Math.Clamp(_weaponsTechLevel + dir, 1, maxTech);
                         break;
                     }
@@ -1312,7 +1312,7 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
             {
                 case Field.WeaponsTechLevel:
                 {
-                    int maxTech = Math.Max(1, WeaponTuning.WeaponsTechVelocityMultipliers.Length);
+                    int maxTech = Math.Max(1, WeaponsTuning.WeaponsTechVelocityMultipliers.Length);
                     _weaponsTechLevel = Math.Clamp((int)Math.Round(d), 1, maxTech);
                     break;
                 }

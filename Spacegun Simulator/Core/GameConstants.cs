@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Diagnostics;
 using Spacegun_Simulator.Economy;
 using Spacegun_Simulator.Development.Shared;
-using Spacegun_Simulator.Development.Weapons;
 
 namespace Spacegun_Simulator.Core
 {
@@ -26,8 +25,8 @@ namespace Spacegun_Simulator.Core
         // ====================================================================
         public static double DefaultBarrelWearPerShot
         {
-            get => WeaponTuning.DefaultBarrelWearPerShot;
-            set => WeaponTuning.DefaultBarrelWearPerShot = value;
+            get => WeaponsTuning.DefaultBarrelWearPerShot;
+            set => WeaponsTuning.DefaultBarrelWearPerShot = value;
         }
 
         // ============================================================================
@@ -69,8 +68,8 @@ namespace Spacegun_Simulator.Core
         // ====================================================================
         public static int BaseMuzzleVelocityMs
         {
-            get => WeaponTuning.BaseMuzzleVelocityMs;
-            set => WeaponTuning.BaseMuzzleVelocityMs = Math.Max(1, value);
+            get => WeaponsTuning.BaseMuzzleVelocityMs;
+            set => WeaponsTuning.BaseMuzzleVelocityMs = Math.Max(1, value);
         }
 
         /// <summary>
@@ -79,7 +78,7 @@ namespace Spacegun_Simulator.Core
         /// </summary>
         public static double MuzzleVelocityMultiplier { get; set; } = 1.0;
 
-        public static double[] WeaponsTechVelocityMultipliers => WeaponTuning.WeaponsTechVelocityMultipliers;
+        public static double[] WeaponsTechVelocityMultipliers => WeaponsTuning.WeaponsTechVelocityMultipliers;
 
         // Legacy/compatibility: derived per-tech base velocities.
         public static double[] WeaponsTechBaseVelocity
