@@ -1,7 +1,7 @@
 namespace Spacegun_Simulator.Development.Weapons
 {
     /// <summary>
-    /// Weapon-related tuning values. Values are config-backed via Core/WeaponsTuning.
+    /// Weapon-related tuning values. Values are config-backed via Spacegun_Simulator.Core.WeaponsTuning.
     /// </summary>
     public static class WeaponTuning
     {

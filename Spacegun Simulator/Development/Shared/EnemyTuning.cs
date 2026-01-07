@@ -4,7 +4,7 @@ namespace Spacegun_Simulator.Development.Shared
 {
     /// <summary>
     /// Enemy generation tunables (type pools, per-type ranges, and stealth chance).
-    /// Values are config-backed via Core/DevelopmentTuning.
+    /// Values are config-backed via Spacegun_Simulator.Core.DevelopmentTuning.
     /// </summary>
     public static class EnemyTuning
     {

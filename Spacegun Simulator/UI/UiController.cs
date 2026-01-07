@@ -1,5 +1,5 @@
 ﻿using Spacegun_Simulator.UI.Pages;
-using Spacegun_Simulator.Audio;
+using Spacegun_Simulator;
 
 namespace Spacegun_Simulator.UI
 {
