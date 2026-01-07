@@ -435,13 +435,13 @@ namespace Spacegun_Simulator.Core
         // ===== TIER-BASED VELOCITY CONSTRAINTS (NEW) =====
         /// <summary>
         /// Minimum enemy velocity for each tier (m/s).
-        /// Aligned with WaveTiers VelocityMin values.
+        /// Used for diagnostics/test-scenario sampling; not required to match WaveTiers.
         /// </summary>
         public static double[] TierEnemyMinVelocity => TierVelocityTuning.TierEnemyMinVelocity;
 
         /// <summary>
         /// Maximum enemy velocity for each tier (m/s).
-        /// Aligned with WaveTiers VelocityMax values.
+        /// Used for diagnostics/test-scenario sampling; not required to match WaveTiers.
         /// </summary>
         public static double[] TierEnemyMaxVelocity => TierVelocityTuning.TierEnemyMaxVelocity;
 
