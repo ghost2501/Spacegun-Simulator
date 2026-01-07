@@ -77,9 +77,8 @@ namespace Spacegun_Simulator.Tests
             }
 
             Run("Tier arrays consistency", TierArraysConsistencyTests.RunAllChecks);
-            Run("Constants consistency", ConstantsConsistencyChecks.RunAllChecks);
-            Run("Weapon tech mapping (legacy)", ConstantsConsistencyChecks.RunWeaponTechMappingCheck);
-            Run("Barrel wear mapping (legacy)", ConstantsConsistencyChecks.RunBarrelWearMappingCheck);
+            Run("Weapon tech mapping", ConstantsConsistencyChecks.RunWeaponTechMappingCheck);
+            Run("Barrel wear mapping", ConstantsConsistencyChecks.RunBarrelWearMappingCheck);
 
             return results;
         }

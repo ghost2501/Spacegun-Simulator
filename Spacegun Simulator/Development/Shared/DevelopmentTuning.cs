@@ -101,9 +101,9 @@ namespace Spacegun_Simulator.Core
         public sealed record TierVelocityValues(double[] TierEnemyMinVelocity, double[] TierEnemyMaxVelocity)
         {
             public static TierVelocityValues CreateDefaults() => new(
-                // Scales from early-tier tens of km/s up to ~1,000,000 kph by final tier.
-                TierEnemyMinVelocity: [25_000.0, 45_000.0, 80_000.0, 140_000.0, 220_000.0],
-                TierEnemyMaxVelocity: [55_000.0, 90_000.0, 150_000.0, 230_000.0, 280_000.0]
+                // Must remain consistent with GameConstants.WaveTiers velocity ranges (m/s).
+                TierEnemyMinVelocity: [50_000.0, 200_000.0, 1_000_000.0, 3_000_000.0, 5_000_000.0],
+                TierEnemyMaxVelocity: [90_000.0, 500_000.0, 3_000_000.0, 6_500_000.0, 10_000_000.0]
             );
 
             public TierVelocityValues Apply(TierVelocityTuningConfig c) => this with

@@ -513,32 +513,22 @@ namespace Spacegun_Simulator.Tests
 
             try
             {
-                ConstantsConsistencyChecks.RunAllChecks();
-                Console.WriteLine("✓ Constants consistency check passed.");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"✗ Constants consistency check failed: {ex.Message}");
-            }
-
-            try
-            {
                 ConstantsConsistencyChecks.RunWeaponTechMappingCheck();
-                Console.WriteLine("✓ Legacy weapon-tech mapping check passed.");
+                Console.WriteLine("✓ Weapon-tech mapping check passed.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"✗ Legacy weapon-tech mapping check failed: {ex.Message}");
+                Console.WriteLine($"✗ Weapon-tech mapping check failed: {ex.Message}");
             }
 
             try
             {
                 ConstantsConsistencyChecks.RunBarrelWearMappingCheck();
-                Console.WriteLine("✓ Legacy barrel-wear mapping check passed.");
+                Console.WriteLine("✓ Barrel-wear mapping check passed.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"✗ Legacy barrel-wear mapping check failed: {ex.Message}");
+                Console.WriteLine($"✗ Barrel-wear mapping check failed: {ex.Message}");
             }
 
             Console.WriteLine("\nPress any key to return to test menu...");

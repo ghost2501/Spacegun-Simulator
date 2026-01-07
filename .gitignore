@@ -50,12 +50,8 @@ ui.log
 # Release / backup artifacts
 *.zip
 
-# Allow checked-in release bundles
-!Releases/
+# Releases/ should stay local (generated artifacts)
 
-
-# Local scratch space for verifying release zips
-Releases/_verify/
 
 # Accidental snapshot folder
 New folder/
