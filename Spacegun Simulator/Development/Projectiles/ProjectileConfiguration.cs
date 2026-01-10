@@ -12,7 +12,6 @@
         public double Mass { get; set; }
         public double Length { get; set; }
         public ProjectileType Type { get; set; }
-        public double DragCoefficient { get; set; }
         public bool HasGuidance { get; set; }
         public double GuidanceAccuracy { get; set; }
         public ArmorPenetrationType PenetrationType { get; set; }
@@ -22,7 +21,6 @@
             Mass = DevelopmentTuning.ProjectileDefaults.Mass;
             Length = DevelopmentTuning.ProjectileDefaults.Length;
             Type = ProjectileType.KineticPenetrator;
-            DragCoefficient = DevelopmentTuning.ProjectileDefaults.DragCoefficient;
             HasGuidance = DevelopmentTuning.ProjectileDefaults.HasGuidance;
             GuidanceAccuracy = DevelopmentTuning.ProjectileDefaults.GuidanceAccuracy;
             PenetrationType = ArmorPenetrationType.KineticEnergy;

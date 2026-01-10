@@ -1,5 +1,6 @@
 using Spacegun_Simulator.UI.Theme;
 using Spacegun_Simulator.Core;
+using Spacegun_Simulator.Core.Stats;
 using Spacegun_Simulator.Development.Shared;
 using Spacegun_Simulator.Development.Technology;
 
@@ -37,6 +38,7 @@ public sealed class GunDevelopmentPage : PageBase
     private int _selectedIndex;
     private Mode _mode;
     private string _resultMessage = string.Empty;
+    private int _hiddenByPrerequisites;
 
     public override void OnEnter(UiContext ui)
     {
@@ -52,13 +54,14 @@ public sealed class GunDevelopmentPage : PageBase
     private void BuildUpgrades(GameState game)
     {
         _upgrades.Clear();
+        _hiddenByPrerequisites = 0;
 
         int weaponsTech = game.TechTree.CurrentLevel[TechTree.TechType.Weapons];
         int projectilesTech = game.TechTree.CurrentLevel[TechTree.TechType.Projectiles];
         game.Gun.UpdateBaseMuzzleVelocity(weaponsTech);
 
         bool hasGuidanceMod =
-            (game.CraftedProjectile?.Enhancement?.Id == "guidance")
+            (game.CraftedProjectile?.HasGuidance == true)
             || game.Gun.DefaultProjectile.HasGuidance;
 
         // NOTE (maintenance): Upgrades intentionally target distinct underlying stats.
@@ -73,10 +76,47 @@ public sealed class GunDevelopmentPage : PageBase
         if (defs is null || defs.Count == 0)
             return;
 
+        // BarrelRepair is a repeatable maintenance action and should always be visible.
+        WeaponsUpgrades.UpgradeDefinition? barrelRepairDef = null;
+        foreach (var def in defs)
+        {
+            if (def is null) continue;
+            if (string.Equals(def.Id, "BarrelRepair", StringComparison.OrdinalIgnoreCase))
+            {
+                barrelRepairDef = def;
+                break;
+            }
+        }
+
+        if (barrelRepairDef is not null)
+        {
+            _upgrades.Add(new UpgradeOption(
+                Name: barrelRepairDef.Name,
+                Description: barrelRepairDef.Description,
+                Cost: barrelRepairDef.Cost,
+                Apply: g => ApplyUpgradeDefinition(barrelRepairDef, g)
+            ));
+        }
+
         bool isChemical = game.Gun.PropulsionSystem == Spacegun_Simulator.Development.PropulsionType.Chemical;
 
         foreach (var def in defs)
         {
+            if (def is null) continue;
+            if (string.Equals(def.Id, "BarrelRepair", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (!ArePrerequisitesMet(def, game.Gun.InstalledUpgrades))
+            {
+                _hiddenByPrerequisites++;
+                continue;
+            }
+
+            // Most upgrades are one-time purchases and should not be offered again.
+            // Exceptions (repeatable actions) are handled by ID.
+            if (IsOneTimeUpgrade(def) && game.Gun.InstalledUpgrades.Contains(def.Id))
+                continue;
+
             if (def.MinWeaponsTechLevel.HasValue && weaponsTech < def.MinWeaponsTechLevel.Value)
                 continue;
             if (def.MinProjectilesTechLevel.HasValue && projectilesTech < def.MinProjectilesTechLevel.Value)
@@ -100,17 +140,74 @@ public sealed class GunDevelopmentPage : PageBase
         }
     }
 
+    private static bool ArePrerequisitesMet(WeaponsUpgrades.UpgradeDefinition def, List<string> installedUpgrades)
+    {
+        if (def?.Prerequisites is null || def.Prerequisites.Length == 0)
+            return true;
+
+        if (installedUpgrades is null || installedUpgrades.Count == 0)
+            return false;
+
+        foreach (var prereqId in def.Prerequisites)
+        {
+            if (string.IsNullOrWhiteSpace(prereqId))
+                continue;
+
+            if (!installedUpgrades.Contains(prereqId))
+                return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsWearMultiplierUpgrade(WeaponsUpgrades.UpgradeDefinition def)
+    {
+        if (def?.Parameters is null) return false;
+        return def.Parameters.ContainsKey("WearMultiplier");
+    }
+
+    private static bool IsOneTimeUpgrade(WeaponsUpgrades.UpgradeDefinition def)
+    {
+        if (def is null) return false;
+        if (string.IsNullOrWhiteSpace(def.Id)) return false;
+
+        // BarrelRepair is a repeatable maintenance action.
+        if (string.Equals(def.Id, "BarrelRepair", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return true;
+    }
+
     private static void ApplyUpgradeDefinition(WeaponsUpgrades.UpgradeDefinition def, GameState game)
     {
         if (def is null) return;
+        if (string.IsNullOrWhiteSpace(def.Id)) return;
+
+        // Persist most upgrades as "installed" so prerequisites and diagnostics can see them.
+        // Wear math will ignore IDs that don't have a WearMultiplier mapping.
+        if (IsOneTimeUpgrade(def) && !game.Gun.InstalledUpgrades.Contains(def.Id))
+            game.Gun.InstalledUpgrades.Add(def.Id);
+
+        if (def.Modifiers is not null && def.Modifiers.Count > 0)
+        {
+            StatModifierApplier.ApplyToGameState(game, def.Modifiers);
+            return;
+        }
 
         // Keep upgrade math identical to the legacy implementation, but source all numbers from JSON.
+        ApplyLegacyUpgradeDefinition(def, game);
+    }
+
+    private static void ApplyLegacyUpgradeDefinition(WeaponsUpgrades.UpgradeDefinition def, GameState game)
+    {
+        // Legacy fallback for older content still using Parameters + ID switch.
+        // New content should prefer Modifiers.
         switch (def.Id)
         {
             case "BarrelRepair":
                 {
                     double setTo = def.Parameters.TryGetValue("SetIntegrityTo", out double v) ? v : 1.0;
-                    game.Gun.BarrelIntegrity = setTo;
+                    game.Gun.BarrelIntegrity = Math.Clamp(setTo, 0.0, 1.0);
                     break;
                 }
 
@@ -132,7 +229,7 @@ public sealed class GunDevelopmentPage : PageBase
                 {
                     double mult = def.Parameters.TryGetValue("Multiplier", out double v) ? v : 1.0;
                     double max = def.Parameters.TryGetValue("Max", out double m) ? m : double.PositiveInfinity;
-                    game.Gun.BarrelLength = Math.Min(max, game.Gun.BarrelLength * mult);
+                    game.Gun.BarrelLength = Math.Min(max, Math.Max(0.0, game.Gun.BarrelLength * mult));
                     break;
                 }
 
@@ -220,11 +317,20 @@ public sealed class GunDevelopmentPage : PageBase
         _lines.Add(string.Empty);
 
         _lines.Add("=== AVAILABLE UPGRADES ===");
+        if (_hiddenByPrerequisites > 0)
+        {
+            _lines.Add($"[Note] {_hiddenByPrerequisites} upgrade(s) locked by prerequisites.");
+            _lines.Add("       Install required upgrades to unlock them.");
+        }
         _lines.Add(string.Empty);
 
         if (_upgrades.Count == 0)
         {
             _lines.Add("[No upgrades available]");
+            if (_hiddenByPrerequisites > 0)
+            {
+                _lines.Add("(Some upgrades are currently locked by prerequisites.)");
+            }
             _lines.Add(string.Empty);
             _lines.Add("[B] Back");
             return;
@@ -388,6 +494,9 @@ public sealed class GunDevelopmentPage : PageBase
             game.AccumulatedResources["Exotic"] -= up.Cost.ExoticMaterials;
 
             up.Apply(game);
+
+            // Refresh available upgrades (e.g. hide installed wear upgrades).
+            BuildUpgrades(game);
 
             _resultMessage = $"✓ {up.Name} applied successfully!";
             _mode = Mode.Result;

@@ -9,6 +9,16 @@ namespace Spacegun_Simulator.Core
     public static class GameConstants
     {
         // ====================================================================
+        // Diagnostics toggles
+        // ====================================================================
+
+        /// <summary>
+        /// When enabled, writes a one-line trace to stderr for every ResolveWeaponStats call.
+        /// Intended for diagnostics and should remain off for normal gameplay.
+        /// </summary>
+        public static bool TraceResolvedWeaponStats { get; set; } = false;
+
+        // ====================================================================
         // NOTE: TierCount is the single source of truth for how many tiers exist.
         // Update this value if WaveTiers length changes and keep arrays in sync.
         // ====================================================================
@@ -283,50 +293,22 @@ namespace Spacegun_Simulator.Core
         // ENEMY GENERATION CONSTANTS
         // ============================================================================
 
-        public static int TargetCountBase
-        {
-            get => EnemyTuning.TargetCountBase;
-            set => DevelopmentTuning.Apply(new DevelopmentTuningConfig
-            {
-                EnemyTuning = new EnemyTuningConfig { TargetCountBase = value }
-            });
-        }
+        public static int TargetCountBase => EnemyDesignations.Current.TargetCountBase;
 
-        public static int TargetCountTierBonus
-        {
-            get => EnemyTuning.TargetCountTierBonus;
-            set => DevelopmentTuning.Apply(new DevelopmentTuningConfig
-            {
-                EnemyTuning = new EnemyTuningConfig { TargetCountTierBonus = value }
-            });
-        }
+        public static int TargetCountTierBonus => EnemyDesignations.Current.TargetCountTierBonus;
 
-        public static int TargetCountRandomMaxExclusive
-        {
-            get => EnemyTuning.TargetCountRandomMaxExclusive;
-            set => DevelopmentTuning.Apply(new DevelopmentTuningConfig
-            {
-                EnemyTuning = new EnemyTuningConfig { TargetCountRandomMaxExclusive = value }
-            });
-        }
+        public static int TargetCountRandomMaxExclusive => EnemyDesignations.Current.TargetCountRandomMaxExclusive;
 
         // Type pools
-        public static string[] EarlyTypes => EnemyTuning.EarlyTypes;
-        public static string[] MidTypes => EnemyTuning.MidTypes;
-        public static string[] LateTypes => EnemyTuning.LateTypes;
+        public static string[] EarlyTypes => EnemyDesignations.Current.EarlyTypes;
+        public static string[] MidTypes => EnemyDesignations.Current.MidTypes;
+        public static string[] LateTypes => EnemyDesignations.Current.LateTypes;
 
         // Cross-section ranges per type (square meters)
-        public static Dictionary<string, (double Min, double Max)> CrossSectionRanges => EnemyTuning.CrossSectionRanges;
+        public static Dictionary<string, (double Min, double Max)> CrossSectionRanges => EnemyDesignations.Current.CrossSectionRanges;
 
         // Stealth chance when tier >= 2
-        public static double StealthChanceForLateTiers
-        {
-            get => EnemyTuning.StealthChanceForLateTiers;
-            set => DevelopmentTuning.Apply(new DevelopmentTuningConfig
-            {
-                EnemyTuning = new EnemyTuningConfig { StealthChanceForLateTiers = value }
-            });
-        }
+        public static double StealthChanceForLateTiers => EnemyDesignations.Current.StealthChanceForLateTiers;
 
         // ============================================================================
         // DISPLAY & FORMATTING CONSTANTS
@@ -542,7 +524,8 @@ namespace Spacegun_Simulator.Core
                 if (cfg.ExoticRewardBase.HasValue) GameConstants.ExoticRewardBase = cfg.ExoticRewardBase.Value;
                 if (cfg.ExoticRewardPerWave.HasValue) GameConstants.ExoticRewardPerWave = cfg.ExoticRewardPerWave.Value;
                 if (cfg.MinBudgetToContinue.HasValue) GameConstants.MinBudgetToContinue = cfg.MinBudgetToContinue.Value;
-                if (cfg.StealthChanceForLateTiers.HasValue) GameConstants.StealthChanceForLateTiers = cfg.StealthChanceForLateTiers.Value;
+
+                if (cfg.TraceResolvedWeaponStats.HasValue) GameConstants.TraceResolvedWeaponStats = cfg.TraceResolvedWeaponStats.Value;
 
                 // Optional: mode tuning
                 GameModeTuning.ApplyFromConfig(cfg.Modes);
@@ -566,7 +549,8 @@ namespace Spacegun_Simulator.Core
             public double? ExoticRewardBase { get; set; }
             public double? ExoticRewardPerWave { get; set; }
             public double? MinBudgetToContinue { get; set; }
-            public double? StealthChanceForLateTiers { get; set; }
+
+            public bool? TraceResolvedWeaponStats { get; set; }
 
             public GameModeTuning? Modes { get; set; }
         }

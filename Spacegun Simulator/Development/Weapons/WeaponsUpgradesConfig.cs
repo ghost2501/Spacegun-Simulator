@@ -1,5 +1,7 @@
 namespace Spacegun_Simulator.Core
 {
+    using Spacegun_Simulator.Core.Stats;
+
     public sealed class WeaponsUpgradesConfig
     {
         public int Version { get; set; } = 1;
@@ -15,7 +17,6 @@ namespace Spacegun_Simulator.Core
 
         public ResourceCostConfig? Cost { get; set; }
         public string[]? Prerequisites { get; set; }
-        public Dictionary<string, double>? StatModifiers { get; set; }
 
         /// <summary>
         /// Optional filter: "Chemical" or "NonChemical".
@@ -27,8 +28,21 @@ namespace Spacegun_Simulator.Core
         /// </summary>
         public Dictionary<string, double>? Parameters { get; set; }
 
+        /// <summary>
+        /// Generic stat-key modifiers applied when the upgrade is purchased.
+        /// Intended to minimize hard-coded upgrade application logic.
+        /// </summary>
+        public StatModifierConfig[]? Modifiers { get; set; }
+
         public int? MinWeaponsTechLevel { get; set; }
         public int? MinProjectilesTechLevel { get; set; }
         public bool? RequiresGuidanceMod { get; set; }
+    }
+
+    public sealed class StatModifierConfig
+    {
+        public string Key { get; set; } = string.Empty;
+        public string Op { get; set; } = string.Empty;
+        public double Value { get; set; }
     }
 }

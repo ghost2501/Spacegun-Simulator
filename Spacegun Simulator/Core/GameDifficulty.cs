@@ -231,7 +231,7 @@ namespace Spacegun_Simulator.Core
             // ================================================================
             // COMETS AND ASTEROIDS (Hard)
             // Hit tolerance: 0.5 × diameter × √(TargetRcsMultiplier)
-            // For a 10,000 ton ship (33.6m diameter): 0.5 × 33.6 × √1.6 ≈ 21m
+            // For a 10,000 ton object (33.6m diameter): 0.5 × 33.6 × √1.6 ≈ 21m
             // Strategy: Targets appear somewhat larger on radar, making them more forgiving than extreme
             // ================================================================
             GameDifficulty.CometsAndAsteroids => new DifficultyConfig

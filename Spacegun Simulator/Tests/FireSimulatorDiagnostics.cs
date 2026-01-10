@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Spacegun_Simulator.Ballistics;
 using Spacegun_Simulator.Core;
+using Spacegun_Simulator.Core.Stats;
 using Spacegun_Simulator.Development.Weapons;
 using Spacegun_Simulator.Detection;
 using Spacegun_Simulator.Enemies;
@@ -12,6 +13,11 @@ namespace Spacegun_Simulator.Tests
     public static class FireSimulatorDiagnostics
     {
         public readonly record struct CheckResult(string Name, bool Passed, string Message);
+
+        // Phase 6: deterministic golden-scenario fingerprint.
+        // Purpose: catch accidental drift in ResolveWeaponStats (and closely-related tuning math)
+        // without relying on full end-to-end gameplay.
+        private const string GoldenScenarioExpectedSha256 = "597CAD5BD73367F793274FCF675EC6AF2590E9354F6CFEC84274CEF486AB0EBD";
 
         public readonly record struct TuningCurveByTierResult(
             string RulesetLabel,
@@ -79,8 +85,136 @@ namespace Spacegun_Simulator.Tests
             Run("Tier arrays consistency", TierArraysConsistencyTests.RunAllChecks);
             Run("Weapon tech mapping", ConstantsConsistencyChecks.RunWeaponTechMappingCheck);
             Run("Barrel wear mapping", ConstantsConsistencyChecks.RunBarrelWearMappingCheck);
+            Run("Golden scenarios fingerprint", () =>
+            {
+                var r = RunGoldenScenarioRegressionCheck();
+                if (!r.Passed)
+                    throw new InvalidOperationException(r.Message);
+            });
 
             return results;
+        }
+
+        public static CheckResult RunGoldenScenarioRegressionCheck()
+        {
+            // Keep this quiet and stable even if the user enabled tracing in config.
+            GameConstants.TraceResolvedWeaponStats = false;
+
+            string fingerprint = BuildGoldenScenarioFingerprint();
+            string sha = Sha256Hex(fingerprint);
+
+            if (string.Equals(GoldenScenarioExpectedSha256, "__TODO_FILL_ME__", StringComparison.OrdinalIgnoreCase))
+            {
+                return new CheckResult(
+                    Name: "Golden scenarios fingerprint",
+                    Passed: false,
+                    Message: "GoldenScenarioExpectedSha256 is not set. " +
+                             $"Computed SHA256={sha}. Set GoldenScenarioExpectedSha256 to this value to lock in the baseline."
+                );
+            }
+
+            if (!string.Equals(sha, GoldenScenarioExpectedSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                return new CheckResult(
+                    Name: "Golden scenarios fingerprint",
+                    Passed: false,
+                    Message: "Golden fingerprint changed. " +
+                             $"Expected SHA256={GoldenScenarioExpectedSha256}, Actual SHA256={sha}. " +
+                             "If this drift is intentional, update GoldenScenarioExpectedSha256."
+                );
+            }
+
+            return new CheckResult(
+                Name: "Golden scenarios fingerprint",
+                Passed: true,
+                Message: $"OK (SHA256={sha})"
+            );
+        }
+
+        private static string BuildGoldenScenarioFingerprint()
+        {
+            // Use explicit formatting + invariant culture, so the hash is stable.
+            var sb = new StringBuilder();
+            var inv = CultureInfo.InvariantCulture;
+
+            static EnemyTarget MakeTarget(double fractureEnergyMj, double defense01)
+                => new EnemyTarget
+                {
+                    Name = "GOLDEN",
+                    Altitude = 1_000_000.0,
+                    Velocity = 80_000.0,
+                    CrossSection = 100.0,
+                    Acceleration = 0.0,
+                    Maneuverability = 0.0,
+                    Defense = Math.Clamp(defense01, 0.0, 1.0),
+                    Offense = 0.0,
+                    Mass = 1_000.0,
+                    DensityKgM3 = 7_850.0,
+                    BulkModulusGpa = 200.0,
+                    FractureEnergy = Math.Max(0.0, fractureEnergyMj)
+                };
+
+            void AddScenario(string name, GameState game, EnemyTarget target)
+            {
+                var w = game.ResolveWeaponStats(target);
+
+                sb.Append(name);
+                sb.Append('|');
+                sb.Append("Seed="); sb.Append(game.BaseSeed.ToString(inv));
+                sb.Append("|Mode="); sb.Append(game.SelectedMode.ToString());
+                sb.Append("|WeaponsTL="); sb.Append(w.Gun.WeaponsTechLevel.ToString(inv));
+                sb.Append("|ProjTL="); sb.Append(w.Projectile.ProjectilesTechLevel.ToString(inv));
+                sb.Append("|MassKg="); sb.Append(w.Shot.ProjectileMassKg.ToString("F6", inv));
+                sb.Append("|MaxV="); sb.Append(w.Shot.MaxLaunchVelocityMs.ToString("F6", inv));
+                sb.Append("|EffFractMJ="); sb.Append(w.Shot.EffectiveFractureEnergyMJ.ToString("F9", inv));
+                sb.Append("|Pen="); sb.Append(w.Shot.Penetration.ToString("F9", inv));
+                sb.Append("|Coupling="); sb.Append(w.Projectile.ImpactCouplingMult.ToString("F9", inv));
+                sb.Append("|HitTol="); sb.Append(w.Shot.AdditionalHitToleranceMultiplier.ToString("F9", inv));
+                sb.Append("|DV="); sb.Append(w.Shot.PropulsionDeltaVCapacityMs.ToString("F6", inv));
+                sb.Append("|BurnS="); sb.Append(w.Shot.PropulsionBurnDurationSeconds.ToString("F6", inv));
+                sb.Append("|RefMassKg="); sb.Append(w.Shot.PropulsionReferenceMassKg.ToString("F6", inv));
+                sb.Append("|Def01="); sb.Append(w.Shot.ProjectileDefenseRating.ToString("F9", inv));
+                sb.AppendLine();
+            }
+
+            // Scenario A: baseline new game (deterministic seed), low armor.
+            {
+                var game = new GameState(seed: 12345, difficulty: GameDifficulty.CometsAndAsteroids);
+                var target = MakeTarget(fractureEnergyMj: 10_000.0, defense01: 0.0);
+                AddScenario("A:Baseline", game, target);
+            }
+
+            // Scenario B: same, but armored target.
+            {
+                var game = new GameState(seed: 12345, difficulty: GameDifficulty.CometsAndAsteroids);
+                var target = MakeTarget(fractureEnergyMj: 10_000.0, defense01: 0.6);
+                AddScenario("B:Armored", game, target);
+            }
+
+            // Scenario C: baseline + installed stat modifiers affecting projectile/shot.
+            {
+                var game = new GameState(seed: 12345, difficulty: GameDifficulty.CometsAndAsteroids);
+                game.Gun.InstalledStatModifiers = new List<StatModifier>
+                {
+                    new StatModifier("Projectile.MassKg", StatModifierOp.Add, 5.0),
+                    new StatModifier("Projectile.PenetrationMult", StatModifierOp.Mul, 1.15),
+                    new StatModifier("Shot.MaxLaunchVelocityMs", StatModifierOp.Mul, 0.98),
+                };
+
+                var target = MakeTarget(fractureEnergyMj: 10_000.0, defense01: 0.2);
+                AddScenario("C:Mods", game, target);
+            }
+
+            return sb.ToString();
+        }
+
+        private static string Sha256Hex(string text)
+        {
+            if (text is null) return string.Empty;
+            using var sha = SHA256.Create();
+            byte[] bytes = Encoding.UTF8.GetBytes(text);
+            byte[] hash = sha.ComputeHash(bytes);
+            return Convert.ToHexString(hash);
         }
 
         public readonly record struct TechAuditResult(string CsvPath, int ScenarioCount);
@@ -262,6 +396,7 @@ namespace Spacegun_Simulator.Tests
             IReadOnlyList<string>? headersOverride = null)
         {
             GameConfigLoader.LoadIfExists();
+            EnemyConfigLoader.LoadOrThrow();
 
             var dir = Path.Combine(UserDataPaths.GetSavesDirectory(), "TuningLab");
             Directory.CreateDirectory(dir);
@@ -713,6 +848,7 @@ namespace Spacegun_Simulator.Tests
             bool smoothTierSampling = false)
         {
             GameConfigLoader.LoadIfExists();
+            EnemyConfigLoader.LoadOrThrow();
 
             // NOTE: ShotsPerSample mostly reduces Bernoulli noise around an already-computed per-sample probability.
             // To reduce step artifacts (e.g. 0.333333, 0.666667), we need *more independent geometries*, i.e. more samples.
@@ -1203,6 +1339,7 @@ namespace Spacegun_Simulator.Tests
         public static EnemyCurveResult RunEnemyCurveAndWriteCsv(string? outputDirectory = null)
         {
             GameConfigLoader.LoadIfExists();
+            EnemyConfigLoader.LoadOrThrow();
 
             const int samplesPerTier = 5;
             var detection = new DetectionSystem();
@@ -1220,7 +1357,7 @@ namespace Spacegun_Simulator.Tests
                 "CampaignName",
                 "WaveArchetypeId",
                 "WaveArchetypeName",
-                "ShipCount",
+                "ThreatCount",
                 "InitialDistance",
                 "AverageVelocity",
                 "RcsRaw",
@@ -1246,7 +1383,10 @@ namespace Spacegun_Simulator.Tests
                 "DifficultyHitToleranceMultiplier",
                 "ModeHitToleranceMultiplier",
                 "DifficultyTargetRcsMultiplier",
-                "HitToleranceMeters"
+                "HitToleranceMeters",
+                "CampaignDoctrine",
+                "WaveDoctrine",
+                "WaveDoctrineSource"
             ));
 
             int rowCount = 0;
@@ -1282,9 +1422,12 @@ namespace Spacegun_Simulator.Tests
                         double rcsModeAdjusted = rcsRaw * GameModeTuning.Current.GetDetectionRcsMultiplier(mode);
                         double rcsDisplay = rcsModeAdjusted * diffConfig.TargetRcsMultiplier;
 
-                        double hitToleranceMeters = diffConfig.IsTutorialMode
-                            ? DifficultyConfig.TutorialBeachball.RadiusMeters
-                            : 0.5 * (2.0 * Math.Sqrt(rcsDisplay / Math.PI)) * diffConfig.HitToleranceMultiplier * GameModeTuning.Current.GetHitToleranceMultiplier(mode);
+                        double hitToleranceMeters = FiringSolution.CalculateHitToleranceMeters(
+                            difficulty: mode.Difficulty,
+                            waveNumber: waveNumber,
+                            enemyCrossSectionM2: target.CrossSection,
+                            enemyMass: target.Mass,
+                            additionalHitToleranceMultiplier: GameModeTuning.Current.GetHitToleranceMultiplier(mode));
 
                         csv.AppendLine(string.Join(",",
                             EscapeCsv(mode.Id.ToString()),
@@ -1298,7 +1441,7 @@ namespace Spacegun_Simulator.Tests
                             "",
                             EscapeCsv(wave.Archetype?.Id),
                             EscapeCsv(wave.Archetype?.Name),
-                            wave.ShipCount.ToString(CultureInfo.InvariantCulture),
+                            wave.ThreatCount.ToString(CultureInfo.InvariantCulture),
                             wave.InitialDistance.ToString("F3", CultureInfo.InvariantCulture),
                             wave.AverageVelocity.ToString("F3", CultureInfo.InvariantCulture),
                             rcsRaw.ToString("F6", CultureInfo.InvariantCulture),
@@ -1324,7 +1467,10 @@ namespace Spacegun_Simulator.Tests
                             diffConfig.HitToleranceMultiplier.ToString("F6", CultureInfo.InvariantCulture),
                             GameModeTuning.Current.GetHitToleranceMultiplier(mode).ToString("F6", CultureInfo.InvariantCulture),
                             diffConfig.TargetRcsMultiplier.ToString("F6", CultureInfo.InvariantCulture),
-                            hitToleranceMeters.ToString("F6", CultureInfo.InvariantCulture)
+                            hitToleranceMeters.ToString("F6", CultureInfo.InvariantCulture),
+                            "",
+                            EscapeCsv(wave.Doctrine.ToString()),
+                            EscapeCsv(wave.DoctrineSource.ToString())
                         ));
                         rowCount++;
                     }
@@ -1367,16 +1513,12 @@ namespace Spacegun_Simulator.Tests
                         double rcsModeAdjusted = rcsRaw * GameModeTuning.Current.GetDetectionRcsMultiplier(mode);
                         double rcsDisplay = rcsModeAdjusted * diffConfigFull.TargetRcsMultiplier;
 
-                        double hitToleranceMeters;
-                        if (diffConfigFull.IsTutorialMode)
-                        {
-                            hitToleranceMeters = DifficultyConfig.TutorialBeachball.RadiusMeters;
-                        }
-                        else
-                        {
-                            double diameterFromRcs = 2.0 * Math.Sqrt(rcsDisplay / Math.PI);
-                            hitToleranceMeters = diameterFromRcs * 0.5 * diffConfigFull.HitToleranceMultiplier * GameModeTuning.Current.GetHitToleranceMultiplier(mode);
-                        }
+                        double hitToleranceMeters = FiringSolution.CalculateHitToleranceMeters(
+                            difficulty: mode.Difficulty,
+                            waveNumber: waveNumber,
+                            enemyCrossSectionM2: target.CrossSection,
+                            enemyMass: target.Mass,
+                            additionalHitToleranceMultiplier: GameModeTuning.Current.GetHitToleranceMultiplier(mode));
 
                         csv.AppendLine(string.Join(",",
                             EscapeCsv(mode.Id.ToString()),
@@ -1390,7 +1532,7 @@ namespace Spacegun_Simulator.Tests
                             EscapeCsv(campaignType.CustomName),
                             EscapeCsv(wave.Archetype?.Id),
                             EscapeCsv(wave.Archetype?.Name),
-                            wave.ShipCount.ToString(CultureInfo.InvariantCulture),
+                            wave.ThreatCount.ToString(CultureInfo.InvariantCulture),
                             wave.InitialDistance.ToString("F3", CultureInfo.InvariantCulture),
                             wave.AverageVelocity.ToString("F3", CultureInfo.InvariantCulture),
                             rcsRaw.ToString("F6", CultureInfo.InvariantCulture),
@@ -1416,7 +1558,10 @@ namespace Spacegun_Simulator.Tests
                             diffConfigFull.HitToleranceMultiplier.ToString("F6", CultureInfo.InvariantCulture),
                             GameModeTuning.Current.GetHitToleranceMultiplier(mode).ToString("F6", CultureInfo.InvariantCulture),
                             diffConfigFull.TargetRcsMultiplier.ToString("F6", CultureInfo.InvariantCulture),
-                            hitToleranceMeters.ToString("F6", CultureInfo.InvariantCulture)
+                            hitToleranceMeters.ToString("F6", CultureInfo.InvariantCulture),
+                            EscapeCsv(campaignType.PrimaryDoctrine.ToString()),
+                            EscapeCsv(wave.Doctrine.ToString()),
+                            EscapeCsv(wave.DoctrineSource.ToString())
                         ));
                         rowCount++;
                     }
@@ -1444,6 +1589,7 @@ namespace Spacegun_Simulator.Tests
         public static CounterCurveResult RunCounterCurveAndWriteCsv(string? outputDirectory = null, int samplesPerWave = 20)
         {
             GameConfigLoader.LoadIfExists();
+            EnemyConfigLoader.LoadOrThrow();
 
             samplesPerWave = Math.Clamp(samplesPerWave, 1, 500);
 
@@ -1476,7 +1622,7 @@ namespace Spacegun_Simulator.Tests
 
                 // Enemy actual
                 "HasStealthCoating",
-                "ShipCount",
+                "ThreatCount",
                 "Acceleration",
                 "Maneuverability",
                 "EnemyDefense",
@@ -1493,7 +1639,7 @@ namespace Spacegun_Simulator.Tests
                 "DetectionQuality",
 
                 // Intel estimate (noisy)
-                "IntelShipCountEstimate",
+                "IntelThreatCountEstimate",
                 "IntelStealthAssessment",
                 "IntelManeuverabilityEstimate",
                 "IntelDefenseEstimate",
@@ -1507,7 +1653,10 @@ namespace Spacegun_Simulator.Tests
 
                 // Derived baseline effectiveness (approx)
                 "HitLikelihoodApprox_ConditionalDetected",
-                "HitLikelihoodApprox_Unconditional"
+                "HitLikelihoodApprox_Unconditional",
+                "CampaignDoctrine",
+                "WaveDoctrine",
+                "WaveDoctrineSource"
             ));
 
             int rowCount = 0;
@@ -1611,7 +1760,7 @@ namespace Spacegun_Simulator.Tests
                                         projCfg.Defense.ToString("F6", CultureInfo.InvariantCulture),
 
                                         wave.HasStealthCoating ? "1" : "0",
-                                        wave.ShipCount.ToString(CultureInfo.InvariantCulture),
+                                        wave.ThreatCount.ToString(CultureInfo.InvariantCulture),
                                         target.Acceleration.ToString("F6", CultureInfo.InvariantCulture),
                                         target.Maneuverability.ToString("F6", CultureInfo.InvariantCulture),
                                         target.Defense.ToString("F6", CultureInfo.InvariantCulture),
@@ -1626,7 +1775,7 @@ namespace Spacegun_Simulator.Tests
                                         det.IsDetected ? "1" : "0",
                                         EscapeCsv(det.Quality.ToString()),
 
-                                        (intel.ShipCountEstimate?.ToString(CultureInfo.InvariantCulture) ?? string.Empty),
+                                        (intel.ThreatCountEstimate?.ToString(CultureInfo.InvariantCulture) ?? string.Empty),
                                         EscapeCsv(intel.StealthAssessment),
                                         (intel.ManeuverabilityEstimate01?.ToString("F6", CultureInfo.InvariantCulture) ?? string.Empty),
                                         (intel.DefenseEstimate01?.ToString("F6", CultureInfo.InvariantCulture) ?? string.Empty),
@@ -1637,7 +1786,10 @@ namespace Spacegun_Simulator.Tests
                                         evasionChance.ToString("F6", CultureInfo.InvariantCulture),
                                         interceptChance.ToString("F6", CultureInfo.InvariantCulture),
                                         hitLikelihoodConditional.ToString("F6", CultureInfo.InvariantCulture),
-                                        hitLikelihoodUnconditional.ToString("F6", CultureInfo.InvariantCulture)
+                                        hitLikelihoodUnconditional.ToString("F6", CultureInfo.InvariantCulture),
+                                        EscapeCsv(campaignType.PrimaryDoctrine.ToString()),
+                                        EscapeCsv(wave.Doctrine.ToString()),
+                                        EscapeCsv(wave.DoctrineSource.ToString())
                                     ));
 
                                     rowCount++;
@@ -1672,6 +1824,7 @@ namespace Spacegun_Simulator.Tests
             int shotsPerRow = 200)
         {
             GameConfigLoader.LoadIfExists();
+            EnemyConfigLoader.LoadOrThrow();
 
             samplesPerWave = Math.Clamp(samplesPerWave, 1, 200);
             shotsPerRow = Math.Clamp(shotsPerRow, 1, 5000);
@@ -1714,7 +1867,7 @@ namespace Spacegun_Simulator.Tests
 
                 // Enemy actual
                 "HasStealthCoating",
-                "ShipCount",
+                "ThreatCount",
                 "Acceleration",
                 "Maneuverability",
                 "EnemyDefense",
@@ -1890,7 +2043,7 @@ namespace Spacegun_Simulator.Tests
                                         energySufficient ? "1" : "0",
 
                                         wave.HasStealthCoating ? "1" : "0",
-                                        wave.ShipCount.ToString(CultureInfo.InvariantCulture),
+                                        wave.ThreatCount.ToString(CultureInfo.InvariantCulture),
                                         target.Acceleration.ToString("F6", CultureInfo.InvariantCulture),
                                         target.Maneuverability.ToString("F6", CultureInfo.InvariantCulture),
                                         target.Defense.ToString("F6", CultureInfo.InvariantCulture),
@@ -2046,6 +2199,7 @@ namespace Spacegun_Simulator.Tests
             IReadOnlyList<string>? headersOverride = null)
         {
             GameConfigLoader.LoadIfExists();
+            EnemyConfigLoader.LoadOrThrow();
 
             var dir = Path.Combine(UserDataPaths.GetSavesDirectory(), "TuningLab");
             Directory.CreateDirectory(dir);
@@ -2225,6 +2379,7 @@ namespace Spacegun_Simulator.Tests
             bool smoothTierSampling = true)
         {
             GameConfigLoader.LoadIfExists();
+            EnemyConfigLoader.LoadOrThrow();
 
             samplesPerTier = Math.Clamp(samplesPerTier, 1, 1000);
             radarLevel = Math.Clamp(radarLevel, 1, 3);

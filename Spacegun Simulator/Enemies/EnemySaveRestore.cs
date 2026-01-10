@@ -8,6 +8,8 @@ namespace Spacegun_Simulator.Enemies
             string ArchetypeName,
             string ArchetypeDescription,
             double ArchetypeVelocityMultiplier,
+            string Doctrine,
+            string DoctrineSource,
             string TargetName,
             double TargetAltitude,
             double TargetVelocity,
@@ -32,8 +34,8 @@ namespace Spacegun_Simulator.Enemies
             float CachedCorrectElevation,
             float CachedCorrectAzimuth,
             float CachedCorrectVelocity,
-            // Full-mode extensions (optional for backward-compatible save/load)
-            int ShipCount = 1,
+            // Full-mode extensions
+            int ThreatCount = 1,
             double TargetAcceleration = 0.0,
             double TargetManeuverability = 0.0,
             double TargetDefense = 0.0,
@@ -44,7 +46,8 @@ namespace Spacegun_Simulator.Enemies
             string Id,
             string ArchetypeId,
             string CustomName,
-            string Description
+            string Description,
+            string PrimaryDoctrine
         );
 
         public static EnemyWave CreateWaveForRestore(EnemyWaveRestoreSnapshot snapshot, EnemyArchetype? campaignEnemyArchetype)
@@ -55,20 +58,22 @@ namespace Spacegun_Simulator.Enemies
 
             if (archetype == null)
             {
-                archetype = EnemyArchetype.All.FirstOrDefault(a => a.Id == snapshot.ArchetypeId);
+                archetype = EnemyArchetypeCatalog.TryGetById(snapshot.ArchetypeId);
             }
 
             if (archetype == null)
             {
-                archetype = new EnemyArchetype(
-                    snapshot.ArchetypeId,
-                    snapshot.ArchetypeName,
-                    snapshot.ArchetypeDescription,
-                    snapshot.ArchetypeVelocityMultiplier,
-                    (0, 50_000),
-                    (0, 100_000),
-                    1
-                );
+                archetype = new EnemyArchetype
+                {
+                    Id = snapshot.ArchetypeId,
+                    Name = snapshot.ArchetypeName,
+                    Description = snapshot.ArchetypeDescription,
+                    VelocityMultiplier = snapshot.ArchetypeVelocityMultiplier,
+                    MassRange = new Spacegun_Simulator.Core.DevelopmentTuning.Range(0.0, 50_000.0),
+                    FractureEnergyRange = new Spacegun_Simulator.Core.DevelopmentTuning.Range(0.0, 100_000.0),
+                    BaseDifficultyRating = 1,
+                    IsTutorialOnly = false,
+                };
             }
 
             var target = new EnemyTarget
@@ -93,8 +98,12 @@ namespace Spacegun_Simulator.Enemies
                 AverageVelocity = snapshot.AverageVelocity,
                 AverageRadarCrossSection = snapshot.AverageRadarCrossSection,
                 HasStealthCoating = snapshot.HasStealthCoating,
-                ShipCount = snapshot.ShipCount,
+                ThreatCount = snapshot.ThreatCount,
                 Archetype = archetype,
+                Doctrine = (!string.IsNullOrWhiteSpace(snapshot.Doctrine)
+                    && Enum.TryParse<EnemyDoctrine>(snapshot.Doctrine, ignoreCase: true, out var d)) ? d : EnemyDoctrine.None,
+                DoctrineSource = (!string.IsNullOrWhiteSpace(snapshot.DoctrineSource)
+                    && Enum.TryParse<EnemyDoctrineSource>(snapshot.DoctrineSource, ignoreCase: true, out var s)) ? s : EnemyDoctrineSource.None,
                 ApproachElevation = snapshot.ApproachElevation,
                 ApproachAzimuth = snapshot.ApproachAzimuth,
                 CachedEnemyPosition = snapshot.HasCachedVectors
@@ -110,6 +119,12 @@ namespace Spacegun_Simulator.Enemies
                 IsRestoredFromSave = snapshot.HasCachedVectors,
                 Targets = new List<EnemyTarget> { target }
             };
+
+            if (!Enum.IsDefined(typeof(EnemyDoctrine), restoredWave.Doctrine))
+                restoredWave.Doctrine = EnemyDoctrine.None;
+
+            if (!Enum.IsDefined(typeof(EnemyDoctrineSource), restoredWave.DoctrineSource))
+                restoredWave.DoctrineSource = EnemyDoctrineSource.None;
 
             // Enforce a single source of truth for enemy speed.
             // Detection uses restoredWave.AverageVelocity; engagement uses CachedEnemyVelocity magnitude.
@@ -128,15 +143,25 @@ namespace Spacegun_Simulator.Enemies
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
             if (string.IsNullOrWhiteSpace(snapshot.Id)) return null;
 
-            var archetype = EnemyArchetype.All.FirstOrDefault(a => a.Id == snapshot.ArchetypeId);
+            var archetype = EnemyArchetypeCatalog.TryGetById(snapshot.ArchetypeId);
             if (archetype == null) return null;
 
-            return new EnemyType(
+            var type = new EnemyType(
                 snapshot.Id,
                 archetype,
                 snapshot.CustomName,
                 snapshot.Description
             );
+
+            if (!string.IsNullOrWhiteSpace(snapshot.PrimaryDoctrine)
+                && Enum.TryParse<EnemyDoctrine>(snapshot.PrimaryDoctrine, ignoreCase: true, out var doctrine))
+                type.PrimaryDoctrine = doctrine;
+
+            // Clamp invalid/unknown values for safety.
+            if (!Enum.IsDefined(typeof(EnemyDoctrine), type.PrimaryDoctrine))
+                type.PrimaryDoctrine = EnemyDoctrine.None;
+
+            return type;
         }
     }
 }

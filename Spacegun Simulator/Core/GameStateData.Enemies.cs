@@ -51,10 +51,10 @@ namespace Spacegun_Simulator.Core
             set => Enemy.CurrentWave.HasStealthCoating = value;
         }
 
-        public int CurrentWaveShipCount
+        public int CurrentWaveThreatCount
         {
-            get => Enemy.CurrentWave.ShipCount;
-            set => Enemy.CurrentWave.ShipCount = value;
+            get => Enemy.CurrentWave.ThreatCount;
+            set => Enemy.CurrentWave.ThreatCount = value;
         }
 
         public string CurrentWaveArchetypeId
@@ -73,6 +73,18 @@ namespace Spacegun_Simulator.Core
         {
             get => Enemy.CurrentWave.ArchetypeDescription;
             set => Enemy.CurrentWave.ArchetypeDescription = value ?? string.Empty;
+        }
+
+        public string CurrentWaveDoctrine
+        {
+            get => Enemy.CurrentWave.Doctrine;
+            set => Enemy.CurrentWave.Doctrine = value ?? string.Empty;
+        }
+
+        public string CurrentWaveDoctrineSource
+        {
+            get => Enemy.CurrentWave.DoctrineSource;
+            set => Enemy.CurrentWave.DoctrineSource = value ?? string.Empty;
         }
 
         public double CurrentWaveArchetypeVelocityMultiplier
@@ -182,6 +194,12 @@ namespace Spacegun_Simulator.Core
         {
             get => Enemy.CampaignEnemyType.Description;
             set => Enemy.CampaignEnemyType.Description = value ?? string.Empty;
+        }
+
+        public string CampaignEnemyTypePrimaryDoctrine
+        {
+            get => Enemy.CampaignEnemyType.PrimaryDoctrine;
+            set => Enemy.CampaignEnemyType.PrimaryDoctrine = value ?? string.Empty;
         }
 
         public float EnemyApproachElevation

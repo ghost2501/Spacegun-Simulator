@@ -62,18 +62,16 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 
 			_diff = DifficultyConfig.GetConfig(game.SelectedDifficulty);
 			InitDefaultsIfNeeded(_diff);
-			_maxVelocity = _diff.IsTutorialMode
-				? (float)DifficultyConfig.TutorialPotatoCannon.MuzzleVelocityMs
-				: float.MaxValue;
+			_maxVelocity = (float)game.GetCurrentMaxLaunchVelocityMs();
 
-			if (_diff.IsTutorialMode && s_lastLaunchVelocity > _maxVelocity)
+			if (s_lastLaunchVelocity > _maxVelocity)
 				s_lastLaunchVelocity = _maxVelocity;
 
 			_launchVelocity = s_lastLaunchVelocity;
 			_elevation = s_lastElevationDegrees;
 			_azimuth = s_lastAzimuthDegrees;
 			_flightTime = s_lastFlightTime;
-			if (_diff.IsTutorialMode && _launchVelocity > _maxVelocity)
+			if (_launchVelocity > _maxVelocity)
 				_launchVelocity = _maxVelocity;
 			_result = null;
 			_mode = Mode.InputVelocity;
@@ -300,11 +298,9 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 				{
 					case Mode.InputVelocity:
 							if (!TryAcceptFloat(_inputBuffer, out float v, fallback: _launchVelocity, requirePositive: true)
-								|| (_diff?.IsTutorialMode == true && v > _maxVelocity))
+								|| v > _maxVelocity)
 						{
-								_message = (_diff?.IsTutorialMode == true)
-									? $"✗ Invalid velocity (max {DifficultyConfig.TutorialPotatoCannon.MuzzleVelocityMs:0} m/s in tutorial)."
-									: "✗ Invalid velocity.";
+								_message = $"✗ Invalid velocity (max {_maxVelocity:0} m/s).";
 							_inputBuffer = "";
 							BuildLines();
 							return PageResult.Stay;

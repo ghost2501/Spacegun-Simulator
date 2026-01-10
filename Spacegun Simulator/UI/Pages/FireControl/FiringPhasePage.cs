@@ -13,7 +13,7 @@ public sealed class FiringPhasePage : PageBase
     public override PageChrome Chrome { get; } = new(
         ShowStatusBar: true,
         ShowSidePanels: true,
-        FooterHint: "1=Motion 2=Tables 3=Trajectory 4=Sim 5=Commit (M)enu (Q)uit"
+        FooterHint: "Select(↩)    G=Gun Stats     (B)ack       (M)enu      (Q)uit"
     );
 
     public enum FiringMenuAction
@@ -30,6 +30,8 @@ public sealed class FiringPhasePage : PageBase
 
     private readonly List<string> _lines = new();
     private int _scroll;
+    private int _selectedToolIndex;
+    private int _toolListFirstLineIndex;
 
     private GameState.FiringPhaseResult? _firingResult;
     private DifficultyConfig? _diff;
@@ -38,6 +40,8 @@ public sealed class FiringPhasePage : PageBase
     {
         Action = FiringMenuAction.None;
         _scroll = 0;
+        _selectedToolIndex = 0;
+        _toolListFirstLineIndex = -1;
 
         var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (FiringPhasePage requires GameState).");
         _diff = DifficultyConfig.GetConfig(game.SelectedDifficulty);
@@ -49,6 +53,7 @@ public sealed class FiringPhasePage : PageBase
     private void BuildLines(UiContext ui)
     {
         _lines.Clear();
+        _toolListFirstLineIndex = -1;
 
         var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (FiringPhasePage requires GameState).");
         var firingResult = _firingResult ?? throw new InvalidOperationException("Firing result was not computed. (Expected OnEnter to run.)");
@@ -91,25 +96,33 @@ public sealed class FiringPhasePage : PageBase
             return;
         }
 
-        var resolved = game.ResolveShotStats(target);
-        double muzzleVelocity = resolved.MaxLaunchVelocityMs;
-        double projectileMass = resolved.ProjectileMassKg;
+        var weapon = game.ResolveWeaponStats(target);
+        var resolved = weapon.Shot;
+
+        double modeHitToleranceMultiplier = GameModeTuning.Current.GetHitToleranceMultiplier(game.Mode);
+        var resolvedForMode = resolved with
+        {
+            AdditionalHitToleranceMultiplier = resolved.AdditionalHitToleranceMultiplier * modeHitToleranceMultiplier
+        };
+
+        double muzzleVelocity = resolvedForMode.MaxLaunchVelocityMs;
+        double projectileMass = resolvedForMode.ProjectileMassKg;
 
         var calculator = new FiringSolution(
             (float)projectileMass,
-            (float)resolved.EffectiveFractureEnergyMJ,
+            (float)resolvedForMode.EffectiveFractureEnergyMJ,
             target.Mass,
             enemyCrossSectionM2: target.CrossSection);
-        calculator.ConfigureProjectileModifiers(resolved);
+        calculator.ConfigureProjectileModifiers(resolvedForMode);
 
         float requiredImpactVelocity = calculator.CalculateRequiredVelocity();
         float maxVelocity = (float)muzzleVelocity;
 
         double bestCaseDeltaV = 0.0;
-        if (resolved.PropulsionDeltaVCapacityMs > 0.0)
+        if (resolvedForMode.PropulsionDeltaVCapacityMs > 0.0)
         {
-            double massEfficiency = resolved.PropulsionReferenceMassKg / (resolved.PropulsionReferenceMassKg + projectileMass);
-            bestCaseDeltaV = resolved.PropulsionDeltaVCapacityMs * massEfficiency;
+            double massEfficiency = resolvedForMode.PropulsionReferenceMassKg / (resolvedForMode.PropulsionReferenceMassKg + projectileMass);
+            bestCaseDeltaV = resolvedForMode.PropulsionDeltaVCapacityMs * massEfficiency;
         }
 
         double requiredLaunchVelocityBestCase = Math.Max(0.0, requiredImpactVelocity - bestCaseDeltaV);
@@ -118,16 +131,23 @@ public sealed class FiringPhasePage : PageBase
 
         _lines.Add("=== YOUR WEAPON ===");
         _lines.Add($"Projectile Mass: {FiringPhaseFormatter.FormatMass(projectileMass, game.SelectedDifficulty)} kg");
-        _lines.Add($"Max Muzzle Velocity: {FiringPhaseFormatter.FormatVelocity(muzzleVelocity, game.SelectedDifficulty)} m/s");
+        _lines.Add($"Max Launch Velocity: {FiringPhaseFormatter.FormatVelocity(muzzleVelocity, game.SelectedDifficulty)} m/s");
         _lines.Add($"Barrel Integrity: {game.Gun.BarrelIntegrity:P2}");
-        bool hasGuidanceMod = (game.CraftedProjectile?.Enhancement?.Id == "guidance") || game.Gun.DefaultProjectile.HasGuidance;
+        bool hasGuidanceMod = (game.CraftedProjectile?.HasGuidance == true) || game.Gun.DefaultProjectile.HasGuidance;
         _lines.Add($"Guidance System Installed: {(hasGuidanceMod ? "Yes" : "No")}");
         _lines.Add($"Guidance Quality (x): {game.Gun.Guidance:F2}x");
-        _lines.Add($"Gun Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(game.CurrentWaveNumber).MaxEffectiveGunRange)}");
+        _lines.Add($"Gun Effective Range: {GameConstants.FormatDistance(game.GetCurrentEffectiveGunRangeMeters())}");
         _lines.Add("");
 
         _lines.Add("=== TARGET DATA FOR CALCULATIONS ===");
         _lines.Add($"Designation: {target.Name}");
+
+            if (game.CurrentWave.Doctrine != Spacegun_Simulator.Enemies.EnemyDoctrine.None)
+            {
+                string tag = game.CurrentWave.IsGuestDoctrine ? " (Guest)" : string.Empty;
+                _lines.Add($"Doctrine{tag}: {game.CurrentWave.DoctrineName} — {game.CurrentWave.DoctrineDescription}");
+            }
+
         _lines.Add("Enemy Approach Vector:");
         _lines.Add($"  Elevation: {FiringPhaseFormatter.FormatAngle(firingProblem.ApproachElevation, game.SelectedDifficulty)}° (in sky)");
         _lines.Add($"  Azimuth: {FiringPhaseFormatter.FormatAngle(firingProblem.ApproachAzimuth, game.SelectedDifficulty)}° (bearing)");
@@ -161,11 +181,31 @@ public sealed class FiringPhasePage : PageBase
         _lines.Add("");
         _lines.Add("=== FIRE CONTROL TOOLS ===");
         _lines.Add("");
-        _lines.Add("Motion Computer: Calculate target motion.");
-        _lines.Add("Ballistics Tables: Charts for quick lookups.");
-        _lines.Add("Trajectory Plotter: Calculate projectile trajectory.");
-        _lines.Add("Fire Simulator: Simulate a full firing attempt.");
-        _lines.Add("Commit: Enter final inputs and fire.");
+
+        _toolListFirstLineIndex = _lines.Count;
+
+        string Cursor(int idx) => _selectedToolIndex == idx ? ">" : " ";
+        _lines.Add($"{Cursor(0)} Motion Computer     - Calculate target motion");
+        _lines.Add($"{Cursor(1)} Ballistics Tables   - Charts for quick lookups");
+        _lines.Add($"{Cursor(2)} Trajectory Plotter  - Calculate projectile trajectory");
+        _lines.Add($"{Cursor(3)} Fire Simulator      - Simulate a full firing attempt");
+        _lines.Add($"{Cursor(4)} Commit              - Enter final inputs and fire");
+    }
+
+    private void EnsureSelectedToolVisible(int viewportHeight)
+    {
+        if (_toolListFirstLineIndex < 0)
+            return;
+
+        int selectedLine = _toolListFirstLineIndex + Math.Clamp(_selectedToolIndex, 0, 4);
+        int maxScroll = Math.Max(0, _lines.Count - Math.Max(0, viewportHeight));
+
+        if (selectedLine < _scroll)
+            _scroll = selectedLine;
+        else if (selectedLine >= _scroll + viewportHeight)
+            _scroll = selectedLine - viewportHeight + 1;
+
+        _scroll = Math.Clamp(_scroll, 0, maxScroll);
     }
 
     protected override void RenderBody(UiContext ui)
@@ -174,6 +214,8 @@ public sealed class FiringPhasePage : PageBase
             BuildLines(ui);
 
         int viewport = ui.ContentViewportHeight > 0 ? ui.ContentViewportHeight : 18;
+
+        EnsureSelectedToolVisible(viewport);
 
         int maxScroll = Math.Max(0, _lines.Count - viewport);
         if (_scroll < 0) _scroll = 0;
@@ -186,13 +228,16 @@ public sealed class FiringPhasePage : PageBase
 
     protected override PageResult HandleInputBody(UiContext ui, ConsoleKeyInfo key)
     {
-        const int lineStep = 1;
         const int pageStep = 6;
+
+        if (key.Key == ConsoleKey.B)
+            return PageResult.Back();
+
+        if (key.Key == ConsoleKey.G)
+            return PageResult.Go(PageId.DetailedWeaponStatus);
 
         switch (key.Key)
         {
-            case ConsoleKey.UpArrow: _scroll -= lineStep; return PageResult.Stay;
-            case ConsoleKey.DownArrow: _scroll += lineStep; return PageResult.Stay;
             case ConsoleKey.PageUp: _scroll -= pageStep; return PageResult.Stay;
             case ConsoleKey.PageDown: _scroll += pageStep; return PageResult.Stay;
         }
@@ -200,39 +245,36 @@ public sealed class FiringPhasePage : PageBase
         var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (FiringPhasePage requires GameState).");
         var firingResult = _firingResult ?? throw new InvalidOperationException("Firing result was not computed. (Expected OnEnter to run.)");
 
-            if (!firingResult.CanReachTarget || game.CurrentWave == null || game.CurrentFiringProblem == null)
+        if (!firingResult.CanReachTarget || game.CurrentWave == null || game.CurrentFiringProblem == null)
         {
             game.IsGameOver = true;
             return PageResult.Exit;
         }
 
-        switch (key.Key)
+        if (key.Key == ConsoleKey.UpArrow)
         {
-            case ConsoleKey.D1:
-            case ConsoleKey.NumPad1:
-                Action = FiringMenuAction.MotionComputer;
-                return PageResult.Exit;
+            _selectedToolIndex = (_selectedToolIndex + 5 - 1) % 5;
+            BuildLines(ui);
+            return PageResult.Stay;
+        }
 
-            case ConsoleKey.D2:
-            case ConsoleKey.NumPad2:
-                Action = FiringMenuAction.BallisticsTables;
-                return PageResult.Exit;
+        if (key.Key == ConsoleKey.DownArrow)
+        {
+            _selectedToolIndex = (_selectedToolIndex + 1) % 5;
+            BuildLines(ui);
+            return PageResult.Stay;
+        }
 
-            case ConsoleKey.D3:
-            case ConsoleKey.NumPad3:
-                Action = FiringMenuAction.TrajectoryPlotter;
-                return PageResult.Exit;
+        if (key.Key != ConsoleKey.Enter)
+            return PageResult.Stay;
 
-            case ConsoleKey.D4:
-            case ConsoleKey.NumPad4:
-                Action = FiringMenuAction.FireSimulator;
-                return PageResult.Exit;
-
-            case ConsoleKey.D5:
-            case ConsoleKey.NumPad5:
-                Action = FiringMenuAction.Commit;
-                return PageResult.Exit;
-
+        switch (_selectedToolIndex)
+        {
+            case 0: Action = FiringMenuAction.MotionComputer; return PageResult.Exit;
+            case 1: Action = FiringMenuAction.BallisticsTables; return PageResult.Exit;
+            case 2: Action = FiringMenuAction.TrajectoryPlotter; return PageResult.Exit;
+            case 3: Action = FiringMenuAction.FireSimulator; return PageResult.Exit;
+            case 4: Action = FiringMenuAction.Commit; return PageResult.Exit;
         }
 
         return PageResult.Stay;

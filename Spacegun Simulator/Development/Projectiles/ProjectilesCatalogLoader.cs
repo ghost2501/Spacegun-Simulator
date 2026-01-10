@@ -41,6 +41,7 @@ namespace Spacegun_Simulator.Core
                     id: e.Id,
                     name: e.Name,
                     description: e.Description,
+                    slot: ParseSlot(e.Slot),
                     hitToleranceBonus: e.HitToleranceBonus,
                     penetration: e.Penetration,
                     impactCoupling: e.ImpactCoupling,
@@ -61,6 +62,17 @@ namespace Spacegun_Simulator.Core
             {
                 // Keep game runnable if config is malformed.
             }
+        }
+
+        private static ProjectileEnhancementSlot ParseSlot(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return ProjectileEnhancementSlot.Payload;
+
+            if (Enum.TryParse<ProjectileEnhancementSlot>(raw, ignoreCase: true, out var slot))
+                return slot;
+
+            return ProjectileEnhancementSlot.Payload;
         }
 
         private sealed class ProjectilesCatalogJson
@@ -96,6 +108,7 @@ namespace Spacegun_Simulator.Core
         private sealed class ProjectileEnhancementJson
         {
             public string Id { get; set; } = string.Empty;
+            public string Slot { get; set; } = string.Empty;
             public string Name { get; set; } = string.Empty;
             public string Description { get; set; } = string.Empty;
             public double HitToleranceBonus { get; set; } = 1.0;

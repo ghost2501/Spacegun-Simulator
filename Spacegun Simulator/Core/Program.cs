@@ -27,6 +27,37 @@ namespace Spacegun_Simulator.Core
                 try { ConsoleUiBootstrap.WriteDiagnostics(Console.Error); } catch { }
             }
 
+            // Headless internal consistency checks (no UI).
+            // Useful as a quick gate when editing JSON catalogs and tuning.
+            if (args.Any(a => string.Equals(a, "--consistency-check", StringComparison.OrdinalIgnoreCase)
+                           || string.Equals(a, "--consistency", StringComparison.OrdinalIgnoreCase)))
+            {
+                // Match the tuning harness and main game: load config/tuning overrides.
+                GameConfigLoader.LoadIfExists();
+                EnemyConfigLoader.LoadOrThrow();
+                DevelopmentTuningLoader.LoadIfExists();
+                WeaponsTuningLoader.LoadIfExists();
+                WeaponsUpgradesLoader.LoadIfExists();
+                ProjectilesCatalogLoader.LoadIfExists();
+
+                var results = FireSimulatorDiagnostics.RunConsistencyChecks();
+                int pass = 0;
+                foreach (var r in results)
+                    if (r.Passed) pass++;
+
+                Console.WriteLine($"Consistency checks: {pass}/{results.Count} passed");
+                foreach (var r in results)
+                {
+                    string mark = r.Passed ? "OK" : "FAIL";
+                    Console.WriteLine($"  [{mark}] {r.Name}: {r.Message}");
+                }
+
+                if (pass != results.Count)
+                    Environment.ExitCode = 1;
+
+                return;
+            }
+
             // Diagnostics smoke checks (headless).
             // Keeps normal UX unchanged unless an explicit flag is provided.
             if (args.Any(a => string.Equals(a, "--tuninglab-smoke", StringComparison.OrdinalIgnoreCase)))
@@ -42,6 +73,7 @@ namespace Spacegun_Simulator.Core
             }
 
             GameConfigLoader.LoadIfExists();
+            EnemyConfigLoader.LoadOrThrow();
             DevelopmentTuningLoader.LoadIfExists();
             WeaponsTuningLoader.LoadIfExists();
             WeaponsUpgradesLoader.LoadIfExists();
@@ -145,10 +177,18 @@ namespace Spacegun_Simulator.Core
 
             // Match the tuning harness and main game: load config/tuning overrides.
             GameConfigLoader.LoadIfExists();
+            EnemyConfigLoader.LoadOrThrow();
             DevelopmentTuningLoader.LoadIfExists();
             WeaponsTuningLoader.LoadIfExists();
             WeaponsUpgradesLoader.LoadIfExists();
             ProjectilesCatalogLoader.LoadIfExists();
+
+            Console.WriteLine(
+                "TuningLab smoke: baselines loaded: " +
+                $"MuzzleVelocityMultiplier={GameConstants.MuzzleVelocityMultiplier:F3}, " +
+                $"DefaultBarrelLength={WeaponsTuning.Gun.DefaultBarrelLength:F1}, " +
+                $"DefaultFireControlQuality={WeaponsTuning.Gun.DefaultFireControlQuality:F3}, " +
+                $"ProjectileDefaults.Mass={DevelopmentTuning.ProjectileDefaults.Mass:F1}");
 
             var res = FireSimulatorDiagnostics.ComputeTuningCurveByTier(
                 ruleset: EnemyGenerationRuleset.Full,
@@ -205,6 +245,20 @@ namespace Spacegun_Simulator.Core
             {
                 Console.WriteLine(
                     $"Tier {i}: Det={res.DetectionRateByTier[i]:F3} BallisticsOK={res.BallisticsOkRateByTier[i]:F3} ExpectedHit={res.ExpectedHitRateByTier[i]:F3} ObservedHit={res.ObservedHitRateByTier[i]:F3}");
+            }
+
+            // Phase 6: deterministic regression check for ResolveWeaponStats pipeline.
+            try
+            {
+                var golden = FireSimulatorDiagnostics.RunGoldenScenarioRegressionCheck();
+                Console.WriteLine($"TuningLab smoke: {golden.Name}: {(golden.Passed ? "PASS" : "FAIL")} - {golden.Message}");
+                if (!golden.Passed)
+                    throw new InvalidOperationException(golden.Message);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("TuningLab smoke: golden scenarios FAILED: " + ex.Message);
+                throw;
             }
 
             try
@@ -311,6 +365,7 @@ namespace Spacegun_Simulator.Core
 
             // Load config/tuning overrides so the report matches gameplay.
             GameConfigLoader.LoadIfExists();
+            EnemyConfigLoader.LoadOrThrow();
             DevelopmentTuningLoader.LoadIfExists();
             WeaponsTuningLoader.LoadIfExists();
             WeaponsUpgradesLoader.LoadIfExists();
@@ -442,6 +497,14 @@ namespace Spacegun_Simulator.Core
         private static void RunTuningLabHeadless()
         {
             Console.WriteLine("TuningLab headless: computing and appending CSV...");
+
+            // Match the tuning harness and main game: load config/tuning overrides.
+            GameConfigLoader.LoadIfExists();
+            EnemyConfigLoader.LoadOrThrow();
+            DevelopmentTuningLoader.LoadIfExists();
+            WeaponsTuningLoader.LoadIfExists();
+            WeaponsUpgradesLoader.LoadIfExists();
+            ProjectilesCatalogLoader.LoadIfExists();
 
             // Match TuningLabPage defaults (except we use Hard difficulty by default for balancing).
             const EnemyGenerationRuleset ruleset = EnemyGenerationRuleset.Full;

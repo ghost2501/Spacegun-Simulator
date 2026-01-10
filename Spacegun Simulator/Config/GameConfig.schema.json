@@ -8,6 +8,7 @@
     "BarrelIntegrityLossPerShot": { "type": "number", "minimum": 0 },
     "BaseMuzzleVelocityMs": { "type": "integer", "minimum": 1 },
     "MuzzleVelocityMultiplier": { "type": "number", "minimum": 0.25, "maximum": 3 },
+    "TraceResolvedWeaponStats": { "type": "boolean" },
     "BudgetRewardBase": { "type": "number" },
     "BudgetRewardPerWave": { "type": "number" },
     "SteelRewardBase": { "type": "number" },
@@ -15,21 +16,6 @@
     "ExoticRewardBase": { "type": "number" },
     "ExoticRewardPerWave": { "type": "number" },
     "MinBudgetToContinue": { "type": "number" },
-    "TargetCountBase": { "type": "integer" },
-    "TargetCountTierBonus": { "type": "integer" },
-    "TargetCountRandomMaxExclusive": { "type": "integer", "minimum": 1 },
-    "EarlyTypes": { "type": "array", "items": { "type": "string" } },
-    "MidTypes": { "type": "array", "items": { "type": "string" } },
-    "LateTypes": { "type": "array", "items": { "type": "string" } },
-    "CrossSectionRanges": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "properties": { "Min": { "type": "integer" }, "Max": { "type": "integer" } },
-        "required": ["Min", "Max"]
-      }
-    },
-    "StealthChanceForLateTiers": { "type": "number", "minimum": 0, "maximum": 1 },
     "Modes": {
       "type": "object",
       "additionalProperties": false,

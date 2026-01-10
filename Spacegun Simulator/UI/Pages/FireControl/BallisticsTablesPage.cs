@@ -56,7 +56,9 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 			_diff = DifficultyConfig.GetConfig(_difficulty);
 			_tierIndex = game.CurrentWaveNumber > 0 ? GameConstants.GetTierForWave(game.CurrentWaveNumber).TierIndex : 0;
 			var tier = GameConstants.WaveTiers[Math.Min(_tierIndex, 3)];
-			_gunRangeMeters = tier.MaxEffectiveGunRange;
+			_gunRangeMeters = _diff.IsTutorialMode
+				? DifficultyConfig.TutorialPotatoCannon.EffectiveRangeMeters
+				: game.GetCurrentEffectiveGunRangeMeters();
 			_tierVelMin = tier.VelocityMin;
 			_tierVelMax = tier.VelocityMax;
 
@@ -147,7 +149,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 			var tier = GameConstants.WaveTiers[Math.Min(_tierIndex, 3)];
 			double minVel = tier.VelocityMin;
 			double maxVel = tier.VelocityMax;
-			double gunRange = tier.MaxEffectiveGunRange;
+			double gunRange = _gunRangeMeters;
 
 			double[] velocities =
 			{
@@ -186,7 +188,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 		{
 			yield return "=== TABLE 2: GRAVITY DROP (COMPACT) ===";
 			var tier = GameConstants.WaveTiers[Math.Min(_tierIndex, 3)];
-			double engagementRange = tier.MaxEffectiveGunRange * 0.50;
+			double engagementRange = _gunRangeMeters * 0.50;
 			yield return $"Ref range: {diff.FormatDistance(engagementRange)}";
 			yield return "t      | drop      | %range";
 			yield return "-------+-----------+--------";
@@ -245,7 +247,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 		{
 			yield return "=== TABLE 4: RANGE COVERAGE (COMPACT) ===";
 			var tier = GameConstants.WaveTiers[Math.Min(_tierIndex, 3)];
-			yield return $"Gun Range: {GameConstants.FormatDistance(tier.MaxEffectiveGunRange)}";
+			yield return $"Gun Range: {GameConstants.FormatDistance(_gunRangeMeters)}";
 			yield return "";
 
 			float[] times = tier.TierIndex switch

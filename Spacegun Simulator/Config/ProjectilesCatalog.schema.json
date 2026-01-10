@@ -61,13 +61,15 @@
     "enhancement": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["Id", "Name", "Description", "HitToleranceBonus", "Penetration", "DefenseBonus", "RequiredTechLevel", "Cost"],
+      "required": ["Id", "Slot", "Name", "Description", "HitToleranceBonus", "Penetration", "DefenseBonus", "RequiredTechLevel", "Cost"],
       "properties": {
         "Id": { "type": "string", "minLength": 1 },
+        "Slot": { "type": "string", "enum": ["Guidance", "Payload", "Armor"] },
         "Name": { "type": "string", "minLength": 1 },
         "Description": { "type": "string" },
         "HitToleranceBonus": { "type": "number", "minimum": 0 },
         "Penetration": { "type": "number", "minimum": 0 },
+        "ImpactCoupling": { "type": "number", "minimum": 0 },
         "DefenseBonus": { "type": "number" },
         "RequiredTechLevel": { "type": "integer", "minimum": 1 },
         "Cost": { "$ref": "#/$defs/resourceCost" }

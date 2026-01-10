@@ -13,7 +13,9 @@ namespace Spacegun_Simulator.Core
         public static ProjectileEnhancement[] Enhancements { get; private set; } = CreateDefaultEnhancements();
 
         public static PropulsionSystem PropulsionNone { get; private set; } = CreateDefaultPropulsion()[0];
-        public static ProjectileEnhancement EnhancementNone { get; private set; } = CreateDefaultEnhancements()[0];
+        public static ProjectileEnhancement GuidanceNone { get; private set; } = CreateDefaultEnhancements()[0];
+        public static ProjectileEnhancement PayloadNone { get; private set; } = CreateDefaultEnhancements()[1];
+        public static ProjectileEnhancement ArmorNone { get; private set; } = CreateDefaultEnhancements()[2];
 
         public static void Apply(ProjectilesCatalogConfig cfg)
         {
@@ -28,7 +30,9 @@ namespace Spacegun_Simulator.Core
 
             // Ensure "none" entries are always available for UX + safety.
             PropulsionNone = FindPropulsionNone(PropulsionSystems) ?? CreateDefaultPropulsion()[0];
-            EnhancementNone = FindEnhancementNone(Enhancements) ?? CreateDefaultEnhancements()[0];
+            GuidanceNone = FindNoneForSlot(Enhancements, ProjectileEnhancementSlot.Guidance) ?? CreateDefaultEnhancements()[0];
+            PayloadNone = FindNoneForSlot(Enhancements, ProjectileEnhancementSlot.Payload) ?? CreateDefaultEnhancements()[1];
+            ArmorNone = FindNoneForSlot(Enhancements, ProjectileEnhancementSlot.Armor) ?? CreateDefaultEnhancements()[2];
 
             // If config omitted the none item, prepend it.
             if (FindPropulsionNone(PropulsionSystems) is null)
@@ -39,13 +43,93 @@ namespace Spacegun_Simulator.Core
                 PropulsionSystems = withNone;
             }
 
-            if (FindEnhancementNone(Enhancements) is null)
+            EnsureNoneForSlot(ProjectileEnhancementSlot.Guidance, GuidanceNone);
+            EnsureNoneForSlot(ProjectileEnhancementSlot.Payload, PayloadNone);
+            EnsureNoneForSlot(ProjectileEnhancementSlot.Armor, ArmorNone);
+        }
+
+        public static ProjectileEnhancement GetNoneModule(ProjectileEnhancementSlot slot) => slot switch
+        {
+            ProjectileEnhancementSlot.Guidance => GuidanceNone,
+            ProjectileEnhancementSlot.Payload => PayloadNone,
+            ProjectileEnhancementSlot.Armor => ArmorNone,
+            _ => PayloadNone,
+        };
+
+        public static IReadOnlyList<ProjectileEnhancement> GetModulesForSlot(ProjectileEnhancementSlot slot)
+        {
+            return Enhancements
+                .Where(e => e is not null && e.Slot == slot)
+                .OrderByDescending(e => e.IsNone)
+                .ThenBy(e => e.RequiredTechLevel)
+                .ThenBy(e => e.Name)
+                .ToList();
+        }
+
+        public static bool TryGetEnhancementById(string? id, out ProjectileEnhancement enhancement)
+        {
+            enhancement = null!;
+
+            if (string.IsNullOrWhiteSpace(id))
+                return false;
+
+            foreach (var e in Enhancements)
             {
-                var withNone = new ProjectileEnhancement[Enhancements.Length + 1];
-                withNone[0] = EnhancementNone;
-                Array.Copy(Enhancements, 0, withNone, 1, Enhancements.Length);
-                Enhancements = withNone;
+                if (e is null)
+                    continue;
+
+                if (string.Equals(e.Id, id, StringComparison.OrdinalIgnoreCase))
+                {
+                    enhancement = e;
+                    return true;
+                }
             }
+
+            return false;
+        }
+
+        public static bool TryGetCoreById(string? id, out ProjectileCore core)
+        {
+            core = null!;
+
+            if (string.IsNullOrWhiteSpace(id))
+                return false;
+
+            foreach (var c in Cores)
+            {
+                if (c is null)
+                    continue;
+
+                if (string.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase))
+                {
+                    core = c;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public static bool TryGetPropulsionById(string? id, out PropulsionSystem propulsion)
+        {
+            propulsion = null!;
+
+            if (string.IsNullOrWhiteSpace(id))
+                return false;
+
+            foreach (var p in PropulsionSystems)
+            {
+                if (p is null)
+                    continue;
+
+                if (string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase))
+                {
+                    propulsion = p;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static PropulsionSystem? FindPropulsionNone(PropulsionSystem[] list)
@@ -60,16 +144,28 @@ namespace Spacegun_Simulator.Core
             return null;
         }
 
-        private static ProjectileEnhancement? FindEnhancementNone(ProjectileEnhancement[] list)
+        private static ProjectileEnhancement? FindNoneForSlot(ProjectileEnhancement[] list, ProjectileEnhancementSlot slot)
         {
             foreach (var e in list)
             {
                 if (e is not null
-                    && string.Equals(e.Id, "none", StringComparison.OrdinalIgnoreCase)
+                    && e.Slot == slot
+                    && e.IsNone
                     && e.RequiredTechLevel <= 1)
                     return e;
             }
             return null;
+        }
+
+        private static void EnsureNoneForSlot(ProjectileEnhancementSlot slot, ProjectileEnhancement fallbackNone)
+        {
+            if (FindNoneForSlot(Enhancements, slot) is not null)
+                return;
+
+            var withNone = new ProjectileEnhancement[Enhancements.Length + 1];
+            withNone[0] = fallbackNone;
+            Array.Copy(Enhancements, 0, withNone, 1, Enhancements.Length);
+            Enhancements = withNone;
         }
 
         private static ProjectileCore[] CreateDefaultCores() =>
@@ -165,9 +261,34 @@ namespace Spacegun_Simulator.Core
         private static ProjectileEnhancement[] CreateDefaultEnhancements() =>
         [
             new ProjectileEnhancement(
-                id: "none",
-                name: "No Enhancement",
-                description: "Standard projectile without modifications",
+                id: "none_guidance",
+                name: "No Guidance",
+                description: "No guidance module installed",
+                slot: ProjectileEnhancementSlot.Guidance,
+                hitToleranceBonus: 1.0,
+                penetration: 1.0,
+                impactCoupling: 1.0,
+                defenseBonus: 0.0,
+                requiredTechLevel: 1,
+                cost: Development.Shared.ResourceCost.None
+            ),
+            new ProjectileEnhancement(
+                id: "none_payload",
+                name: "No Payload Mod",
+                description: "No payload modifier installed",
+                slot: ProjectileEnhancementSlot.Payload,
+                hitToleranceBonus: 1.0,
+                penetration: 1.0,
+                impactCoupling: 1.0,
+                defenseBonus: 0.0,
+                requiredTechLevel: 1,
+                cost: Development.Shared.ResourceCost.None
+            ),
+            new ProjectileEnhancement(
+                id: "none_armor",
+                name: "No Armor",
+                description: "No armor/survivability module installed",
+                slot: ProjectileEnhancementSlot.Armor,
                 hitToleranceBonus: 1.0,
                 penetration: 1.0,
                 impactCoupling: 1.0,
@@ -179,6 +300,7 @@ namespace Spacegun_Simulator.Core
                 id: "guidance",
                 name: "Guidance Package",
                 description: "Terminal guidance for improved accuracy",
+                slot: ProjectileEnhancementSlot.Guidance,
                 hitToleranceBonus: 2.0,
                 penetration: 1.0,
                 impactCoupling: 1.0,
@@ -190,6 +312,7 @@ namespace Spacegun_Simulator.Core
                 id: "shaped",
                 name: "Shaped Charge",
                 description: "Focused energy on impact - 25% more effective damage",
+                slot: ProjectileEnhancementSlot.Payload,
                 hitToleranceBonus: 1.0,
                 penetration: 1.25,
                 impactCoupling: 1.0,
@@ -201,6 +324,7 @@ namespace Spacegun_Simulator.Core
                 id: "armor_piercing",
                 name: "Armor Piercing Tip",
                 description: "Hardened tip for dense targets - 15% damage boost",
+                slot: ProjectileEnhancementSlot.Payload,
                 hitToleranceBonus: 1.0,
                 penetration: 1.15,
                 impactCoupling: 1.0,
@@ -212,6 +336,7 @@ namespace Spacegun_Simulator.Core
                 id: "fragmentation",
                 name: "Fragmentation Shell",
                 description: "Larger hit tolerance, slight damage penalty",
+                slot: ProjectileEnhancementSlot.Payload,
                 hitToleranceBonus: 1.75,
                 penetration: 0.9,
                 impactCoupling: 1.0,
@@ -223,6 +348,7 @@ namespace Spacegun_Simulator.Core
                 id: "countermeasures",
                 name: "Countermeasure Package",
                 description: "Decoys and ablatives - improves projectile survivability",
+                slot: ProjectileEnhancementSlot.Armor,
                 hitToleranceBonus: 1.0,
                 penetration: 0.98,
                 impactCoupling: 1.0,
@@ -234,6 +360,7 @@ namespace Spacegun_Simulator.Core
                 id: "hardened",
                 name: "Hardened Casing",
                 description: "Hardened casing - major survivability boost",
+                slot: ProjectileEnhancementSlot.Armor,
                 hitToleranceBonus: 1.0,
                 penetration: 0.96,
                 impactCoupling: 1.0,

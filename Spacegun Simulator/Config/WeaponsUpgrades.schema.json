@@ -27,12 +27,24 @@
             }
           },
           "Prerequisites": { "type": "array", "items": { "type": "string" } },
-          "StatModifiers": { "type": "object", "additionalProperties": { "type": "number" } },
           "MinWeaponsTechLevel": { "type": "integer", "minimum": 1 },
           "MinProjectilesTechLevel": { "type": "integer", "minimum": 1 },
           "RequiresGuidanceMod": { "type": "boolean" },
           "RequiresPropulsion": { "type": "string", "enum": ["Chemical", "NonChemical"] },
-          "Parameters": { "type": "object", "additionalProperties": { "type": "number" } }
+          "Parameters": { "type": "object", "additionalProperties": { "type": "number" } },
+          "Modifiers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["Key", "Op", "Value"],
+              "properties": {
+                "Key": { "type": "string", "minLength": 1 },
+                "Op": { "type": "string", "enum": ["Add", "Mul", "Set", "ClampMin", "ClampMax"] },
+                "Value": { "type": "number" }
+              }
+            }
+          }
         }
       }
     }

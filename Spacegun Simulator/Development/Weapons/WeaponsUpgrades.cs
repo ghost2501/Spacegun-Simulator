@@ -1,4 +1,5 @@
 using Spacegun_Simulator.Development.Shared;
+using Spacegun_Simulator.Core.Stats;
 
 namespace Spacegun_Simulator.Core
 {
@@ -17,12 +18,12 @@ namespace Spacegun_Simulator.Core
             string Description,
             ResourceCost Cost,
             string[] Prerequisites,
-            Dictionary<string, double> StatModifiers,
             int? MinWeaponsTechLevel,
             int? MinProjectilesTechLevel,
             bool RequiresGuidanceMod,
             string? RequiresPropulsion,
-            Dictionary<string, double> Parameters);
+            Dictionary<string, double> Parameters,
+            IReadOnlyList<StatModifier> Modifiers);
 
         public static UpgradeDefinition CreateDefault(string id) => new(
             Id: id,
@@ -30,12 +31,12 @@ namespace Spacegun_Simulator.Core
             Description: string.Empty,
             Cost: ResourceCost.None,
             Prerequisites: Array.Empty<string>(),
-            StatModifiers: new Dictionary<string, double>(),
             MinWeaponsTechLevel: null,
             MinProjectilesTechLevel: null,
             RequiresGuidanceMod: false,
             RequiresPropulsion: null,
-            Parameters: new Dictionary<string, double>()
+            Parameters: new Dictionary<string, double>(),
+            Modifiers: Array.Empty<StatModifier>()
         );
     }
 }

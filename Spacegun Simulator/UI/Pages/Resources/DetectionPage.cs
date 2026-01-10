@@ -60,60 +60,40 @@ public sealed class DetectionPage : PageBase
         _lines.Add("=== THREAT ARCHETYPE ===");
         _lines.Add($"Class: {archetype.Name}");
         _lines.Add($"Description: {archetype.Description}");
+
+        if (result.Wave.Doctrine != Spacegun_Simulator.Enemies.EnemyDoctrine.None)
+        {
+            string tag = result.Wave.IsGuestDoctrine ? " (Guest)" : string.Empty;
+            _lines.Add($"Doctrine{tag}: {result.Wave.DoctrineName} — {result.Wave.DoctrineDescription}");
+        }
         _lines.Add("");
 
         _lines.Add("=== BALLISTIC REQUIREMENTS ===");
-        var tier = GameConstants.GetTierForWave(game.CurrentWaveNumber);
-        int tierIndex = tier.TierIndex;
-
-        var mat = DevelopmentTuning.TierTargetMaterial;
-        int tierCount = GameConstants.TierCount;
-
-        bool hasMaterialTuning =
-            mat.TierEnemyMassTonsMin.Length >= tierCount &&
-            mat.TierEnemyMassTonsMax.Length >= tierCount &&
-            mat.TierEnemyDensityKgM3Min.Length >= tierCount &&
-            mat.TierEnemyDensityKgM3Max.Length >= tierCount &&
-            mat.TierEnemyBulkModulusGpaMin.Length >= tierCount &&
-            mat.TierEnemyBulkModulusGpaMax.Length >= tierCount;
-
-        if (hasMaterialTuning)
         {
-            int safe = Math.Clamp(tierIndex, 0, tierCount - 1);
+            // Provide an approximate per-wave estimate to guide development without revealing
+            // exact numbers (exact values are shown on the Firing Solution page).
+            var t = result.Wave.Targets.Count > 0 ? result.Wave.Targets[0] : null;
+            if (t is not null)
+            {
+                const double band = 0.15; // ±15% guidance band
 
-            double massMinTons = mat.TierEnemyMassTonsMin[safe];
-            double massMaxTons = mat.TierEnemyMassTonsMax[safe];
-            if (massMaxTons < massMinTons) (massMinTons, massMaxTons) = (massMaxTons, massMinTons);
+                double massTons = Math.Max(0.0, t.Mass / 1000.0);
+                double massMinTons = massTons * (1.0 - band);
+                double massMaxTons = massTons * (1.0 + band);
 
-            // Fracture energy bounds from the derived model:
-            // E ~ K * eps^2 * (mass/density)
-            double densityMin = mat.TierEnemyDensityKgM3Min[safe];
-            double densityMax = mat.TierEnemyDensityKgM3Max[safe];
-            if (densityMax < densityMin) (densityMin, densityMax) = (densityMax, densityMin);
+                double fractureMj = Math.Max(0.0, t.FractureEnergy);
+                double fractureMin = fractureMj * (1.0 - band);
+                double fractureMax = fractureMj * (1.0 + band);
 
-            double bulkMin = mat.TierEnemyBulkModulusGpaMin[safe];
-            double bulkMax = mat.TierEnemyBulkModulusGpaMax[safe];
-            if (bulkMax < bulkMin) (bulkMin, bulkMax) = (bulkMax, bulkMin);
-
-            double fractureMin = Spacegun_Simulator.Ballistics.BallisticsCalculator.CalculateFractureEnergyMJFromMassDensityAndBulkModulus(
-                massMinTons,
-                densityMax,
-                bulkMin,
-                mat.FractureStrain);
-            double fractureMax = Spacegun_Simulator.Ballistics.BallisticsCalculator.CalculateFractureEnergyMJFromMassDensityAndBulkModulus(
-                massMaxTons,
-                densityMin,
-                bulkMax,
-                mat.FractureStrain);
-
-            _lines.Add($"Enemy Mass Range: {massMinTons:N0} - {massMaxTons:N0} metric tons");
-            _lines.Add($"Required Fracture Energy Range: {fractureMin:N0} - {fractureMax:N0} MJ");
-        }
-        else
-        {
-            // Fallback for misconfigured tuning.
-            _lines.Add($"Enemy Mass Range: {archetype.MassRange.Min:N0} - {archetype.MassRange.Max:N0} metric tons");
-            _lines.Add($"Required Fracture Energy Range: {archetype.FractureEnergyRange.Min:N0} - {archetype.FractureEnergyRange.Max:N0} MJ");
+                _lines.Add($"Enemy Mass (est.): {massMinTons:N0} - {massMaxTons:N0} metric tons");
+                _lines.Add($"Fracture Energy Needed (est.): {fractureMin:N0} - {fractureMax:N0} MJ");
+            }
+            else
+            {
+                // Fallback: archetype range if target data is unavailable.
+                _lines.Add($"Enemy Mass Range: {archetype.MassRange.Min:N0} - {archetype.MassRange.Max:N0} metric tons");
+                _lines.Add($"Required Fracture Energy Range: {archetype.FractureEnergyRange.Min:N0} - {archetype.FractureEnergyRange.Max:N0} MJ");
+            }
         }
         _lines.Add($"Difficulty: {DifficultyText.DescribeStars(archetype.BaseDifficultyRating)}");
         _lines.Add("");

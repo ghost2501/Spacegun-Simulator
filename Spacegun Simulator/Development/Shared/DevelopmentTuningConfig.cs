@@ -6,8 +6,6 @@ namespace Spacegun_Simulator.Core
     public sealed class DevelopmentTuningConfig
     {
         public int Version { get; set; } = 1;
-
-        public EnemyTuningConfig? EnemyTuning { get; set; }
         public TierTargetMaterialTuningConfig? TierTargetMaterialTuning { get; set; }
         public TierVelocityTuningConfig? TierVelocityTuning { get; set; }
         public TechTreeTuningConfig? TechTreeTuning { get; set; }
@@ -74,21 +72,6 @@ namespace Spacegun_Simulator.Core
         public double? FractureStrain { get; set; }
     }
 
-    public sealed class EnemyTuningConfig
-    {
-        public int? TargetCountBase { get; set; }
-        public int? TargetCountTierBonus { get; set; }
-        public int? TargetCountRandomMaxExclusive { get; set; }
-
-        public string[]? EarlyTypes { get; set; }
-        public string[]? MidTypes { get; set; }
-        public string[]? LateTypes { get; set; }
-
-        public Dictionary<string, Range>? CrossSectionRanges { get; set; }
-
-        public double? StealthChanceForLateTiers { get; set; }
-    }
-
     public sealed class TierVelocityTuningConfig
     {
         public double[]? TierEnemyMinVelocity { get; set; }
@@ -110,7 +93,6 @@ namespace Spacegun_Simulator.Core
     {
         public double? Mass { get; set; }
         public double? Length { get; set; }
-        public double? DragCoefficient { get; set; }
         public bool? HasGuidance { get; set; }
         public double? GuidanceAccuracy { get; set; }
         public double? ImpactCoupling { get; set; }

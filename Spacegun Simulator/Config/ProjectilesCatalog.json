@@ -1,39 +1,130 @@
-{
+﻿{
   "Version": 1,
   "Cores": [
     {
       "Id": "light",
       "Name": "Light Core",
-      "Description": "10kg tungsten dart - entry-level penetrator",
-      "MassKg": 10,
+      "Description": "5t baseline penetrator slug",
+      "MassKg": 5000,
       "RequiredTechLevel": 1,
       "Cost": { "Budget": 50, "Steel": 30, "Exotic": 0 }
     },
     {
       "Id": "standard",
       "Name": "Standard Core",
-      "Description": "15kg dense penetrator - reliable workhorse",
-      "MassKg": 15,
+      "Description": "6.5t dense slug - reliable workhorse",
+      "MassKg": 6500,
       "RequiredTechLevel": 1,
       "Cost": { "Budget": 100, "Steel": 80, "Exotic": 10 }
     },
     {
+      "Id": "slug",
+      "Name": "Slug",
+      "Description": "7t slug - heavier KE package",
+      "MassKg": 7000,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 140, "Steel": 110, "Exotic": 10 }
+    },
+    {
+      "Id": "c1_02_needle",
+      "Name": "Needle Core Mk I",
+      "Description": "Doctrine counter: Swarm. Very low mass for high velocity and Δv efficiency (less KE).",
+      "MassKg": 3700,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 231, "Steel": 130, "Exotic": 33 }
+    },
+    {
+      "Id": "c1_13_ghost",
+      "Name": "Ghost Core Mk I",
+      "Description": "Doctrine counter: Stealth. Mid-light mass for good velocity without collapsing KE.",
+      "MassKg": 4950,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 206, "Steel": 147, "Exotic": 27 }
+    },
+
+    {
+      "Id": "lightweight_sabot",
+      "Name": "Lightweight Sabot",
+      "Description": "Lower mass core for better velocity envelope (~-8% vs 5t)",
+      "MassKg": 4600,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 170, "Steel": 90, "Exotic": 30 }
+    },
+    {
       "Id": "heavy",
       "Name": "Heavy Core",
-      "Description": "25kg armored slug - high mass",
-      "MassKg": 25,
+      "Description": "8t armored slug - high mass",
+      "MassKg": 8000,
       "RequiredTechLevel": 2,
       "Cost": { "Budget": 200, "Steel": 180, "Exotic": 30 }
     },
     {
+      "Id": "ram",
+      "Name": "Ram",
+      "Description": "9t slug - maximum KE bias for tech II",
+      "MassKg": 9000,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 280, "Steel": 240, "Exotic": 45 }
+    },
+    {
+      "Id": "c2_12_pursuit",
+      "Name": "Pursuit Core Mk II",
+      "Description": "Doctrine counter: Evasion. Low-ish mass to keep speed and tracking margin at range.",
+      "MassKg": 4450,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 299, "Steel": 187, "Exotic": 49 }
+    },
+    {
+      "Id": "c2_13_ghost",
+      "Name": "Ghost Core Mk II",
+      "Description": "Doctrine counter: Jamming. Mass tuned for mid-flight Δv efficiency (less wasted burn).",
+      "MassKg": 5000,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 265, "Steel": 190, "Exotic": 41 }
+    },
+
+    {
       "Id": "ultra",
       "Name": "Ultra-Dense Core",
-      "Description": "50kg exotic alloy - devastating impact",
-      "MassKg": 50,
+      "Description": "10t exotic alloy - maximum mass core",
+      "MassKg": 10000,
       "RequiredTechLevel": 3,
       "Cost": { "Budget": 400, "Steel": 300, "Exotic": 80 }
+    },
+    {
+      "Id": "hullbuster",
+      "Name": "Hullbuster",
+      "Description": "Heavy core tuned for brutal coupling into fracture work",
+      "MassKg": 10000,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 460, "Steel": 340, "Exotic": 95 }
+    },
+    {
+      "Id": "c3_11_glide",
+      "Name": "Glide Core Mk III",
+      "Description": "Doctrine counter: Evasion. Very low mass for high velocity and Δv efficiency.",
+      "MassKg": 3800,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 382, "Steel": 222, "Exotic": 82 }
+    },
+    {
+      "Id": "c3_13_ghost",
+      "Name": "Ghost Core Mk III",
+      "Description": "Doctrine counter: StealthEvasion. Light core that keeps velocity high without going featherweight.",
+      "MassKg": 4250,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 416, "Steel": 237, "Exotic": 90 }
+    },
+    {
+      "Id": "c3_18_rammer",
+      "Name": "Rammer Core Mk III",
+      "Description": "Doctrine counter: Armor. Mid-heavy mass to push KE while still leaving some Δv headroom.",
+      "MassKg": 7050,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 433, "Steel": 290, "Exotic": 94 }
     }
   ],
+
   "PropulsionSystems": [
     {
       "Id": "none",
@@ -41,121 +132,699 @@
       "Description": "Unpowered projectile - uses gun velocity only",
       "DeltaVCapacityMs": 0,
       "BurnDurationSeconds": 1,
-      "ReferenceMassKg": 10,
+      "ReferenceMassKg": 5000,
       "RequiredTechLevel": 1,
       "Cost": { "Budget": 0, "Steel": 0, "Exotic": 0 }
     },
+
     {
       "Id": "solid_rocket",
-      "Name": "Solid Rocket Booster",
-      "Description": "Quick-burn solid fuel - +20 km/s over 2 seconds",
+      "Name": "Sprinter",
+      "Description": "Doctrine counter: Evasion. Quick punch (+20 km/s over 2 s).",
       "DeltaVCapacityMs": 20000,
       "BurnDurationSeconds": 2,
-      "ReferenceMassKg": 15,
+      "ReferenceMassKg": 5000,
       "RequiredTechLevel": 2,
       "Cost": { "Budget": 80, "Steel": 40, "Exotic": 10 }
     },
     {
       "Id": "liquid_sustainer",
-      "Name": "Liquid Fuel Sustainer",
-      "Description": "Extended burn liquid fuel - +40 km/s over 8 seconds",
+      "Name": "Medium Burn",
+      "Description": "Doctrine counter: Siege. Long burn (+40 km/s over 8 s).",
       "DeltaVCapacityMs": 40000,
       "BurnDurationSeconds": 8,
-      "ReferenceMassKg": 20,
+      "ReferenceMassKg": 5000,
       "RequiredTechLevel": 2,
       "Cost": { "Budget": 150, "Steel": 80, "Exotic": 30 }
     },
     {
+      "Id": "p2_09_arcjet",
+      "Name": "Arcjet Mk II",
+      "Description": "Doctrine counter: Swarm. Efficient sustained Δv (+51000 m/s over 13.9 s).",
+      "DeltaVCapacityMs": 51000,
+      "BurnDurationSeconds": 13.9,
+      "ReferenceMassKg": 9100,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 613, "Steel": 275, "Exotic": 45 }
+    },
+    {
+      "Id": "p2_12_throttle_pack",
+      "Name": "Throttle Pack Mk II",
+      "Description": "Doctrine counter: Jamming. Short controllable burn (+24000 m/s over 2.64 s).",
+      "DeltaVCapacityMs": 24000,
+      "BurnDurationSeconds": 2.64,
+      "ReferenceMassKg": 3900,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 287, "Steel": 131, "Exotic": 10 }
+    },
+    {
+      "Id": "p2_17_vernier_array",
+      "Name": "Vernier Array Mk II",
+      "Description": "Doctrine counter: StealthEvasion. Mid-burn with good control authority (+49000 m/s over 6.22 s).",
+      "DeltaVCapacityMs": 49000,
+      "BurnDurationSeconds": 6.22,
+      "ReferenceMassKg": 7400,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 594, "Steel": 266, "Exotic": 42 }
+    },
+
+    {
       "Id": "ion_drive",
       "Name": "Ion Thruster Array",
-      "Description": "Continuous ion propulsion - +80 km/s over 20 seconds",
+      "Description": "Doctrine counter: Siege. Continuous ion propulsion (+80 km/s over 20 s).",
       "DeltaVCapacityMs": 80000,
       "BurnDurationSeconds": 20,
-      "ReferenceMassKg": 10,
+      "ReferenceMassKg": 5000,
       "RequiredTechLevel": 3,
       "Cost": { "Budget": 300, "Steel": 100, "Exotic": 80 }
     },
     {
       "Id": "plasma_accel",
-      "Name": "Plasma Accelerator",
-      "Description": "High-energy plasma burst - +120 km/s over 3 seconds",
+      "Name": "Fireball",
+      "Description": "Doctrine counter: Armor. High peak Δv (+120 km/s over 3 s).",
       "DeltaVCapacityMs": 120000,
       "BurnDurationSeconds": 3,
-      "ReferenceMassKg": 25,
+      "ReferenceMassKg": 5000,
       "RequiredTechLevel": 3,
       "Cost": { "Budget": 400, "Steel": 150, "Exotic": 100 }
+    },
+    {
+      "Id": "p3_09_arcjet",
+      "Name": "Arcjet Mk III",
+      "Description": "Doctrine counter: Swarm. Huge sustained Δv (+162000 m/s over 21.6 s).",
+      "DeltaVCapacityMs": 162000,
+      "BurnDurationSeconds": 21.6,
+      "ReferenceMassKg": 16300,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 1200, "Steel": 745, "Exotic": 238 }
+    },
+    {
+      "Id": "p3_14_ion_sustainer",
+      "Name": "Ion Sustainer Mk III",
+      "Description": "Doctrine counter: Evasion. Strong Δv with short-ish burn (+174000 m/s over 4.1 s).",
+      "DeltaVCapacityMs": 174000,
+      "BurnDurationSeconds": 4.1,
+      "ReferenceMassKg": 8300,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 1200, "Steel": 605, "Exotic": 190 }
+    },
+    {
+      "Id": "p3_18_cold_gas_blip",
+      "Name": "Cold-Gas Blip Mk III",
+      "Description": "Doctrine counter: Jamming. Low-signature maneuvering (+88000 m/s over 8.9 s).",
+      "DeltaVCapacityMs": 88000,
+      "BurnDurationSeconds": 8.9,
+      "ReferenceMassKg": 12700,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 992, "Steel": 442, "Exotic": 135 }
     }
   ],
+
   "Enhancements": [
     {
-      "Id": "none",
-      "Name": "No Enhancement",
-      "Description": "Standard projectile without modifications",
+      "Id": "none_guidance",
+      "Slot": "Guidance",
+      "Name": "No Guidance",
+      "Description": "No guidance module installed",
       "HitToleranceBonus": 1.0,
       "Penetration": 1.0,
+      "ImpactCoupling": 1.0,
       "DefenseBonus": 0.0,
       "RequiredTechLevel": 1,
       "Cost": { "Budget": 0, "Steel": 0, "Exotic": 0 }
     },
     {
-      "Id": "guidance",
-      "Name": "Guidance Package",
-      "Description": "Terminal guidance for improved accuracy",
-      "HitToleranceBonus": 2.0,
+      "Id": "none_payload",
+      "Slot": "Payload",
+      "Name": "No Payload Mod",
+      "Description": "No payload modifier installed",
+      "HitToleranceBonus": 1.0,
       "Penetration": 1.0,
+      "ImpactCoupling": 1.0,
+      "DefenseBonus": 0.0,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 0, "Steel": 0, "Exotic": 0 }
+    },
+    {
+      "Id": "none_armor",
+      "Slot": "Armor",
+      "Name": "No Armor",
+      "Description": "No armor/survivability module installed",
+      "HitToleranceBonus": 1.0,
+      "Penetration": 1.0,
+      "ImpactCoupling": 1.0,
+      "DefenseBonus": 0.0,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 0, "Steel": 0, "Exotic": 0 }
+    },
+
+    {
+      "Id": "g1_01_spin_stabilizer",
+      "Slot": "Guidance",
+      "Name": "Spin Stabilizer Mk I",
+      "Description": "Doctrine counter: Evasion. Penetration x1.02; HitTol x1.12; Defense -0.01",
+      "HitToleranceBonus": 1.12,
+      "Penetration": 1.02,
+      "ImpactCoupling": 1.0,
+      "DefenseBonus": -0.01,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 83, "Steel": 44, "Exotic": 0 }
+    },
+    {
+      "Id": "g1_05_home_on_jam_logic",
+      "Slot": "Guidance",
+      "Name": "Home-on-Jam Logic Mk I",
+      "Description": "Doctrine counter: Jamming. ImpactCoupling x1.04; HitTol x1.16; Defense +0.04",
+      "HitToleranceBonus": 1.16,
+      "Penetration": 0.98,
+      "ImpactCoupling": 1.04,
+      "DefenseBonus": 0.04,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 97, "Steel": 51, "Exotic": 0 }
+    },
+    {
+      "Id": "g1_08_cross_coupled_gyros",
+      "Slot": "Guidance",
+      "Name": "Cross-Coupled Gyros Mk I",
+      "Description": "Doctrine counter: Armor. ImpactCoupling x1.06; HitTol x1.20; Pen x0.96; Defense -0.04",
+      "HitToleranceBonus": 1.20,
+      "Penetration": 0.96,
+      "ImpactCoupling": 1.06,
+      "DefenseBonus": -0.04,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 123, "Steel": 64, "Exotic": 6 }
+    },
+    {
+      "Id": "g1_13_decoy_discriminator",
+      "Slot": "Guidance",
+      "Name": "Decoy Discriminator Mk I",
+      "Description": "Doctrine counter: StealthEvasion. Defense +0.10; HitTol x1.10; Pen x0.99",
+      "HitToleranceBonus": 1.10,
+      "Penetration": 0.99,
+      "ImpactCoupling": 1.0,
+      "DefenseBonus": 0.10,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 97, "Steel": 51, "Exotic": 0 }
+    },
+    {
+      "Id": "g1_19_phase_lead_controller",
+      "Slot": "Guidance",
+      "Name": "Phase-Lead Controller Mk I",
+      "Description": "Doctrine counter: Swarm. ImpactCoupling x1.08; HitTol x1.28; Pen x0.95; Defense -0.06",
+      "HitToleranceBonus": 1.28,
+      "Penetration": 0.95,
+      "ImpactCoupling": 1.08,
+      "DefenseBonus": -0.06,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 141, "Steel": 73, "Exotic": 10 }
+    },
+
+    {
+      "Id": "guidance_fins",
+      "Slot": "Guidance",
+      "Name": "Guidance Fins",
+      "Description": "Doctrine counter: Evasion. Cheap control surfaces. Defense +0.02; HitTol x1.07",
+      "HitToleranceBonus": 1.07,
+      "Penetration": 1.0,
+      "ImpactCoupling": 1.0,
+      "DefenseBonus": 0.02,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 160, "Steel": 80, "Exotic": 35 }
+    },
+    {
+      "Id": "bird_brain",
+      "Slot": "Guidance",
+      "Name": "Bird Brain",
+      "Description": "Doctrine counter: Jamming. Great pursuit, fragile hardware. HitTol x1.30; Pen x1.02; Defense -0.03",
+      "HitToleranceBonus": 1.30,
+      "Penetration": 1.02,
+      "ImpactCoupling": 1.02,
+      "DefenseBonus": -0.03,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 110, "Steel": 40, "Exotic": 15 }
+    },
+    {
+      "Id": "g2_05_home_on_jam_logic",
+      "Slot": "Guidance",
+      "Name": "Home-on-Jam Logic Mk II",
+      "Description": "Doctrine counter: Jamming. ImpactCoupling x1.08; HitTol x1.28; Defense +0.08",
+      "HitToleranceBonus": 1.28,
+      "Penetration": 0.98,
+      "ImpactCoupling": 1.08,
+      "DefenseBonus": 0.08,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 186, "Steel": 103, "Exotic": 21 }
+    },
+    {
+      "Id": "g2_06_swarm_classifier",
+      "Slot": "Guidance",
+      "Name": "Swarm Classifier Mk II",
+      "Description": "Doctrine counter: Swarm. ImpactCoupling x1.12; Pen x0.94; HitTol x1.14",
+      "HitToleranceBonus": 1.14,
+      "Penetration": 0.94,
+      "ImpactCoupling": 1.12,
+      "DefenseBonus": -0.02,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 174, "Steel": 97, "Exotic": 18 }
+    },
+    {
+      "Id": "g2_11_reflex_trigger_loop",
+      "Slot": "Guidance",
+      "Name": "Reflex Trigger Loop Mk II",
+      "Description": "Doctrine counter: Armor. Pen x1.01; ImpactCoupling x1.05; HitTol x1.34; Defense -0.05",
+      "HitToleranceBonus": 1.34,
+      "Penetration": 1.01,
+      "ImpactCoupling": 1.05,
+      "DefenseBonus": -0.05,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 192, "Steel": 106, "Exotic": 22 }
+    },
+
+    {
+      "Id": "guidance",
+      "Slot": "Guidance",
+      "Name": "Dog Brain",
+      "Description": "Doctrine counter: Evasion. Overkill pursuit instincts (questionable ethics).",
+      "HitToleranceBonus": 1.85,
+      "Penetration": 1.0,
+      "ImpactCoupling": 1.0,
       "DefenseBonus": 0.0,
       "RequiredTechLevel": 3,
       "Cost": { "Budget": 200, "Steel": 50, "Exotic": 50 }
     },
     {
-      "Id": "shaped",
-      "Name": "Shaped Charge",
-      "Description": "Focused energy on impact - 25% more effective damage",
-      "HitToleranceBonus": 1.0,
-      "Penetration": 1.25,
-      "DefenseBonus": 0.0,
-      "RequiredTechLevel": 2,
-      "Cost": { "Budget": 150, "Steel": 80, "Exotic": 30 }
+      "Id": "g3_05_home_on_jam_logic",
+      "Slot": "Guidance",
+      "Name": "Home-on-Jam Logic Mk III",
+      "Description": "Doctrine counter: Jamming. ImpactCoupling x1.14; HitTol x1.38; Defense +0.10",
+      "HitToleranceBonus": 1.38,
+      "Penetration": 0.98,
+      "ImpactCoupling": 1.14,
+      "DefenseBonus": 0.10,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 300, "Steel": 155, "Exotic": 56 }
     },
     {
-      "Id": "armor_piercing",
-      "Name": "Armor Piercing Tip",
-      "Description": "Hardened tip for dense targets - 15% damage boost",
-      "HitToleranceBonus": 1.0,
-      "Penetration": 1.15,
-      "DefenseBonus": 0.0,
+      "Id": "g3_12_intercept_anticipator",
+      "Slot": "Guidance",
+      "Name": "Intercept Anticipator Mk III",
+      "Description": "Doctrine counter: Stealth. Aggressive intercept logic. Pen x1.06; HitTol x1.36; Defense -0.08",
+      "HitToleranceBonus": 1.36,
+      "Penetration": 1.06,
+      "ImpactCoupling": 1.06,
+      "DefenseBonus": -0.08,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 294, "Steel": 152, "Exotic": 55 }
+    },
+    {
+      "Id": "g3_14_low_observable_tracker",
+      "Slot": "Guidance",
+      "Name": "Low-Observable Tracker Mk III",
+      "Description": "Doctrine counter: StealthEvasion. Defense +0.18; HitTol x1.30; Pen x0.98",
+      "HitToleranceBonus": 1.30,
+      "Penetration": 0.98,
+      "ImpactCoupling": 1.02,
+      "DefenseBonus": 0.18,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 300, "Steel": 155, "Exotic": 56 }
+    },
+    {
+      "Id": "g3_19_phase_lead_controller",
+      "Slot": "Guidance",
+      "Name": "Phase-Lead Controller Mk III",
+      "Description": "Doctrine counter: Swarm. Extreme lead logic. ImpactCoupling x1.18; HitTol x1.65; Defense -0.10",
+      "HitToleranceBonus": 1.65,
+      "Penetration": 0.99,
+      "ImpactCoupling": 1.18,
+      "DefenseBonus": -0.10,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 360, "Steel": 185, "Exotic": 70 }
+    },
+
+    {
+      "Id": "a1_01_ablative_wrap",
+      "Slot": "Armor",
+      "Name": "Ablative Wrap Mk I",
+      "Description": "Doctrine counter: Siege. Defense +0.18; HitTol x1.06; ImpactCoupling x0.95",
+      "HitToleranceBonus": 1.06,
+      "Penetration": 0.99,
+      "ImpactCoupling": 0.95,
+      "DefenseBonus": 0.18,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 80, "Steel": 60, "Exotic": 10 }
+      "Cost": { "Budget": 102, "Steel": 54, "Exotic": 2 }
     },
     {
-      "Id": "fragmentation",
-      "Name": "Fragmentation Shell",
-      "Description": "Larger hit tolerance, slight damage penalty",
-      "HitToleranceBonus": 1.75,
-      "Penetration": 0.9,
-      "DefenseBonus": 0.0,
-      "RequiredTechLevel": 2,
-      "Cost": { "Budget": 120, "Steel": 70, "Exotic": 20 }
+      "Id": "a1_03_decoy_skin",
+      "Slot": "Armor",
+      "Name": "Decoy Skin Mk I",
+      "Description": "Doctrine counter: Stealth. Defense +0.08; Pen x1.01; ImpactCoupling x0.97",
+      "HitToleranceBonus": 1.02,
+      "Penetration": 1.01,
+      "ImpactCoupling": 0.97,
+      "DefenseBonus": 0.08,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 93, "Steel": 49, "Exotic": 0 }
     },
+    {
+      "Id": "a1_08_active_skirts",
+      "Slot": "Armor",
+      "Name": "Active Skirts Mk I",
+      "Description": "Doctrine counter: Evasion. HitTol x1.12; Defense +0.14; Pen x0.97",
+      "HitToleranceBonus": 1.12,
+      "Penetration": 0.97,
+      "ImpactCoupling": 1.0,
+      "DefenseBonus": 0.14,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 118, "Steel": 62, "Exotic": 5 }
+    },
+    {
+      "Id": "a1_12_reactive_tiles",
+      "Slot": "Armor",
+      "Name": "Reactive Tiles Mk I",
+      "Description": "Doctrine counter: Armor. Defense +0.22; ImpactCoupling x1.05; Pen x0.95",
+      "HitToleranceBonus": 0.98,
+      "Penetration": 0.95,
+      "ImpactCoupling": 1.05,
+      "DefenseBonus": 0.22,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 128, "Steel": 66, "Exotic": 7 }
+    },
+    {
+      "Id": "a1_15_siege_bracing",
+      "Slot": "Armor",
+      "Name": "Siege Bracing Mk I",
+      "Description": "Doctrine counter: Kinetics. Defense +0.26; ImpactCoupling x1.10; HitTol x0.94",
+      "HitToleranceBonus": 0.94,
+      "Penetration": 0.96,
+      "ImpactCoupling": 1.10,
+      "DefenseBonus": 0.26,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 134, "Steel": 70, "Exotic": 9 }
+    },
+
     {
       "Id": "countermeasures",
+      "Slot": "Armor",
       "Name": "Countermeasure Package",
-      "Description": "Decoys and ablatives - improves projectile survivability",
-      "HitToleranceBonus": 1.0,
-      "Penetration": 0.98,
-      "DefenseBonus": 0.25,
+      "Description": "Doctrine counter: StealthEvasion. Defense +0.28; HitTol x1.06; ImpactCoupling x0.96",
+      "HitToleranceBonus": 1.06,
+      "Penetration": 0.97,
+      "ImpactCoupling": 0.96,
+      "DefenseBonus": 0.28,
       "RequiredTechLevel": 2,
       "Cost": { "Budget": 140, "Steel": 60, "Exotic": 30 }
     },
     {
-      "Id": "hardened",
-      "Name": "Hardened Casing",
-      "Description": "Hardened casing - major survivability boost",
-      "HitToleranceBonus": 1.0,
+      "Id": "a2_01_ablative_wrap",
+      "Slot": "Armor",
+      "Name": "Ablative Wrap Mk II",
+      "Description": "Doctrine counter: Siege. Defense +0.24; HitTol x1.08; ImpactCoupling x0.95",
+      "HitToleranceBonus": 1.08,
+      "Penetration": 0.99,
+      "ImpactCoupling": 0.95,
+      "DefenseBonus": 0.24,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 193, "Steel": 106, "Exotic": 22 }
+    },
+    {
+      "Id": "a2_08_active_skirts",
+      "Slot": "Armor",
+      "Name": "Active Skirts Mk II",
+      "Description": "Doctrine counter: Evasion. HitTol x1.16; Defense +0.20; Pen x0.96",
+      "HitToleranceBonus": 1.16,
       "Penetration": 0.96,
+      "ImpactCoupling": 1.0,
+      "DefenseBonus": 0.20,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 229, "Steel": 125, "Exotic": 31 }
+    },
+    {
+      "Id": "a2_12_reactive_tiles",
+      "Slot": "Armor",
+      "Name": "Reactive Tiles Mk II",
+      "Description": "Doctrine counter: Armor. Defense +0.33; ImpactCoupling x1.08; Pen x0.95",
+      "HitToleranceBonus": 0.99,
+      "Penetration": 0.95,
+      "ImpactCoupling": 1.08,
+      "DefenseBonus": 0.33,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 239, "Steel": 129, "Exotic": 33 }
+    },
+    {
+      "Id": "a2_18_ghost_layer",
+      "Slot": "Armor",
+      "Name": "Ghost Layer Mk II",
+      "Description": "Doctrine counter: Jamming. Defense +0.40; Pen x0.93; HitTol x0.96",
+      "HitToleranceBonus": 0.96,
+      "Penetration": 0.93,
+      "ImpactCoupling": 1.0,
+      "DefenseBonus": 0.40,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 269, "Steel": 144, "Exotic": 39 }
+    },
+
+    {
+      "Id": "projectile_armor",
+      "Slot": "Armor",
+      "Name": "Projectile Armor",
+      "Description": "Doctrine counter: Kinetics. Defense +0.12; HitTol x1.04",
+      "HitToleranceBonus": 1.04,
+      "Penetration": 0.99,
+      "ImpactCoupling": 0.98,
+      "DefenseBonus": 0.12,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 190, "Steel": 170, "Exotic": 40 }
+    },
+    {
+      "Id": "hardened",
+      "Slot": "Armor",
+      "Name": "Hardened Casing",
+      "Description": "Doctrine counter: Swarm. Big defense, slightly worse penetration. Defense +0.50",
+      "HitToleranceBonus": 0.98,
+      "Penetration": 0.94,
+      "ImpactCoupling": 1.0,
       "DefenseBonus": 0.50,
       "RequiredTechLevel": 3,
       "Cost": { "Budget": 260, "Steel": 120, "Exotic": 60 }
+    },
+    {
+      "Id": "a3_12_reactive_tiles",
+      "Slot": "Armor",
+      "Name": "Reactive Tiles Mk III",
+      "Description": "Doctrine counter: ArmorSiege. Defense +0.45; ImpactCoupling x1.10; Pen x0.93",
+      "HitToleranceBonus": 0.99,
+      "Penetration": 0.93,
+      "ImpactCoupling": 1.10,
+      "DefenseBonus": 0.45,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 375, "Steel": 192, "Exotic": 73 }
+    },
+    {
+      "Id": "a3_15_siege_bracing",
+      "Slot": "Armor",
+      "Name": "Siege Bracing Mk III",
+      "Description": "Doctrine counter: Siege. Defense +0.47; ImpactCoupling x1.14; HitTol x0.94",
+      "HitToleranceBonus": 0.94,
+      "Penetration": 0.95,
+      "ImpactCoupling": 1.14,
+      "DefenseBonus": 0.47,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 381, "Steel": 196, "Exotic": 75 }
+    },
+    {
+      "Id": "a3_18_ghost_layer",
+      "Slot": "Armor",
+      "Name": "Ghost Layer Mk III",
+      "Description": "Doctrine counter: StealthEvasion. Defense +0.55; Pen x0.92; HitTol x0.94",
+      "HitToleranceBonus": 0.94,
+      "Penetration": 0.92,
+      "ImpactCoupling": 1.02,
+      "DefenseBonus": 0.55,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 407, "Steel": 208, "Exotic": 80 }
+    },
+
+    {
+      "Id": "armor_piercing",
+      "Slot": "Payload",
+      "Name": "Armor Piercing Tip",
+      "Description": "Doctrine counter: Armor. Pen x1.18; ImpactCoupling x1.02; Defense -0.04",
+      "HitToleranceBonus": 0.98,
+      "Penetration": 1.18,
+      "ImpactCoupling": 1.02,
+      "DefenseBonus": -0.04,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 80, "Steel": 60, "Exotic": 10 }
+    },
+    {
+      "Id": "p1_02_shaped_liner",
+      "Slot": "Payload",
+      "Name": "Shaped Liner Mk I",
+      "Description": "Doctrine counter: Siege. Pen x1.25; ImpactCoupling x1.10; HitTol x0.94; Defense -0.06",
+      "HitToleranceBonus": 0.94,
+      "Penetration": 1.25,
+      "ImpactCoupling": 1.10,
+      "DefenseBonus": -0.06,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 139, "Steel": 72, "Exotic": 10 }
+    },
+    {
+      "Id": "p1_04_spall_cone",
+      "Slot": "Payload",
+      "Name": "Spall Cone Mk I",
+      "Description": "Doctrine counter: Swarm. HitTol x1.22; Defense +0.02; Pen x0.92; ImpactCoupling x0.95",
+      "HitToleranceBonus": 1.22,
+      "Penetration": 0.92,
+      "ImpactCoupling": 0.95,
+      "DefenseBonus": 0.02,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 133, "Steel": 69, "Exotic": 9 }
+    },
+    {
+      "Id": "p1_05_proximity_burst",
+      "Slot": "Payload",
+      "Name": "Proximity Burst Mk I",
+      "Description": "Doctrine counter: Evasion. HitTol x1.35; Defense +0.04; Pen x0.88; ImpactCoupling x0.90",
+      "HitToleranceBonus": 1.35,
+      "Penetration": 0.88,
+      "ImpactCoupling": 0.90,
+      "DefenseBonus": 0.04,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 173, "Steel": 89, "Exotic": 18 }
+    },
+    {
+      "Id": "p1_14_stealth_punisher_tag",
+      "Slot": "Payload",
+      "Name": "Stealth-Punisher Tag Mk I",
+      "Description": "Doctrine counter: StealthEvasion. Pen x1.16; ImpactCoupling x1.06; HitTol x1.00; Defense -0.05",
+      "HitToleranceBonus": 1.00,
+      "Penetration": 1.16,
+      "ImpactCoupling": 1.06,
+      "DefenseBonus": -0.05,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 133, "Steel": 69, "Exotic": 9 }
+    },
+
+    {
+      "Id": "dense_penetrator",
+      "Slot": "Payload",
+      "Name": "Dense Penetrator",
+      "Description": "Doctrine counter: Armor. Pen x1.14; ImpactCoupling x1.04; Defense -0.02",
+      "HitToleranceBonus": 0.98,
+      "Penetration": 1.14,
+      "ImpactCoupling": 1.04,
+      "DefenseBonus": -0.02,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 210, "Steel": 140, "Exotic": 45 }
+    },
+    {
+      "Id": "shaped",
+      "Slot": "Payload",
+      "Name": "Shaped Charge",
+      "Description": "Doctrine counter: Siege. Pen x1.32; ImpactCoupling x1.16; HitTol x0.95; Defense -0.05",
+      "HitToleranceBonus": 0.95,
+      "Penetration": 1.32,
+      "ImpactCoupling": 1.16,
+      "DefenseBonus": -0.05,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 150, "Steel": 80, "Exotic": 30 }
+    },
+    {
+      "Id": "fragmentation",
+      "Slot": "Payload",
+      "Name": "Fragmentation Shell",
+      "Description": "Doctrine counter: Swarm. HitTol x1.62; Defense +0.03; Pen x0.88; ImpactCoupling x0.92",
+      "HitToleranceBonus": 1.62,
+      "Penetration": 0.88,
+      "ImpactCoupling": 0.92,
+      "DefenseBonus": 0.03,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 120, "Steel": 70, "Exotic": 20 }
+    },
+    {
+      "Id": "p2_06_standoff_fuse",
+      "Slot": "Payload",
+      "Name": "Standoff Fuse Mk II",
+      "Description": "Doctrine counter: ArmorSiege. Pen x1.20; ImpactCoupling x1.12; HitTol x1.06; Defense -0.03",
+      "HitToleranceBonus": 1.06,
+      "Penetration": 1.20,
+      "ImpactCoupling": 1.12,
+      "DefenseBonus": -0.03,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 193, "Steel": 106, "Exotic": 22 }
+    },
+    {
+      "Id": "p2_15_maneuver_trap_fuze",
+      "Slot": "Payload",
+      "Name": "Maneuver Trap Fuze Mk II",
+      "Description": "Doctrine counter: Evasion. HitTol x1.36; Defense +0.06; Pen x0.90",
+      "HitToleranceBonus": 1.36,
+      "Penetration": 0.90,
+      "ImpactCoupling": 0.98,
+      "DefenseBonus": 0.06,
+      "RequiredTechLevel": 2,
+      "Cost": { "Budget": 235, "Steel": 127, "Exotic": 32 }
+    },
+
+    {
+      "Id": "coupling_liner",
+      "Slot": "Payload",
+      "Name": "Coupling Liner",
+      "Description": "Doctrine counter: Kinetics. ImpactCoupling x1.15 (stable conversion).",
+      "HitToleranceBonus": 1.0,
+      "Penetration": 1.0,
+      "ImpactCoupling": 1.15,
+      "DefenseBonus": 0.0,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 230, "Steel": 160, "Exotic": 55 }
+    },
+    {
+      "Id": "p3_02_shaped_liner",
+      "Slot": "Payload",
+      "Name": "Shaped Liner Mk III",
+      "Description": "Doctrine counter: Siege. Pen x1.42; ImpactCoupling x1.22; HitTol x0.93; Defense -0.06",
+      "HitToleranceBonus": 0.93,
+      "Penetration": 1.42,
+      "ImpactCoupling": 1.22,
+      "DefenseBonus": -0.06,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 338, "Steel": 174, "Exotic": 65 }
+    },
+    {
+      "Id": "p3_12_fragment_lattice",
+      "Slot": "Payload",
+      "Name": "Fragment Lattice Mk III",
+      "Description": "Doctrine counter: Swarm. HitTol x2.00; Defense +0.06; Pen x0.84; ImpactCoupling x0.96",
+      "HitToleranceBonus": 2.00,
+      "Penetration": 0.84,
+      "ImpactCoupling": 0.96,
+      "DefenseBonus": 0.06,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 495, "Steel": 252, "Exotic": 100 }
+    },
+    {
+      "Id": "p3_14_stealth_punisher_tag",
+      "Slot": "Payload",
+      "Name": "Stealth-Punisher Tag Mk III",
+      "Description": "Doctrine counter: Stealth. Pen x1.28; ImpactCoupling x1.10; HitTol x1.05; Defense -0.03",
+      "HitToleranceBonus": 1.05,
+      "Penetration": 1.28,
+      "ImpactCoupling": 1.10,
+      "DefenseBonus": -0.03,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 311, "Steel": 160, "Exotic": 59 }
+    },
+    {
+      "Id": "p3_16_dense_sandwich",
+      "Slot": "Payload",
+      "Name": "Dense Sandwich Mk III",
+      "Description": "Doctrine counter: Armor. Pen x1.48; ImpactCoupling x1.08; HitTol x0.96; Defense -0.05",
+      "HitToleranceBonus": 0.96,
+      "Penetration": 1.48,
+      "ImpactCoupling": 1.08,
+      "DefenseBonus": -0.05,
+      "RequiredTechLevel": 3,
+      "Cost": { "Budget": 369, "Steel": 190, "Exotic": 72 }
     }
   ]
 }

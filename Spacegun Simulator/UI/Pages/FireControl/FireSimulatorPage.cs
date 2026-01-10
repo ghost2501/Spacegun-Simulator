@@ -68,7 +68,8 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 				return;
 			}
 
-			var resolved = game.ResolveShotStats(target);
+			var weapon = game.ResolveWeaponStats(target);
+			var resolved = weapon.Shot;
 
 			_diff = DifficultyConfig.GetConfig(game.SelectedDifficulty);
 			_enemyPos = firingProblem.EnemyPosition;

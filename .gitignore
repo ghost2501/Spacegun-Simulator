@@ -52,6 +52,14 @@ ui.log
 
 # Releases/ should stay local (generated artifacts)
 
+# Local debug exports / screenshots (not part of the game content)
+DebugImages/
+
+# Local scratch notes (keep out of releases)
+PHASE6_DIAGNOSTICS_NOTES.md
+SESSION_GOALS.md
+STAT_CONTRACT.md
+
 
 # Accidental snapshot folder
 New folder/

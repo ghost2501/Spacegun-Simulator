@@ -131,9 +131,17 @@ namespace Spacegun_Simulator.Development.Projectiles
     /// <summary>
     /// Optional enhancement modules for projectiles.
     /// </summary>
+    public enum ProjectileEnhancementSlot
+    {
+        Guidance,
+        Payload,
+        Armor,
+    }
+
     public class ProjectileEnhancement
     {
         public string Id { get; }
+        public ProjectileEnhancementSlot Slot { get; }
         public string Name { get; }
         public string Description { get; }
         public double HitToleranceBonus { get; }      // Multiplier to hit tolerance
@@ -144,11 +152,13 @@ namespace Spacegun_Simulator.Development.Projectiles
         public ResourceCost Cost { get; }
 
         public ProjectileEnhancement(string id, string name, string description, 
+            ProjectileEnhancementSlot slot,
             double hitToleranceBonus, double penetration, double impactCoupling,
             double defenseBonus,
             int requiredTechLevel, ResourceCost cost)
         {
             Id = id;
+            Slot = slot;
             Name = name;
             Description = description;
             HitToleranceBonus = hitToleranceBonus;
@@ -159,7 +169,7 @@ namespace Spacegun_Simulator.Development.Projectiles
             Cost = cost;
         }
 
-        public static ProjectileEnhancement None => ProjectilesCatalog.EnhancementNone;
+        public bool IsNone => Id.StartsWith("none_", StringComparison.OrdinalIgnoreCase);
 
         public static ProjectileEnhancement[] All => ProjectilesCatalog.Enhancements;
     }
@@ -172,7 +182,19 @@ namespace Spacegun_Simulator.Development.Projectiles
     {
         public ProjectileCore Core { get; }
         public PropulsionSystem Propulsion { get; }
-        public ProjectileEnhancement Enhancement { get; }
+        public ProjectileEnhancement GuidanceModule { get; }
+        public ProjectileEnhancement PayloadModule { get; }
+        public ProjectileEnhancement ArmorModule { get; }
+
+        public IEnumerable<ProjectileEnhancement> Modules
+        {
+            get
+            {
+                yield return GuidanceModule;
+                yield return PayloadModule;
+                yield return ArmorModule;
+            }
+        }
 
         /// <summary>
         /// The gun's base muzzle velocity (set when projectile is crafted).
@@ -213,22 +235,28 @@ namespace Spacegun_Simulator.Development.Projectiles
         }
 
         /// <summary>
-        /// Hit tolerance multiplier from enhancement.
+        /// Hit tolerance multiplier from modules.
         /// </summary>
-        public double HitToleranceMultiplier => Enhancement.HitToleranceBonus;
+        public double HitToleranceMultiplier => GuidanceModule.HitToleranceBonus * PayloadModule.HitToleranceBonus * ArmorModule.HitToleranceBonus;
+
+        public double PenetrationMultiplier => GuidanceModule.Penetration * PayloadModule.Penetration * ArmorModule.Penetration;
+
+        public double ImpactCouplingMultiplier => GuidanceModule.ImpactCoupling * PayloadModule.ImpactCoupling * ArmorModule.ImpactCoupling;
+
+        public bool HasGuidance => GuidanceModule.Id is "guidance" or "bird_brain";
 
         /// <summary>
         /// Projectile defensive rating (0.0..1.0) used against enemy Offense.
         /// </summary>
-        public double DefenseRating => Math.Clamp(Enhancement.DefenseBonus, 0.0, 1.0);
+        public double DefenseRating => Math.Clamp(GuidanceModule.DefenseBonus + PayloadModule.DefenseBonus + ArmorModule.DefenseBonus, 0.0, 1.0);
 
         /// <summary>
         /// Total cost to build this projectile.
         /// </summary>
         public ResourceCost TotalCost => new(
-            budget: Core.Cost.Budget + Propulsion.Cost.Budget + Enhancement.Cost.Budget,
-            steel: Core.Cost.Steel + Propulsion.Cost.Steel + Enhancement.Cost.Steel,
-            exotic: Core.Cost.ExoticMaterials + Propulsion.Cost.ExoticMaterials + Enhancement.Cost.ExoticMaterials
+            budget: Core.Cost.Budget + Propulsion.Cost.Budget + GuidanceModule.Cost.Budget + PayloadModule.Cost.Budget + ArmorModule.Cost.Budget,
+            steel: Core.Cost.Steel + Propulsion.Cost.Steel + GuidanceModule.Cost.Steel + PayloadModule.Cost.Steel + ArmorModule.Cost.Steel,
+            exotic: Core.Cost.ExoticMaterials + Propulsion.Cost.ExoticMaterials + GuidanceModule.Cost.ExoticMaterials + PayloadModule.Cost.ExoticMaterials + ArmorModule.Cost.ExoticMaterials
         );
 
         public string DisplayName
@@ -238,23 +266,41 @@ namespace Spacegun_Simulator.Development.Projectiles
                 var parts = new List<string> { Core.Name };
                 if (Propulsion.Id != "none")
                     parts.Add(Propulsion.Name);
-                if (Enhancement.Id != "none")
-                    parts.Add(Enhancement.Name);
+
+                foreach (var module in Modules)
+                {
+                    if (!module.IsNone)
+                        parts.Add(module.Name);
+                }
+
                 return string.Join(" + ", parts);
             }
         }
 
-        public CraftedProjectile(ProjectileCore core, PropulsionSystem propulsion, ProjectileEnhancement? enhancement, double gunBaseMuzzleVelocityMs)
+        public CraftedProjectile(
+            ProjectileCore core,
+            PropulsionSystem propulsion,
+            ProjectileEnhancement? guidanceModule,
+            ProjectileEnhancement? payloadModule,
+            ProjectileEnhancement? armorModule,
+            double gunBaseMuzzleVelocityMs)
         {
             Core = core;
             Propulsion = propulsion ?? PropulsionSystem.None;
-            Enhancement = enhancement ?? ProjectileEnhancement.None;
+            GuidanceModule = guidanceModule ?? ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Guidance);
+            PayloadModule = payloadModule ?? ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Payload);
+            ArmorModule = armorModule ?? ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Armor);
             GunBaseMuzzleVelocityMs = gunBaseMuzzleVelocityMs;
         }
 
-        // Legacy constructor for backward compatibility (assumes 80 km/s base)
-        public CraftedProjectile(ProjectileCore core, PropulsionSystem propulsion, ProjectileEnhancement? enhancement = null)
-            : this(core, propulsion, enhancement, 80_000)
+        // Convenience constructor (assumes 80 km/s base).
+        public CraftedProjectile(
+            ProjectileCore core,
+            PropulsionSystem propulsion,
+            ProjectileEnhancement? guidanceModule = null,
+            ProjectileEnhancement? payloadModule = null,
+            ProjectileEnhancement? armorModule = null)
+            : this(core, propulsion, guidanceModule, payloadModule, armorModule, 80_000)
         {
         }
 
@@ -288,12 +334,13 @@ namespace Spacegun_Simulator.Development.Projectiles
         }
 
         /// <summary>
-        /// Get all enhancements unlocked at the current tech level.
+        /// Get all modules (for the given slot) unlocked at the current tech level.
         /// </summary>
-        public static List<ProjectileEnhancement> GetUnlockedEnhancements(TechTree techTree)
+        public static List<ProjectileEnhancement> GetUnlockedModules(TechTree techTree, ProjectileEnhancementSlot slot)
         {
             return ProjectileEnhancement.All
-                .Where(e => IsComponentUnlocked(e.RequiredTechLevel, techTree, TechTree.TechType.Projectiles))
+            .Where(e => e.Slot == slot)
+            .Where(e => IsComponentUnlocked(e.RequiredTechLevel, techTree, TechTree.TechType.Projectiles))
                 .ToList();
         }
 

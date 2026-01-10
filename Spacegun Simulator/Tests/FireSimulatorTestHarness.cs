@@ -214,6 +214,7 @@ namespace Spacegun_Simulator.Tests
         private void RunBalanceCurve()
         {
             GameConfigLoader.LoadIfExists();
+            EnemyConfigLoader.LoadOrThrow();
 
             Console.Clear();
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
@@ -248,6 +249,7 @@ namespace Spacegun_Simulator.Tests
         private void RunEnemyGenerationCurve()
         {
             GameConfigLoader.LoadIfExists();
+            EnemyConfigLoader.LoadOrThrow();
 
             Console.Clear();
             Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
@@ -269,7 +271,7 @@ namespace Spacegun_Simulator.Tests
                 "CampaignName",
                 "WaveArchetypeId",
                 "WaveArchetypeName",
-                "ShipCount",
+                "ThreatCount",
                 "InitialDistance",
                 "AverageVelocity",
                 "RcsRaw",
@@ -299,7 +301,10 @@ namespace Spacegun_Simulator.Tests
                 "DifficultyHitToleranceMultiplier",
                 "ModeHitToleranceMultiplier",
                 "DifficultyTargetRcsMultiplier",
-                "HitToleranceMeters"
+                "HitToleranceMeters",
+                "CampaignDoctrine",
+                "WaveDoctrine",
+                "WaveDoctrineSource"
             ));
 
             var modes = GameModeCatalog.GetAll();
@@ -333,9 +338,12 @@ namespace Spacegun_Simulator.Tests
                         double rcsModeAdjusted = rcsRaw * GameModeTuning.Current.GetDetectionRcsMultiplier(mode);
                         double rcsDisplay = rcsModeAdjusted * diffConfig.TargetRcsMultiplier;
 
-                        double hitToleranceMeters = diffConfig.IsTutorialMode
-                            ? DifficultyConfig.TutorialBeachball.RadiusMeters
-                            : 0.5 * (2.0 * Math.Sqrt(rcsDisplay / Math.PI)) * diffConfig.HitToleranceMultiplier * GameModeTuning.Current.GetHitToleranceMultiplier(mode);
+                        double hitToleranceMeters = FiringSolution.CalculateHitToleranceMeters(
+                            difficulty: mode.Difficulty,
+                            waveNumber: waveNumber,
+                            enemyCrossSectionM2: target.CrossSection,
+                            enemyMass: target.Mass,
+                            additionalHitToleranceMultiplier: GameModeTuning.Current.GetHitToleranceMultiplier(mode));
 
                         csv.AppendLine(string.Join(",",
                             EscapeCsv(mode.Id.ToString()),
@@ -349,7 +357,7 @@ namespace Spacegun_Simulator.Tests
                             "",
                             EscapeCsv(wave.Archetype?.Id),
                             EscapeCsv(wave.Archetype?.Name),
-                            wave.ShipCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                            wave.ThreatCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
                             wave.InitialDistance.ToString("F3", System.Globalization.CultureInfo.InvariantCulture),
                             wave.AverageVelocity.ToString("F3", System.Globalization.CultureInfo.InvariantCulture),
                             rcsRaw.ToString("F6", System.Globalization.CultureInfo.InvariantCulture),
@@ -378,7 +386,10 @@ namespace Spacegun_Simulator.Tests
                             diffConfig.HitToleranceMultiplier.ToString("F6", System.Globalization.CultureInfo.InvariantCulture),
                             GameModeTuning.Current.GetHitToleranceMultiplier(mode).ToString("F6", System.Globalization.CultureInfo.InvariantCulture),
                             diffConfig.TargetRcsMultiplier.ToString("F6", System.Globalization.CultureInfo.InvariantCulture),
-                            hitToleranceMeters.ToString("F6", System.Globalization.CultureInfo.InvariantCulture)
+                            hitToleranceMeters.ToString("F6", System.Globalization.CultureInfo.InvariantCulture),
+                            "",
+                            EscapeCsv(wave.Doctrine.ToString()),
+                            EscapeCsv(wave.DoctrineSource.ToString())
                         ));
                     }
 
@@ -422,16 +433,12 @@ namespace Spacegun_Simulator.Tests
                         double rcsModeAdjusted = rcsRaw * GameModeTuning.Current.GetDetectionRcsMultiplier(mode);
                         double rcsDisplay = rcsModeAdjusted * diffConfigFull.TargetRcsMultiplier;
 
-                        double hitToleranceMeters;
-                        if (diffConfigFull.IsTutorialMode)
-                        {
-                            hitToleranceMeters = DifficultyConfig.TutorialBeachball.RadiusMeters;
-                        }
-                        else
-                        {
-                            double diameterFromRcs = 2.0 * Math.Sqrt(rcsDisplay / Math.PI);
-                            hitToleranceMeters = diameterFromRcs * 0.5 * diffConfigFull.HitToleranceMultiplier * GameModeTuning.Current.GetHitToleranceMultiplier(mode);
-                        }
+                        double hitToleranceMeters = FiringSolution.CalculateHitToleranceMeters(
+                            difficulty: mode.Difficulty,
+                            waveNumber: waveNumber,
+                            enemyCrossSectionM2: target.CrossSection,
+                            enemyMass: target.Mass,
+                            additionalHitToleranceMultiplier: GameModeTuning.Current.GetHitToleranceMultiplier(mode));
 
                         csv.AppendLine(string.Join(",",
                             EscapeCsv(mode.Id.ToString()),
@@ -445,7 +452,7 @@ namespace Spacegun_Simulator.Tests
                             EscapeCsv(campaignType.CustomName),
                             EscapeCsv(wave.Archetype?.Id),
                             EscapeCsv(wave.Archetype?.Name),
-                            wave.ShipCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                            wave.ThreatCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
                             wave.InitialDistance.ToString("F3", System.Globalization.CultureInfo.InvariantCulture),
                             wave.AverageVelocity.ToString("F3", System.Globalization.CultureInfo.InvariantCulture),
                             rcsRaw.ToString("F6", System.Globalization.CultureInfo.InvariantCulture),
@@ -474,7 +481,10 @@ namespace Spacegun_Simulator.Tests
                             diffConfigFull.HitToleranceMultiplier.ToString("F6", System.Globalization.CultureInfo.InvariantCulture),
                             GameModeTuning.Current.GetHitToleranceMultiplier(mode).ToString("F6", System.Globalization.CultureInfo.InvariantCulture),
                             diffConfigFull.TargetRcsMultiplier.ToString("F6", System.Globalization.CultureInfo.InvariantCulture),
-                            hitToleranceMeters.ToString("F6", System.Globalization.CultureInfo.InvariantCulture)
+                            hitToleranceMeters.ToString("F6", System.Globalization.CultureInfo.InvariantCulture),
+                            EscapeCsv(campaignType.PrimaryDoctrine.ToString()),
+                            EscapeCsv(wave.Doctrine.ToString()),
+                            EscapeCsv(wave.DoctrineSource.ToString())
                         ));
                     }
                 }

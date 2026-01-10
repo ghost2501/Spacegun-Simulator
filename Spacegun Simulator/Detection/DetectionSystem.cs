@@ -14,7 +14,7 @@ namespace Spacegun_Simulator.Detection
     public class DetectionSystem
     {
         public readonly record struct NoisyIntelEstimate(
-            int? ShipCountEstimate,
+            int? ThreatCountEstimate,
             string StealthAssessment,
             double? ManeuverabilityEstimate01,
             double? DefenseEstimate01,
@@ -113,16 +113,16 @@ namespace Spacegun_Simulator.Detection
             if (rng == null) throw new ArgumentNullException(nameof(rng));
 
             var estimate = GenerateNoisyIntelEstimate(wave, rng);
-            if (estimate.ShipCountEstimate == null)
+            if (estimate.ThreatCountEstimate == null)
                 return "Intel: insufficient resolution for reliable estimates.";
 
-            string shipCountText = estimate.IntelResolution >= 0.9 && estimate.PercentNoise <= 0.12
-                ? $"~{estimate.ShipCountEstimate.Value} (high confidence)"
-                : $"~{estimate.ShipCountEstimate.Value}";
+            string threatCountText = estimate.IntelResolution >= 0.9 && estimate.PercentNoise <= 0.12
+                ? $"~{estimate.ThreatCountEstimate.Value} (high confidence)"
+                : $"~{estimate.ThreatCountEstimate.Value}";
 
             var parts = new List<string>
             {
-                $"Intel: ship count {shipCountText}.",
+                $"Intel: threat count {threatCountText}.",
                 $"Stealth coating: {estimate.StealthAssessment}."
             };
 
@@ -148,7 +148,7 @@ namespace Spacegun_Simulator.Detection
             if (r < 0.15)
             {
                 return new NoisyIntelEstimate(
-                    ShipCountEstimate: null,
+                    ThreatCountEstimate: null,
                     StealthAssessment: "unknown",
                     ManeuverabilityEstimate01: null,
                     DefenseEstimate01: null,
@@ -162,7 +162,7 @@ namespace Spacegun_Simulator.Detection
             double percentNoise = 0.75 - (0.6 * r);
             percentNoise = Math.Clamp(percentNoise, 0.1, 0.75);
 
-            int shipCountEstimate = EstimateInt(wave.ShipCount, percentNoise, rng, min: 1, max: 999);
+            int threatCountEstimate = EstimateInt(wave.ThreatCount, percentNoise, rng, min: 1, max: 999);
 
             string stealthText;
             if (r < 0.35)
@@ -191,7 +191,7 @@ namespace Spacegun_Simulator.Detection
             }
 
             return new NoisyIntelEstimate(
-                ShipCountEstimate: shipCountEstimate,
+                ThreatCountEstimate: threatCountEstimate,
                 StealthAssessment: stealthText,
                 ManeuverabilityEstimate01: manEst,
                 DefenseEstimate01: defEst,

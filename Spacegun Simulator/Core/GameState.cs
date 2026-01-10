@@ -7,6 +7,7 @@ using Spacegun_Simulator.Development.Technology;
 using Spacegun_Simulator.Development.Weapons;
 using Spacegun_Simulator.Detection;
 using Spacegun_Simulator.Events;
+using Spacegun_Simulator.Core.Stats;
 using System.Security.Cryptography;
 
 namespace Spacegun_Simulator.Core
@@ -84,6 +85,19 @@ namespace Spacegun_Simulator.Core
         public GameModeDefinition Mode => GameModeCatalog.Get(SelectedMode);
 
         /// <summary>
+        /// Per-save snapshot of projectile default tuning.
+        /// Used as the authoritative baseline for projectile-derived calculations so existing saves
+        /// are not retroactively rebalanced when config tuning changes.
+        /// </summary>
+        public DevelopmentTuning.ProjectileDefaultsValues ProjectileDefaultsBaseline { get; internal set; }
+
+        /// <summary>
+        /// Per-save snapshot of weapon tuning (WeaponsTuning.*).
+        /// This is applied on load so systems that reference WeaponsTuning directly remain grandfathered.
+        /// </summary>
+        public WeaponsTuningConfig WeaponsTuningBaseline { get; internal set; }
+
+        /// <summary>
         /// Gets the difficulty configuration for the currently selected difficulty.
         /// </summary>
         public DifficultyConfig DifficultyConfig => DifficultyConfig.GetConfig(SelectedDifficulty);
@@ -91,6 +105,9 @@ namespace Spacegun_Simulator.Core
         // ===== NEW: Tech Tree System =====
         public TechTree TechTree { get; set; }
         public RandomEvent? CurrentWaveEvent { get; set; }
+
+        // ===== NEW: Projectile Mod Shop (roguelike) =====
+        public ProjectileModShopState ProjectileModShop { get; } = new();
 
         public GameState(int? seed = null, GameDifficulty difficulty = GameDifficulty.CometsAndAsteroids)
         {
@@ -112,6 +129,22 @@ namespace Spacegun_Simulator.Core
 
             rng = new Random(BaseSeed);
             TechTree = new TechTree();  // Initialize at level 1 in all trees
+
+            // Snapshot baseline tuning at game creation time.
+            ProjectileDefaultsBaseline = DevelopmentTuning.ProjectileDefaults;
+
+            // Ensure the default (fallback) projectile starts from the per-save baseline.
+            // This keeps new-game initialization aligned with the authoritative baseline snapshot.
+            if (Gun?.DefaultProjectile != null)
+            {
+                Gun.DefaultProjectile.Mass = ProjectileDefaultsBaseline.Mass;
+                Gun.DefaultProjectile.Length = ProjectileDefaultsBaseline.Length;
+                Gun.DefaultProjectile.HasGuidance = ProjectileDefaultsBaseline.HasGuidance;
+                Gun.DefaultProjectile.GuidanceAccuracy = ProjectileDefaultsBaseline.GuidanceAccuracy;
+            }
+
+            // Snapshot baseline weapon tuning at game creation time.
+            WeaponsTuningBaseline = WeaponsTuning.SnapshotCurrentToConfig();
 
             InitializeResourceAccumulation();
 
@@ -226,6 +259,8 @@ namespace Spacegun_Simulator.Core
             {
                 CurrentWave = EnemyWave.GenerateTutorialWave(CurrentWaveNumber, CreateWaveRng(CurrentWaveNumber));
                 result.Wave = CurrentWave;
+
+                EnsureProjectileModShopOffersForCurrentWave();
 
                 // Tutorial waves are always detected - use existing Detection system
                 CurrentDetectionStatus = Detection.GetDetectionStatus(CurrentWave);
@@ -431,24 +466,15 @@ namespace Spacegun_Simulator.Core
 
         public ResolvedShotStats ResolveShotStats(EnemyTarget target)
         {
-            if (target == null) throw new ArgumentNullException(nameof(target));
+            return ResolveWeaponStats(target).Shot;
+        }
+
+        public double GetCurrentMaxLaunchVelocityMs()
+        {
             if (Gun == null) throw new InvalidOperationException("GameState.Gun is null.");
 
-            // Tutorial mode is fully predetermined and does not use modular projectile configuration.
             if (DifficultyConfig.IsTutorialMode)
-            {
-                return new ResolvedShotStats(
-                    ProjectileMassKg: DifficultyConfig.TutorialPotatoCannon.ProjectileMassKg,
-                    MaxLaunchVelocityMs: DifficultyConfig.TutorialPotatoCannon.MuzzleVelocityMs,
-                    EffectiveFractureEnergyMJ: Math.Max(0.0, target.FractureEnergy),
-                    Penetration: 1.0,
-                    AdditionalHitToleranceMultiplier: 1.0,
-                    PropulsionDeltaVCapacityMs: 0.0,
-                    PropulsionBurnDurationSeconds: 1.0,
-                    PropulsionReferenceMassKg: 10.0,
-                    ProjectileDefenseRating: 0.0
-                );
-            }
+                return DifficultyConfig.TutorialPotatoCannon.MuzzleVelocityMs;
 
             int weaponsTechLevel = 1;
             if (TechTree?.CurrentLevel != null && TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Weapons, out int w))
@@ -459,10 +485,31 @@ namespace Spacegun_Simulator.Core
 
             EnsureCraftedProjectileInitialized();
 
+            double ApplyInstalledModifiers(string key, double value)
+            {
+                var mods = Gun.InstalledStatModifiers;
+                if (mods is null || mods.Count == 0)
+                    return value;
+
+                double current = value;
+                foreach (var m in mods)
+                {
+                    if (m is null) continue;
+                    if (!string.Equals(m.Key, key, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    current = StatModifierApplier.ApplyOp(m.Op, current, m.Value);
+                }
+
+                return current;
+            }
+
             double projectileMassKg =
                 CraftedProjectile?.MassKg
                 ?? Gun.DefaultProjectile?.Mass
-                ?? DevelopmentTuning.ProjectileDefaults.Mass;
+                ?? ProjectileDefaultsBaseline.Mass;
+
+            projectileMassKg = ApplyInstalledModifiers("Projectile.MassKg", projectileMassKg);
+            projectileMassKg = Math.Max(0.01, projectileMassKg);
 
             var (minMassKg, maxMassKg) = Gun.GetSupportedProjectileMassRangeKg();
             if (projectileMassKg < minMassKg || projectileMassKg > maxMassKg)
@@ -473,27 +520,136 @@ namespace Spacegun_Simulator.Core
                 );
             }
 
-            double penetration = CraftedProjectile?.Enhancement?.Penetration ?? 1.0;
+            var projectileCfg = new ProjectileConfiguration { Mass = projectileMassKg };
+            double energyBasedMax = BallisticsCalculator.CalculateMuzzleVelocity(Gun, projectileCfg);
+
+
+                EnsureProjectileModShopOffersForCurrentWave();
+            double barrelEfficiency = Math.Min(1.0, Gun.BarrelLength / 200.0);
+            double barrelMultiplier = (0.5 + 0.5 * barrelEfficiency);
+            double techBaseMax = GunConfiguration.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel) * barrelMultiplier * Gun.BarrelIntegrity;
+
+            // Gameplay uses the Weapons Tech base muzzle velocity system.
+            // The legacy energy-based propulsion model can be far below tech baselines (e.g., chemical defaults),
+            // and should not artificially cap the player's muzzle velocity.
+            return Math.Max(1.0, techBaseMax);
+        }
+
+        public ResolvedWeaponStats ResolveWeaponStats(EnemyTarget target)
+        {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (Gun == null) throw new InvalidOperationException("GameState.Gun is null.");
+
+            // Tutorial mode is fully predetermined and does not use modular projectile configuration.
+            if (DifficultyConfig.IsTutorialMode)
+            {
+                var shot = new ResolvedShotStats(
+                    ProjectileMassKg: DifficultyConfig.TutorialPotatoCannon.ProjectileMassKg,
+                    MaxLaunchVelocityMs: DifficultyConfig.TutorialPotatoCannon.MuzzleVelocityMs,
+                    EffectiveFractureEnergyMJ: Math.Max(0.0, target.FractureEnergy),
+                    Penetration: 1.0,
+                    AdditionalHitToleranceMultiplier: 1.0,
+                    PropulsionDeltaVCapacityMs: 0.0,
+                    PropulsionBurnDurationSeconds: 1.0,
+                    PropulsionReferenceMassKg: 10.0,
+                    ProjectileDefenseRating: 0.0
+                );
+
+                var gun = new ResolvedGunStats(
+                    WeaponsTechLevel: 1,
+                    BarrelLengthM: Gun.BarrelLength,
+                    BoreDiameterM: Gun.BoreDiameter,
+                    BarrelMaterial: Gun.BarrelMaterial,
+                    BarrelIntegrity01: Math.Clamp(Gun.BarrelIntegrity, 0.0, 1.0),
+                    FireControlQuality: Math.Max(0.0, Gun.FireControlQuality),
+                    BaseMuzzleVelocityMs: Math.Max(0.0, Gun.BaseMuzzleVelocityMs),
+                    RangeMultiplierFromBarrelLength: Math.Max(0.0, Gun.RangeMultiplierFromBarrelLength),
+                    EnergyBasedMaxLaunchVelocityMs: shot.MaxLaunchVelocityMs,
+                    TechBasedMaxLaunchVelocityMs: shot.MaxLaunchVelocityMs,
+                    MaxLaunchVelocityMs: shot.MaxLaunchVelocityMs,
+                    BaseWearPerShot01: Math.Max(0.0, Gun.BaseWearPerShot),
+                    IntegrityFailureThreshold01: Math.Max(0.0, Gun.IntegrityFailureThreshold),
+                    ShotsFired: Gun.ShotsFired,
+                    CumulativeWear01: Math.Max(0.0, Gun.CumulativeWear));
+
+                var projectile = new ResolvedProjectileStats(
+                    ProjectilesTechLevel: 1,
+                    CoreId: null,
+                    PropulsionId: null,
+                    GuidanceModuleId: null,
+                    PayloadModuleId: null,
+                    ArmorModuleId: null,
+                    MassKg: shot.ProjectileMassKg,
+                    PenetrationMult: shot.Penetration,
+                    BaseImpactCouplingMult: ProjectileDefaultsBaseline.ImpactCoupling,
+                    ModuleImpactCouplingMult: 1.0,
+                    ImpactCouplingMult: ProjectileDefaultsBaseline.ImpactCoupling,
+                    HitToleranceMult: shot.AdditionalHitToleranceMultiplier,
+                    PropulsionDeltaVCapacityMs: shot.PropulsionDeltaVCapacityMs,
+                    PropulsionBurnDurationSeconds: shot.PropulsionBurnDurationSeconds,
+                    PropulsionReferenceMassKg: shot.PropulsionReferenceMassKg,
+                    DefenseRating01: shot.ProjectileDefenseRating);
+
+                var resolved = new ResolvedWeaponStats(gun, projectile, shot);
+                MaybeTraceResolvedWeaponStats(target, resolved);
+                return resolved;
+            }
+
+            int weaponsTechLevel = 1;
+            if (TechTree?.CurrentLevel != null && TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Weapons, out int w))
+                weaponsTechLevel = Math.Max(1, w);
+
+            // Keep GunConfiguration synchronized with Weapons tech.
+            Gun.UpdateBaseMuzzleVelocity(weaponsTechLevel);
+
+            int projectilesTechLevel = 1;
+            if (TechTree?.CurrentLevel != null && TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Projectiles, out int p))
+                projectilesTechLevel = Math.Max(1, p);
+
+            EnsureCraftedProjectileInitialized();
+
+            double projectileMassKg =
+                CraftedProjectile?.MassKg
+                ?? Gun.DefaultProjectile?.Mass
+                ?? ProjectileDefaultsBaseline.Mass;
+
+            projectileMassKg = ApplyInstalledStatModifiers(Gun, "Projectile.MassKg", projectileMassKg);
+            projectileMassKg = Math.Max(0.01, projectileMassKg);
+
+            var (minMassKg, maxMassKg) = Gun.GetSupportedProjectileMassRangeKg();
+            if (projectileMassKg < minMassKg || projectileMassKg > maxMassKg)
+            {
+                throw new InvalidOperationException(
+                    $"Projectile mass {projectileMassKg:N2} kg is incompatible with bore {Gun.BoreDiameter:N2} m " +
+                    $"(supported {minMassKg:N2}..{maxMassKg:N2} kg)."
+                );
+            }
+
+            double penetration = CraftedProjectile?.PenetrationMultiplier ?? 1.0;
+            penetration = ApplyInstalledStatModifiers(Gun, "Projectile.PenetrationMult", penetration);
             penetration = Math.Max(0.1, penetration);
 
-            double baseImpactCoupling = DevelopmentTuning.ProjectileDefaults.ImpactCoupling;
-            double enhancementImpactCoupling = CraftedProjectile?.Enhancement?.ImpactCoupling ?? 1.0;
+            double baseImpactCoupling = ProjectileDefaultsBaseline.ImpactCoupling;
+            double moduleImpactCoupling = CraftedProjectile?.ImpactCouplingMultiplier ?? 1.0;
 
-            double couplingReferenceMassKg = Math.Max(0.01, DevelopmentTuning.ProjectileDefaults.ImpactCouplingReferenceMassKg);
-            double couplingMassExponent = Math.Max(0.0, DevelopmentTuning.ProjectileDefaults.ImpactCouplingMassExponent);
+            double couplingReferenceMassKg = Math.Max(0.01, ProjectileDefaultsBaseline.ImpactCouplingReferenceMassKg);
+            double couplingMassExponent = Math.Max(0.0, ProjectileDefaultsBaseline.ImpactCouplingMassExponent);
             double couplingMassScale = couplingMassExponent > 0.0
                 ? Math.Pow(couplingReferenceMassKg / Math.Max(0.01, projectileMassKg), couplingMassExponent)
                 : 1.0;
 
-            double couplingTechPerLevel = Math.Max(0.0, DevelopmentTuning.ProjectileDefaults.ImpactCouplingTechMultiplierPerWeaponsLevel);
+            double couplingTechPerLevel = Math.Max(0.0, ProjectileDefaultsBaseline.ImpactCouplingTechMultiplierPerWeaponsLevel);
             double couplingTechScale = couplingTechPerLevel != 1.0
                 ? Math.Pow(couplingTechPerLevel, Math.Max(0, weaponsTechLevel - 1))
                 : 1.0;
 
             double impactCoupling = Math.Clamp(
-                baseImpactCoupling * couplingMassScale * couplingTechScale * enhancementImpactCoupling,
+                baseImpactCoupling * couplingMassScale * couplingTechScale * moduleImpactCoupling,
                 0.0001,
                 100.0);
+
+            impactCoupling = ApplyInstalledStatModifiers(Gun, "Projectile.ImpactCouplingMult", impactCoupling);
+            impactCoupling = Math.Clamp(impactCoupling, 0.0001, 100.0);
 
             double defense01 = Math.Clamp(target.Defense, 0.0, 1.0);
             double defenseScale = Math.Max(0.0, GameModeTuning.Current.FractureEnergyDefenseScale);
@@ -502,14 +658,26 @@ namespace Spacegun_Simulator.Core
             // Coupling represents the fraction of KE that actually couples into destructive internal work.
             double effectiveFractureEnergyMJ = Math.Max(0.0, armoredFractureEnergyMJ / (penetration * impactCoupling));
 
-            double additionalHitToleranceMultiplier = CraftedProjectile?.Enhancement?.HitToleranceBonus ?? 1.0;
+            effectiveFractureEnergyMJ = ApplyInstalledStatModifiers(Gun, "Shot.EffectiveFractureEnergyMJ", effectiveFractureEnergyMJ);
+            effectiveFractureEnergyMJ = Math.Max(0.0, effectiveFractureEnergyMJ);
+
+            double additionalHitToleranceMultiplier = CraftedProjectile?.HitToleranceMultiplier ?? 1.0;
+            additionalHitToleranceMultiplier = ApplyInstalledStatModifiers(Gun, "Projectile.HitToleranceMult", additionalHitToleranceMultiplier);
+            additionalHitToleranceMultiplier = ApplyInstalledStatModifiers(Gun, "Shot.AdditionalHitToleranceMult", additionalHitToleranceMultiplier);
             additionalHitToleranceMultiplier = Math.Max(0.1, additionalHitToleranceMultiplier);
 
             double deltaVCapacity = CraftedProjectile?.Propulsion?.DeltaVCapacityMs ?? 0.0;
             double burnDuration = CraftedProjectile?.Propulsion?.BurnDurationSeconds ?? 1.0;
             double referenceMass = CraftedProjectile?.Propulsion?.ReferenceMassKg ?? 10.0;
 
+            deltaVCapacity = ApplyInstalledStatModifiers(Gun, "Propulsion.DeltaVCapacityMs", deltaVCapacity);
+            burnDuration = ApplyInstalledStatModifiers(Gun, "Propulsion.BurnDurationS", burnDuration);
+            referenceMass = ApplyInstalledStatModifiers(Gun, "Propulsion.ReferenceMassKg", referenceMass);
+
             double projectileDefense = CraftedProjectile?.DefenseRating ?? 0.0;
+
+            projectileDefense = ApplyInstalledStatModifiers(Gun, "Projectile.DefenseRating01", projectileDefense);
+            projectileDefense = Math.Clamp(projectileDefense, 0.0, 1.0);
 
             // Compute maximum launch velocity from gun physics, then cap by tech base velocity.
             var projectileCfg = new ProjectileConfiguration { Mass = projectileMassKg };
@@ -519,9 +687,15 @@ namespace Spacegun_Simulator.Core
             double barrelMultiplier = (0.5 + 0.5 * barrelEfficiency);
             double techBaseMax = GunConfiguration.GetBaseMuzzleVelocityForTechLevel(weaponsTechLevel) * barrelMultiplier * Gun.BarrelIntegrity;
 
-            double maxLaunchVelocity = Math.Max(1.0, Math.Min(techBaseMax, energyBasedMax));
+            // Gameplay uses the Weapons Tech base muzzle velocity system.
+            // The legacy energy-based propulsion model can be far below tech baselines (e.g., chemical defaults),
+            // and should not artificially cap the player's muzzle velocity.
+            double maxLaunchVelocity = Math.Max(1.0, techBaseMax);
 
-            return new ResolvedShotStats(
+            maxLaunchVelocity = ApplyInstalledStatModifiers(Gun, "Shot.MaxLaunchVelocityMs", maxLaunchVelocity);
+            maxLaunchVelocity = Math.Max(1.0, maxLaunchVelocity);
+
+            var shotStats = new ResolvedShotStats(
                 ProjectileMassKg: projectileMassKg,
                 MaxLaunchVelocityMs: maxLaunchVelocity,
                 EffectiveFractureEnergyMJ: effectiveFractureEnergyMJ,
@@ -532,6 +706,99 @@ namespace Spacegun_Simulator.Core
                 PropulsionReferenceMassKg: Math.Max(0.01, referenceMass),
                 ProjectileDefenseRating: Math.Clamp(projectileDefense, 0.0, 1.0)
             );
+
+            var gunStats = new ResolvedGunStats(
+                WeaponsTechLevel: weaponsTechLevel,
+                BarrelLengthM: Gun.BarrelLength,
+                BoreDiameterM: Gun.BoreDiameter,
+                BarrelMaterial: Gun.BarrelMaterial,
+                BarrelIntegrity01: Math.Clamp(Gun.BarrelIntegrity, 0.0, 1.0),
+                FireControlQuality: Math.Max(0.0, Gun.FireControlQuality),
+                BaseMuzzleVelocityMs: Math.Max(0.0, Gun.BaseMuzzleVelocityMs),
+                RangeMultiplierFromBarrelLength: Math.Max(0.0, Gun.RangeMultiplierFromBarrelLength),
+                EnergyBasedMaxLaunchVelocityMs: Math.Max(0.0, energyBasedMax),
+                TechBasedMaxLaunchVelocityMs: Math.Max(0.0, techBaseMax),
+                MaxLaunchVelocityMs: shotStats.MaxLaunchVelocityMs,
+                BaseWearPerShot01: Math.Max(0.0, Gun.BaseWearPerShot),
+                IntegrityFailureThreshold01: Math.Max(0.0, Gun.IntegrityFailureThreshold),
+                ShotsFired: Gun.ShotsFired,
+                CumulativeWear01: Math.Max(0.0, Gun.CumulativeWear));
+
+            var projectileStats = new ResolvedProjectileStats(
+                ProjectilesTechLevel: projectilesTechLevel,
+                CoreId: CraftedProjectile?.Core?.Id,
+                PropulsionId: CraftedProjectile?.Propulsion?.Id,
+                GuidanceModuleId: CraftedProjectile?.GuidanceModule?.Id,
+                PayloadModuleId: CraftedProjectile?.PayloadModule?.Id,
+                ArmorModuleId: CraftedProjectile?.ArmorModule?.Id,
+                MassKg: shotStats.ProjectileMassKg,
+                PenetrationMult: shotStats.Penetration,
+                BaseImpactCouplingMult: baseImpactCoupling,
+                ModuleImpactCouplingMult: moduleImpactCoupling,
+                ImpactCouplingMult: impactCoupling,
+                HitToleranceMult: shotStats.AdditionalHitToleranceMultiplier,
+                PropulsionDeltaVCapacityMs: shotStats.PropulsionDeltaVCapacityMs,
+                PropulsionBurnDurationSeconds: shotStats.PropulsionBurnDurationSeconds,
+                PropulsionReferenceMassKg: shotStats.PropulsionReferenceMassKg,
+                DefenseRating01: shotStats.ProjectileDefenseRating);
+
+            var resolvedWeapon = new ResolvedWeaponStats(gunStats, projectileStats, shotStats);
+            MaybeTraceResolvedWeaponStats(target, resolvedWeapon);
+            return resolvedWeapon;
+        }
+
+        private void MaybeTraceResolvedWeaponStats(EnemyTarget target, ResolvedWeaponStats resolved)
+        {
+            if (!GameConstants.TraceResolvedWeaponStats)
+                return;
+
+            try
+            {
+                // Keep this single-line and stable so it can be grepped.
+                Console.Error.WriteLine(
+                    "[ResolveWeaponStats] " +
+                    $"Wave={CurrentWaveNumber} " +
+                    $"WeaponsTL={resolved.Gun.WeaponsTechLevel} " +
+                    $"ProjTL={resolved.Projectile.ProjectilesTechLevel} " +
+                    $"RangeM={target.Altitude:F0} " +
+                    $"MVmax={resolved.Shot.MaxLaunchVelocityMs:F0} " +
+                    $"MassKg={resolved.Shot.ProjectileMassKg:F2} " +
+                    $"EffFractMJ={resolved.Shot.EffectiveFractureEnergyMJ:F3} " +
+                    $"Pen={resolved.Shot.Penetration:F3} " +
+                    $"Coupling={resolved.Projectile.ImpactCouplingMult:F3} " +
+                    $"HitTol={resolved.Shot.AdditionalHitToleranceMultiplier:F3} " +
+                    $"DVcap={resolved.Shot.PropulsionDeltaVCapacityMs:F0} " +
+                    $"BurnS={resolved.Shot.PropulsionBurnDurationSeconds:F2} " +
+                    $"RefMassKg={resolved.Shot.PropulsionReferenceMassKg:F2} " +
+                    $"Def01={resolved.Shot.ProjectileDefenseRating:F3}"
+                );
+            }
+            catch
+            {
+                // Best-effort diagnostics only.
+            }
+        }
+
+        private static double ApplyInstalledStatModifiers(GunConfiguration gun, string key, double value)
+        {
+            if (gun is null) throw new ArgumentNullException(nameof(gun));
+            if (string.IsNullOrWhiteSpace(key)) return value;
+
+            var mods = gun.InstalledStatModifiers;
+            if (mods is null || mods.Count == 0)
+                return value;
+
+            double current = value;
+            foreach (var m in mods)
+            {
+                if (m is null) continue;
+                if (!string.Equals(m.Key, key, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                current = StatModifierApplier.ApplyOp(m.Op, current, m.Value);
+            }
+
+            return current;
         }
 
         private void EnsureCraftedProjectileInitialized()
@@ -553,7 +820,9 @@ namespace Spacegun_Simulator.Core
             CraftedProjectile = new CraftedProjectile(
                 core: core,
                 propulsion: PropulsionSystem.None,
-                enhancement: ProjectileEnhancement.None,
+                guidanceModule: ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Guidance),
+                payloadModule: ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Payload),
+                armorModule: ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Armor),
                 gunBaseMuzzleVelocityMs: Gun.BaseMuzzleVelocityMs);
         }
 
@@ -739,88 +1008,6 @@ namespace Spacegun_Simulator.Core
         }
 
         // ====================================================================
-        // PHASE 3: DEVELOPMENT
-        // ====================================================================
-
-        public class DevelopmentResult
-        {
-            public bool UpgradeApplied { get; set; }
-            public string UpgradeName { get; set; } = string.Empty;
-            public string Message { get; set; } = string.Empty;
-            public double ResourcesRemaining { get; set; }
-        }
-
-        /// <summary>
-        /// Apply accumulated resources to gun upgrades.
-        /// Returns result of upgrade application.
-        /// </summary>
-        public DevelopmentResult ApplyUpgrade(UpgradeSystem upgrade)
-        {
-            var result = new DevelopmentResult();
-
-            if (upgrade is null)
-            {
-                result.Message = "No upgrade specified.";
-                return result;
-            }
-
-            // Convert accumulated resources to ResourceCost for checking
-            var availableCost = new ResourceCost(
-                budget: AccumulatedResources["Budget"],
-                steel: AccumulatedResources["Steel"],
-                exotic: AccumulatedResources["Exotic"]
-            );
-
-            // Check if we can afford it
-            if (!CanAffordUpgrade(upgrade.Cost, availableCost))
-            {
-                result.Message = $"Insufficient accumulated resources for {upgrade.Name}.";
-                return result;
-            }
-
-            // Apply upgrade
-            try
-            {
-                upgrade.Apply(Gun, new ResourcePool
-                {
-                    Budget = AccumulatedResources["Budget"],
-                    Steel = AccumulatedResources["Steel"],
-                    ExoticMaterials = AccumulatedResources["Exotic"],
-                    PowerCapacity = Gun.PowerCapacity,
-                    ResearchPoints = 0
-                });
-
-                // Deduct from accumulated
-                AccumulatedResources["Budget"] -= upgrade.Cost.Budget;
-                AccumulatedResources["Steel"] -= upgrade.Cost.Steel;
-                AccumulatedResources["Exotic"] -= upgrade.Cost.ExoticMaterials;
-
-                result.UpgradeApplied = true;
-                result.UpgradeName = upgrade.Name;
-                result.Message = $"Applied upgrade: {upgrade.Name}";
-                result.ResourcesRemaining = AccumulatedResources["Budget"] + AccumulatedResources["Steel"] + AccumulatedResources["Exotic"];
-
-                // Legacy behavior: applying an upgrade completes development and proceeds to firing.
-                GamePhaseTransitionRules.Apply(this, GamePhaseTransitionRules.PhaseEvent.DevelopmentCompleted);
-            }
-            catch (Exception ex)
-            {
-                result.Message = $"Failed to apply upgrade: {ex.Message}";
-            }
-
-            return result;
-        }
-
-        private bool CanAffordUpgrade(ResourceCost cost, ResourceCost available)
-        {
-            if (cost is null) return true;
-            if (cost.Budget > available.Budget) return false;
-            if (cost.Steel > available.Steel) return false;
-            if (cost.ExoticMaterials > available.ExoticMaterials) return false;
-            return true;
-        }
-
-        // ====================================================================
         // PHASE 4: FIRING SOLUTION
         // ====================================================================
 
@@ -870,13 +1057,20 @@ namespace Spacegun_Simulator.Core
                 }
                 else
                 {
-                    var resolved = ResolveShotStats(target);
+                    var weapon = ResolveWeaponStats(target);
+                    var resolved = weapon.Shot;
+
+                    double modeHitToleranceMultiplier = GameModeTuning.Current.GetHitToleranceMultiplier(Mode);
+                    var resolvedForMode = resolved with
+                    {
+                        AdditionalHitToleranceMultiplier = resolved.AdditionalHitToleranceMultiplier * modeHitToleranceMultiplier
+                    };
                     var solver = new FiringSolution(
-                        (float)resolved.ProjectileMassKg,
-                        (float)resolved.EffectiveFractureEnergyMJ,
+                        (float)resolvedForMode.ProjectileMassKg,
+                        (float)resolvedForMode.EffectiveFractureEnergyMJ,
                         target.Mass,
                         enemyCrossSectionM2: target.CrossSection);
-                    solver.ConfigureProjectileModifiers(resolved);
+                    solver.ConfigureProjectileModifiers(resolvedForMode);
 
                     FiringProblem firingProblem = null!;
                     try
@@ -884,7 +1078,7 @@ namespace Spacegun_Simulator.Core
                         // Pass gun's effective range to constrain engagement
                         firingProblem = solver.GenerateFiringProblem(
                             CurrentWave,
-                            (float)resolved.MaxLaunchVelocityMs,
+                            (float)resolvedForMode.MaxLaunchVelocityMs,
                             (float)effectiveRangeForWave,
                             rng);
                     }
@@ -934,6 +1128,111 @@ namespace Spacegun_Simulator.Core
             CurrentFiringProblem = null;
             CurrentWaveNumber++;  // ADD THIS LINE
             CurrentPhase = GamePhase.Detection;
+        }
+
+        public void EnsureProjectileModShopOffersForCurrentWave()
+        {
+            // Always ensure "none" modules are available.
+            ProjectileModShop.EnsureNoneModulesAreOwned(
+                guidanceNoneId: ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Guidance).Id,
+                payloadNoneId: ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Payload).Id,
+                armorNoneId: ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Armor).Id);
+
+            // Always ensure baseline components are owned so the player can't get stuck.
+            // Baseline core: first T1 core from catalog (config-defined ordering).
+            string baselineCoreId = ProjectilesCatalog.Cores.FirstOrDefault(c => c is not null && c.RequiredTechLevel <= 1)?.Id ?? "light";
+            ProjectileModShop.EnsureBaselineComponentsAreOwned(
+                baselineCoreId: baselineCoreId,
+                propulsionNoneId: ProjectilesCatalog.PropulsionNone.Id);
+
+            if (ProjectileModShop.OffersWaveNumber == CurrentWaveNumber
+                && (ProjectileModShop.GuidanceOfferModuleIds.Count > 0
+                    || ProjectileModShop.PayloadOfferModuleIds.Count > 0
+                    || ProjectileModShop.ArmorOfferModuleIds.Count > 0))
+            {
+                return;
+            }
+
+            int projectilesTechLevel = 1;
+            if (TechTree?.CurrentLevel != null && TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Projectiles, out int p))
+                projectilesTechLevel = Math.Max(1, p);
+
+            var rng = CreateDeterministicRng("ProjectileModShop", CurrentWaveNumber);
+            ProjectileModShop.ClearOffersForNewWave(CurrentWaveNumber);
+
+            const int coreOffers = 2;
+            const int propulsionOffers = 2;
+            const int offersPerSlot = 3;
+
+            FillCoreOffers(coreOffers);
+            FillPropulsionOffers(propulsionOffers);
+            FillOffersForSlot(ProjectileEnhancementSlot.Guidance, ProjectileModShop.GuidanceOfferModuleIds, ProjectileModShop.OwnedGuidanceModuleIds);
+            FillOffersForSlot(ProjectileEnhancementSlot.Payload, ProjectileModShop.PayloadOfferModuleIds, ProjectileModShop.OwnedPayloadModuleIds);
+            FillOffersForSlot(ProjectileEnhancementSlot.Armor, ProjectileModShop.ArmorOfferModuleIds, ProjectileModShop.OwnedArmorModuleIds);
+
+            void FillCoreOffers(int count)
+            {
+                var eligible = ProjectilesCatalog.Cores
+                    .Where(c => c is not null
+                        && c.RequiredTechLevel == projectilesTechLevel
+                        && !ProjectileModShop.OwnedCoreIds.Contains(c.Id))
+                    .ToList();
+
+                for (int i = eligible.Count - 1; i > 0; i--)
+                {
+                    int j = rng.Next(i + 1);
+                    (eligible[i], eligible[j]) = (eligible[j], eligible[i]);
+                }
+
+                int take = Math.Min(count, eligible.Count);
+                for (int i = 0; i < take; i++)
+                    ProjectileModShop.CoreOfferIds.Add(eligible[i].Id);
+            }
+
+            void FillPropulsionOffers(int count)
+            {
+                var eligible = ProjectilesCatalog.PropulsionSystems
+                    .Where(p => p is not null
+                        && !string.Equals(p.Id, "none", StringComparison.OrdinalIgnoreCase)
+                        && p.RequiredTechLevel == projectilesTechLevel
+                        && !ProjectileModShop.OwnedPropulsionIds.Contains(p.Id))
+                    .ToList();
+
+                for (int i = eligible.Count - 1; i > 0; i--)
+                {
+                    int j = rng.Next(i + 1);
+                    (eligible[i], eligible[j]) = (eligible[j], eligible[i]);
+                }
+
+                int take = Math.Min(count, eligible.Count);
+                for (int i = 0; i < take; i++)
+                    ProjectileModShop.PropulsionOfferIds.Add(eligible[i].Id);
+            }
+
+            void FillOffersForSlot(
+                ProjectileEnhancementSlot slot,
+                List<string> offers,
+                HashSet<string> owned)
+            {
+                var eligible = ProjectilesCatalog.Enhancements
+                    .Where(e => e is not null
+                        && e.Slot == slot
+                        && !e.IsNone
+                        && e.RequiredTechLevel == projectilesTechLevel
+                        && !owned.Contains(e.Id))
+                    .ToList();
+
+                // Deterministic Fisher-Yates shuffle using the per-wave shop RNG.
+                for (int i = eligible.Count - 1; i > 0; i--)
+                {
+                    int j = rng.Next(i + 1);
+                    (eligible[i], eligible[j]) = (eligible[j], eligible[i]);
+                }
+
+                int take = Math.Min(offersPerSlot, eligible.Count);
+                for (int i = 0; i < take; i++)
+                    offers.Add(eligible[i].Id);
+            }
         }
 
         // ====================================================================

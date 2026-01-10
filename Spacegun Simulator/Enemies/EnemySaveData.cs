@@ -11,6 +11,9 @@ namespace Spacegun_Simulator.Enemies
             public string ArchetypeId { get; set; } = string.Empty;
             public string CustomName { get; set; } = string.Empty;
             public string Description { get; set; } = string.Empty;
+
+            // Doctrine layer (optional for backward compatibility)
+            public string PrimaryDoctrine { get; set; } = string.Empty;
         }
 
         public sealed class CurrentWaveSaveData
@@ -23,14 +26,18 @@ namespace Spacegun_Simulator.Enemies
             public bool HasStealthCoating { get; set; }
 
             // Full-mode wave variables
-            public int ShipCount { get; set; } = 1;
+            public int ThreatCount { get; set; } = 1;
 
             public string ArchetypeId { get; set; } = string.Empty;
             public string ArchetypeName { get; set; } = string.Empty;
             public string ArchetypeDescription { get; set; } = string.Empty;
             public double ArchetypeVelocityMultiplier { get; set; }
 
-            // Legacy/compat fields (kept for save-format stability)
+            // Doctrine layer
+            public string Doctrine { get; set; } = string.Empty;
+            public string DoctrineSource { get; set; } = string.Empty;
+
+            // Legacy fields
             public double ArchetypeMass { get; set; }
             public double ArchetypeFractureEnergy { get; set; }
             public int ArchetypeDifficultyRating { get; set; }

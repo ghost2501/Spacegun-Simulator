@@ -8,7 +8,6 @@ namespace Spacegun_Simulator.Core
     /// </summary>
     public static class DevelopmentTuning
     {
-        public static EnemyTuningValues Enemy { get; private set; } = EnemyTuningValues.CreateDefaults();
         public static TierTargetMaterialValues TierTargetMaterial { get; private set; } = TierTargetMaterialValues.CreateDefaults();
         public static TierVelocityValues TierVelocity { get; private set; } = TierVelocityValues.CreateDefaults();
         public static TechTreeTuningValues TechTree { get; private set; } = TechTreeTuningValues.CreateDefaults();
@@ -17,9 +16,6 @@ namespace Spacegun_Simulator.Core
 
         public static void Apply(DevelopmentTuningConfig cfg)
         {
-            if (cfg.EnemyTuning is not null)
-                Enemy = Enemy.Apply(cfg.EnemyTuning);
-
             if (cfg.TierTargetMaterialTuning is not null)
                 TierTargetMaterial = TierTargetMaterial.Apply(cfg.TierTargetMaterialTuning);
 
@@ -50,51 +46,6 @@ namespace Spacegun_Simulator.Core
             {
                 EnemyEarthThreatCoupling = c.EnemyEarthThreatCoupling ?? EnemyEarthThreatCoupling,
                 EarthDestructionThresholdMJ = c.EarthDestructionThresholdMJ ?? EarthDestructionThresholdMJ,
-            };
-        }
-
-        public sealed record EnemyTuningValues(
-            int TargetCountBase,
-            int TargetCountTierBonus,
-            int TargetCountRandomMaxExclusive,
-            string[] EarlyTypes,
-            string[] MidTypes,
-            string[] LateTypes,
-            Dictionary<string, Range> CrossSectionRanges,
-            double StealthChanceForLateTiers)
-        {
-            public static EnemyTuningValues CreateDefaults() => new(
-                TargetCountBase: 2,
-                TargetCountTierBonus: 1,
-                TargetCountRandomMaxExclusive: 3,
-                EarlyTypes: ["Scout", "Fighter", "Light Cruiser"],
-                MidTypes: ["Cruiser", "Destroyer", "Heavy Fighter"],
-                LateTypes: ["Battlecruiser", "Dreadnought", "Carrier"],
-                CrossSectionRanges: new Dictionary<string, Range>
-                {
-                    ["Scout"] = new Range(10.0, 30.0),
-                    ["Fighter"] = new Range(20.0, 50.0),
-                    ["Light Cruiser"] = new Range(40.0, 80.0),
-                    ["Cruiser"] = new Range(80.0, 140.0),
-                    ["Destroyer"] = new Range(100.0, 180.0),
-                    ["Heavy Fighter"] = new Range(50.0, 100.0),
-                    ["Battlecruiser"] = new Range(150.0, 250.0),
-                    ["Dreadnought"] = new Range(250.0, 400.0),
-                    ["Carrier"] = new Range(300.0, 500.0),
-                },
-                StealthChanceForLateTiers: 0.3
-            );
-
-            public EnemyTuningValues Apply(EnemyTuningConfig c) => this with
-            {
-                TargetCountBase = c.TargetCountBase ?? TargetCountBase,
-                TargetCountTierBonus = c.TargetCountTierBonus ?? TargetCountTierBonus,
-                TargetCountRandomMaxExclusive = c.TargetCountRandomMaxExclusive ?? TargetCountRandomMaxExclusive,
-                EarlyTypes = c.EarlyTypes ?? EarlyTypes,
-                MidTypes = c.MidTypes ?? MidTypes,
-                LateTypes = c.LateTypes ?? LateTypes,
-                CrossSectionRanges = c.CrossSectionRanges ?? CrossSectionRanges,
-                StealthChanceForLateTiers = c.StealthChanceForLateTiers ?? StealthChanceForLateTiers,
             };
         }
 
@@ -180,7 +131,6 @@ namespace Spacegun_Simulator.Core
         public sealed record ProjectileDefaultsValues(
             double Mass,
             double Length,
-            double DragCoefficient,
             bool HasGuidance,
             double GuidanceAccuracy,
             double ImpactCoupling,
@@ -191,7 +141,6 @@ namespace Spacegun_Simulator.Core
             public static ProjectileDefaultsValues CreateDefaults() => new(
                 Mass: 5000.0,
                 Length: 0.5,
-                DragCoefficient: 0.3,
                 HasGuidance: false,
                 GuidanceAccuracy: 0.0,
                 // Keep the established tier curve by reducing coupled (effective) energy
@@ -207,7 +156,6 @@ namespace Spacegun_Simulator.Core
             {
                 Mass = c.Mass ?? Mass,
                 Length = c.Length ?? Length,
-                DragCoefficient = c.DragCoefficient ?? DragCoefficient,
                 HasGuidance = c.HasGuidance ?? HasGuidance,
                 GuidanceAccuracy = c.GuidanceAccuracy ?? GuidanceAccuracy,
                 ImpactCoupling = c.ImpactCoupling ?? ImpactCoupling,

@@ -6,6 +6,7 @@ using Spacegun_Simulator.UI.Pages;
 using Spacegun_Simulator.UI.Theme;
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text;
 
 namespace Spacegun_Simulator.UI.Diagnostics.Pages
@@ -57,6 +58,8 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
             EnemyDefense = 22,
 
             Run = 23,
+
+            ExportJsonBaselines = 27,
         }
 
         private static readonly Field[] s_fieldOrder = new[]
@@ -99,12 +102,14 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
             Field.EnemyDefense,
 
             Field.Run,
+
+            Field.ExportJsonBaselines,
         };
 
         public override PageChrome Chrome { get; } = new(
             ShowStatusBar: false,
             ShowSidePanels: false,
-            FooterHint: "↑/↓ Select  Digits/Letters=Type  Backspace=Edit  Space=Toggle  (S)avePreset  (L)oadPreset  ↩ Run+CSV  (R)un+CSV  (B)ack  (Q)uit"
+            FooterHint: "↑/↓ Select  Digits/Letters=Type  Backspace=Edit  Space=Toggle  (S)avePreset  (L)oadPreset  ↩ Run+CSV  (R)un+CSV  ↩↩ Export Baselines  (B)ack  (Q)uit"
         );
 
         private int _selectedIndex;
@@ -190,6 +195,8 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
         private string? _lastError;
         private bool _resultsStale;
         private string? _statusMessage;
+
+        private bool _exportJsonBaselinesConfirmArmed;
 
         private readonly List<string> _lines = new();
         private readonly Dictionary<int, int> _selectableLineIndex = new();
@@ -772,6 +779,7 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
             _lastError = null;
             _resultsStale = false;
             _statusMessage = "Press ↩ or (R)un to compute.";
+            _exportJsonBaselinesConfirmArmed = false;
 
             // Load config early so UI defaults reflect GameConfig values.
             GameConfigLoader.LoadIfExists();
@@ -821,6 +829,7 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
             if (next < 0) next += s_fieldOrder.Length;
             _selectedIndex = next;
             _inputBuffer = "";
+            _exportJsonBaselinesConfirmArmed = false;
         }
 
         private void EnsureSelectionVisible(int viewportHeight)
@@ -966,6 +975,11 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
             _lines.Add("");
             string runState = _last is null ? "(no results yet)" : (_resultsStale ? "(results: stale)" : "(results: current)");
             AddSelectable(Field.Run, FormatPlainRow(Field.Run, "Run & Export", runState, editHint: "R / Enter"));
+
+            string exportHint = (IsSelected(Field.ExportJsonBaselines) && _exportJsonBaselinesConfirmArmed)
+                ? "Enter again to confirm"
+                : "Enter x2";
+            AddSelectable(Field.ExportJsonBaselines, FormatPlainRow(Field.ExportJsonBaselines, "Export Baselines", "(writes Config/*.json)", editHint: exportHint));
 
             _lines.Add("");
 
@@ -1254,7 +1268,16 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
             }
 
             if (key.Key != ConsoleKey.Enter)
+            {
+                // Any non-Enter input cancels the pending export confirmation.
+                if (_exportJsonBaselinesConfirmArmed)
+                {
+                    _exportJsonBaselinesConfirmArmed = false;
+                    _statusMessage = "";
+                    BuildLines();
+                }
                 return PageResult.Stay;
+            }
 
             if (SelectedField == Field.SavePreset)
             {
@@ -1279,11 +1302,159 @@ namespace Spacegun_Simulator.UI.Diagnostics.Pages
                 return PageResult.Go(PageId.DiagnosticsTuningLabEnergyCsvColumns);
             }
 
+            if (SelectedField == Field.ExportJsonBaselines)
+            {
+                CommitInputBufferIfNeeded(markResultsStale: false);
+                if (!_exportJsonBaselinesConfirmArmed)
+                {
+                    _exportJsonBaselinesConfirmArmed = true;
+                    _statusMessage = "Press ↩ again to confirm: Export Baselines (writes Config/*.json).";
+                    BuildLines();
+                    return PageResult.Stay;
+                }
+
+                _exportJsonBaselinesConfirmArmed = false;
+                ExportJsonBaselines();
+                BuildLines();
+                return PageResult.Stay;
+            }
+
             // Enter runs; it also commits any pending edits first.
             CommitInputBufferIfNeeded(markResultsStale: false);
             RunTest();
             ui.Clear();
             return PageResult.Stay;
+        }
+
+        private static string? TryResolveConfigPath(string relativePath)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(relativePath))
+                    return null;
+
+                string rel = relativePath.Replace('/', Path.DirectorySeparatorChar);
+
+                // For baseline export, be conservative: only write under an existing Config directory.
+                // This avoids accidentally exporting into a bin/ folder if the game is launched from output.
+                string[] configRoots = new[]
+                {
+                    Path.Combine(Environment.CurrentDirectory, "Config"),
+                    Path.Combine(Environment.CurrentDirectory, "Spacegun Simulator", "Config"),
+                    Path.Combine(AppContext.BaseDirectory, "Config"),
+                };
+
+                foreach (var root in configRoots)
+                {
+                    try
+                    {
+                        if (!Directory.Exists(root))
+                            continue;
+
+                        // rel already starts with "Config/..."; anchor it at the parent of Config.
+                        // Example: root=".../Config" => baseDir is "..." => baseDir+rel => ".../Config/..."
+                        string baseDir = Path.GetDirectoryName(root) ?? Environment.CurrentDirectory;
+                        return Path.Combine(baseDir, rel);
+                    }
+                    catch
+                    {
+                        // keep probing
+                    }
+                }
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private void ExportJsonBaselines()
+        {
+            try
+            {
+                // Use the same effective values the UI shows.
+                double barrelLen = _overrideBarrelLength ? _barrelLength : DefaultBarrelLength;
+                double fireControl = _overrideFireControlQuality ? _fireControlQuality : DefaultFireControlQuality;
+                double muzzleMult = _overrideMuzzleVelocityMultiplier ? _muzzleVelocityMultiplier : GameConstants.MuzzleVelocityMultiplier;
+                double projMass = _overrideProjectileMass ? _projectileMassKg : DefaultProjectileMassKg;
+
+                string? gameCfgPath = TryResolveConfigPath("Config/GameConfig.json");
+                string? weaponsPath = TryResolveConfigPath("Config/WeaponsTuning.json");
+                string? devPath = TryResolveConfigPath("Config/DevelopmentTuning.json");
+
+                if (string.IsNullOrWhiteSpace(gameCfgPath)
+                    || string.IsNullOrWhiteSpace(weaponsPath)
+                    || string.IsNullOrWhiteSpace(devPath))
+                {
+                    throw new InvalidOperationException(
+                        "Could not locate the baseline Config directory to export into. " +
+                        "Run from the repo root or project folder so 'Spacegun Simulator/Config/*.json' is reachable."
+                    );
+                }
+
+                // 1) GameConfig.json: MuzzleVelocityMultiplier
+                {
+                    var root = File.Exists(gameCfgPath)
+                        ? (JsonNode.Parse(File.ReadAllText(gameCfgPath)) as JsonObject)
+                        : null;
+                    root ??= new JsonObject();
+                    root["MuzzleVelocityMultiplier"] = muzzleMult;
+
+                    var outDir = Path.GetDirectoryName(gameCfgPath);
+                    if (!string.IsNullOrWhiteSpace(outDir))
+                        Directory.CreateDirectory(outDir);
+                    File.WriteAllText(gameCfgPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                }
+
+                // 2) WeaponsTuning.json: GunTuning defaults
+                {
+                    var root = File.Exists(weaponsPath)
+                        ? (JsonNode.Parse(File.ReadAllText(weaponsPath)) as JsonObject)
+                        : null;
+                    root ??= new JsonObject();
+                    var gun = root["GunTuning"] as JsonObject;
+                    gun ??= new JsonObject();
+                    gun["DefaultBarrelLength"] = barrelLen;
+                    gun["DefaultFireControlQuality"] = fireControl;
+                    root["GunTuning"] = gun;
+
+                    var outDir = Path.GetDirectoryName(weaponsPath);
+                    if (!string.IsNullOrWhiteSpace(outDir))
+                        Directory.CreateDirectory(outDir);
+                    File.WriteAllText(weaponsPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                }
+
+                // 3) DevelopmentTuning.json: ProjectileDefaults mass
+                {
+                    var root = File.Exists(devPath)
+                        ? (JsonNode.Parse(File.ReadAllText(devPath)) as JsonObject)
+                        : null;
+                    root ??= new JsonObject();
+                    var proj = root["ProjectileDefaults"] as JsonObject;
+                    proj ??= new JsonObject();
+                    proj["Mass"] = projMass;
+                    root["ProjectileDefaults"] = proj;
+
+                    var outDir = Path.GetDirectoryName(devPath);
+                    if (!string.IsNullOrWhiteSpace(outDir))
+                        Directory.CreateDirectory(outDir);
+                    File.WriteAllText(devPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                }
+
+                _statusMessage =
+                    "Exported JSON baselines to Config: " +
+                    $"MuzzleVelocityMultiplier={muzzleMult:F3}, " +
+                    $"DefaultBarrelLength={barrelLen:F1}, " +
+                    $"DefaultFireControlQuality={fireControl:F3}, " +
+                    $"ProjectileDefaults.Mass={projMass:F1}. " +
+                    $"Wrote: GameConfig.json='{gameCfgPath}', WeaponsTuning.json='{weaponsPath}', DevelopmentTuning.json='{devPath}'.";
+            }
+            catch (Exception ex)
+            {
+                _statusMessage = $"JSON export failed: {ex.Message}";
+            }
         }
 
 

@@ -19,7 +19,7 @@ namespace Spacegun_Simulator.Enemies
         public string Id { get; set; } = string.Empty;
 
         /// <summary>
-        /// The archetype this enemy type is based on (Scout, Balanced, Titan, Sniper).
+        /// The archetype this enemy type is based on (Needle, Slug, Boulder, RKV).
         /// Defines the base characteristics and scaling behavior.
         /// </summary>
         public EnemyArchetype Archetype { get; set; } = null!;
@@ -39,6 +39,12 @@ namespace Spacegun_Simulator.Enemies
         /// </summary>
         public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
 
+        /// <summary>
+        /// Primary campaign doctrine applied on top of the archetype.
+        /// This is a soft modifier layer intended to shape wave generation.
+        /// </summary>
+        public EnemyDoctrine PrimaryDoctrine { get; set; } = EnemyDoctrine.None;
+
         public EnemyType(string id, EnemyArchetype archetype, string customName, string description)
         {
             Id = id;
@@ -56,31 +62,32 @@ namespace Spacegun_Simulator.Enemies
             if (rng is null) throw new ArgumentNullException(nameof(rng));
 
             // Select random base archetype
-            var archetype = EnemyArchetype.SelectRandom(rng);
+            var archetype = EnemyArchetypeCatalog.SelectRandom(rng);
 
             // Generate custom name for this enemy type
-            string[] prefixes = { "Viper", "Hawk", "Phantom", "Shadow", "Void", "Apex", "Prism", "Tesla", "Nova", "Nexus" };
-            string[] suffixes = { "Strike", "Runner", "Reaper", "Bane", "Scourge", "Blade", "Storm", "Wave", "Lance", "Fury" };
-            string customName = $"{archetype.Name}-Class {prefixes[rng.Next(prefixes.Length)]} {suffixes[rng.Next(suffixes.Length)]}";
+            string customName = EnemyNaming.GenerateCampaignName(archetype.Name, rng);
 
             string description = GenerateDescription(archetype, customName);
 
-            return new EnemyType(
+            var enemyType = new EnemyType(
                 id: $"campaign_{DateTime.UtcNow.Ticks}",
                 archetype: archetype,
                 customName: customName,
                 description: description
             );
+
+            enemyType.PrimaryDoctrine = EnemyDoctrineCatalog.SelectPrimaryDoctrine(archetype, rng);
+            return enemyType;
         }
 
         private static string GenerateDescription(EnemyArchetype archetype, string customName)
         {
             string strategyHint = archetype.Id switch
             {
-                "scout" => "Fast and evasive. Requires precision targeting systems.",
-                "balanced" => "Well-rounded threat. Demands versatile gun design.",
-                "titan" => "Heavily armored. Needs raw kinetic energy to overcome.",
-                "sniper" => "Extreme velocity. Must develop advanced tracking systems.",
+                "scout" => "Small and fast. Demands precision tracking and tight timing.",
+                "balanced" => "General-purpose kinetic threat. Demands a versatile gun design.",
+                "titan" => "Massive and resilient. Needs raw kinetic energy to overcome.",
+                "sniper" => "Hypervelocity profile. Must develop advanced tracking systems.",
                 _ => "Unknown threat profile."
             };
 

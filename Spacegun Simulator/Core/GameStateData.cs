@@ -3,6 +3,7 @@ using Spacegun_Simulator.Ballistics;
 using Spacegun_Simulator.Development;
 using Spacegun_Simulator.Development.Technology;
 using Spacegun_Simulator.Events;
+using Spacegun_Simulator.Core.Stats;
 
 namespace Spacegun_Simulator.Core
 {
@@ -16,6 +17,48 @@ namespace Spacegun_Simulator.Core
     [Serializable]
     public partial class GameStateData
     {
+        // ===== BASELINE TUNING SNAPSHOTS (NEW) =====
+        // Backward compatible: older saves won't have this field.
+        public ProjectileDefaultsBaselineData? ProjectileDefaultsBaseline { get; set; }
+
+        // Backward compatible: older saves won't have this field.
+        public WeaponsTuningConfig? WeaponsTuningBaseline { get; set; }
+
+        public sealed class ProjectileDefaultsBaselineData
+        {
+            public double Mass { get; set; }
+            public double Length { get; set; }
+            public bool HasGuidance { get; set; }
+            public double GuidanceAccuracy { get; set; }
+            public double ImpactCoupling { get; set; }
+            public double ImpactCouplingReferenceMassKg { get; set; }
+            public double ImpactCouplingMassExponent { get; set; }
+            public double ImpactCouplingTechMultiplierPerWeaponsLevel { get; set; }
+
+            public static ProjectileDefaultsBaselineData From(DevelopmentTuning.ProjectileDefaultsValues v) => new()
+            {
+                Mass = v.Mass,
+                Length = v.Length,
+                HasGuidance = v.HasGuidance,
+                GuidanceAccuracy = v.GuidanceAccuracy,
+                ImpactCoupling = v.ImpactCoupling,
+                ImpactCouplingReferenceMassKg = v.ImpactCouplingReferenceMassKg,
+                ImpactCouplingMassExponent = v.ImpactCouplingMassExponent,
+                ImpactCouplingTechMultiplierPerWeaponsLevel = v.ImpactCouplingTechMultiplierPerWeaponsLevel,
+            };
+
+            public DevelopmentTuning.ProjectileDefaultsValues ToValue() => new(
+                Mass: Mass,
+                Length: Length,
+                HasGuidance: HasGuidance,
+                GuidanceAccuracy: GuidanceAccuracy,
+                ImpactCoupling: ImpactCoupling,
+                ImpactCouplingReferenceMassKg: ImpactCouplingReferenceMassKg,
+                ImpactCouplingMassExponent: ImpactCouplingMassExponent,
+                ImpactCouplingTechMultiplierPerWeaponsLevel: ImpactCouplingTechMultiplierPerWeaponsLevel
+            );
+        }
+
         // Core game state
         public int CurrentWaveNumber { get; set; }
         public int WavesDefeated { get; set; }  // UNIFIED: Single property for waves/enemies
@@ -45,14 +88,31 @@ namespace Spacegun_Simulator.Core
         public int AmmunitionCount { get; set; }
         public List<string> InstalledUpgrades { get; set; } = new();
 
+        // Persistent installed stat modifiers (applied during ResolveWeaponStats).
+        public List<SavedStatModifier> InstalledStatModifiers { get; set; } = new();
+
         // Projectile configuration
         public double ProjectileMass { get; set; }
         public double ProjectileLength { get; set; }
         public string ProjectileType { get; set; } = string.Empty;
-        public double ProjectileDragCoefficient { get; set; }
         public bool ProjectileHasGuidance { get; set; }
         public double ProjectileGuidanceAccuracy { get; set; }
         public string ProjectilePenetrationType { get; set; } = string.Empty;
+
+        // ===== PROJECTILE MOD SHOP (NEW) =====
+        // Offers refresh once per wave and are persisted so save/load doesn't re-roll.
+        public int ProjectileModShopOffersWaveNumber { get; set; } = 0;
+        public List<string> ProjectileOwnedCoreIds { get; set; } = new();
+        public List<string> ProjectileOwnedPropulsionIds { get; set; } = new();
+        public List<string> ProjectileShopCoreOfferIds { get; set; } = new();
+        public List<string> ProjectileShopPropulsionOfferIds { get; set; } = new();
+        public List<string> ProjectileOwnedGuidanceModuleIds { get; set; } = new();
+        public List<string> ProjectileOwnedPayloadModuleIds { get; set; } = new();
+        public List<string> ProjectileOwnedArmorModuleIds { get; set; } = new();
+
+        public List<string> ProjectileShopGuidanceOfferModuleIds { get; set; } = new();
+        public List<string> ProjectileShopPayloadOfferModuleIds { get; set; } = new();
+        public List<string> ProjectileShopArmorOfferModuleIds { get; set; } = new();
 
         // Current wave accumulated resources
         public Dictionary<string, double> AccumulatedResources { get; set; } = new();
@@ -129,6 +189,9 @@ namespace Spacegun_Simulator.Core
 
             var data = new GameStateData
             {
+                ProjectileDefaultsBaseline = ProjectileDefaultsBaselineData.From(gameState.ProjectileDefaultsBaseline),
+                WeaponsTuningBaseline = gameState.WeaponsTuningBaseline,
+
                 CurrentWaveNumber = gameState.CurrentWaveNumber,
                 WavesDefeated = gameState.WavesDefeated,
                 IsGameOver = gameState.IsGameOver,
@@ -153,14 +216,51 @@ namespace Spacegun_Simulator.Core
                 CoolingCapacity = gameState.Gun.CoolingCapacity,
                 AmmunitionCount = gameState.Gun.AmmunitionCount,
                 InstalledUpgrades = new List<string>(gameState.Gun.InstalledUpgrades),
+                InstalledStatModifiers = (gameState.Gun.InstalledStatModifiers is null || gameState.Gun.InstalledStatModifiers.Count == 0)
+                    ? new List<SavedStatModifier>()
+                    : gameState.Gun.InstalledStatModifiers
+                        .Where(m => m is not null)
+                        .Select(m => new SavedStatModifier { Key = m.Key, Op = m.Op.ToString(), Value = m.Value })
+                        .ToList(),
 
                 ProjectileMass = gameState.Gun.DefaultProjectile.Mass,
                 ProjectileLength = gameState.Gun.DefaultProjectile.Length,
                 ProjectileType = gameState.Gun.DefaultProjectile.Type.ToString(),
-                ProjectileDragCoefficient = gameState.Gun.DefaultProjectile.DragCoefficient,
                 ProjectileHasGuidance = gameState.Gun.DefaultProjectile.HasGuidance,
                 ProjectileGuidanceAccuracy = gameState.Gun.DefaultProjectile.GuidanceAccuracy,
                 ProjectilePenetrationType = gameState.Gun.DefaultProjectile.PenetrationType.ToString(),
+
+                ProjectileModShopOffersWaveNumber = gameState.ProjectileModShop?.OffersWaveNumber ?? 0,
+                ProjectileOwnedCoreIds = gameState.ProjectileModShop is null
+                    ? new List<string>()
+                    : new List<string>(gameState.ProjectileModShop.OwnedCoreIds),
+                ProjectileOwnedPropulsionIds = gameState.ProjectileModShop is null
+                    ? new List<string>()
+                    : new List<string>(gameState.ProjectileModShop.OwnedPropulsionIds),
+                ProjectileShopCoreOfferIds = gameState.ProjectileModShop is null
+                    ? new List<string>()
+                    : new List<string>(gameState.ProjectileModShop.CoreOfferIds),
+                ProjectileShopPropulsionOfferIds = gameState.ProjectileModShop is null
+                    ? new List<string>()
+                    : new List<string>(gameState.ProjectileModShop.PropulsionOfferIds),
+                ProjectileOwnedGuidanceModuleIds = gameState.ProjectileModShop is null
+                    ? new List<string>()
+                    : new List<string>(gameState.ProjectileModShop.OwnedGuidanceModuleIds),
+                ProjectileOwnedPayloadModuleIds = gameState.ProjectileModShop is null
+                    ? new List<string>()
+                    : new List<string>(gameState.ProjectileModShop.OwnedPayloadModuleIds),
+                ProjectileOwnedArmorModuleIds = gameState.ProjectileModShop is null
+                    ? new List<string>()
+                    : new List<string>(gameState.ProjectileModShop.OwnedArmorModuleIds),
+                ProjectileShopGuidanceOfferModuleIds = gameState.ProjectileModShop is null
+                    ? new List<string>()
+                    : new List<string>(gameState.ProjectileModShop.GuidanceOfferModuleIds),
+                ProjectileShopPayloadOfferModuleIds = gameState.ProjectileModShop is null
+                    ? new List<string>()
+                    : new List<string>(gameState.ProjectileModShop.PayloadOfferModuleIds),
+                ProjectileShopArmorOfferModuleIds = gameState.ProjectileModShop is null
+                    ? new List<string>()
+                    : new List<string>(gameState.ProjectileModShop.ArmorOfferModuleIds),
 
                 AccumulatedResources = new Dictionary<string, double>(gameState.AccumulatedResources),
 
@@ -174,12 +274,14 @@ namespace Spacegun_Simulator.Core
                 CurrentWaveAverageVelocity = gameState.CurrentWave?.AverageVelocity ?? 0,
                 CurrentWaveAverageRadarCrossSection = gameState.CurrentWave?.AverageRadarCrossSection ?? 0,
                 CurrentWaveHasStealthCoating = gameState.CurrentWave?.HasStealthCoating ?? false,
-                CurrentWaveShipCount = gameState.CurrentWave?.ShipCount ?? 1,
+                CurrentWaveThreatCount = gameState.CurrentWave?.ThreatCount ?? 1,
                 CurrentWaveArchetypeId = gameState.CurrentWave?.Archetype?.Id ?? string.Empty,
                 CurrentWaveArchetypeName = gameState.CurrentWave?.Archetype?.Name ?? string.Empty,
                 CurrentWaveArchetypeDescription = gameState.CurrentWave?.Archetype?.Description ?? string.Empty,
                 CurrentWaveArchetypeVelocityMultiplier = gameState.CurrentWave?.Archetype?.VelocityMultiplier ?? 0,
                 CurrentWaveArchetypeDifficultyRating = gameState.CurrentWave?.Archetype?.BaseDifficultyRating ?? 0,
+                CurrentWaveDoctrine = gameState.CurrentWave?.Doctrine.ToString() ?? string.Empty,
+                CurrentWaveDoctrineSource = gameState.CurrentWave?.DoctrineSource.ToString() ?? string.Empty,
                 CurrentWaveTargetName = gameState.CurrentWave?.Targets?[0]?.Name ?? string.Empty,
                 CurrentWaveTargetAltitude = gameState.CurrentWave?.Targets?[0]?.Altitude ?? 0,
                 CurrentWaveTargetVelocity = gameState.CurrentWave?.Targets?[0]?.Velocity ?? 0,
@@ -195,6 +297,7 @@ namespace Spacegun_Simulator.Core
                 CampaignEnemyTypeArchetypeId = gameState.CampaignEnemyType?.Archetype?.Id ?? string.Empty,
                 CampaignEnemyTypeCustomName = gameState.CampaignEnemyType?.CustomName ?? string.Empty,
                 CampaignEnemyTypeDescription = gameState.CampaignEnemyType?.Description ?? string.Empty,
+                CampaignEnemyTypePrimaryDoctrine = gameState.CampaignEnemyType?.PrimaryDoctrine.ToString() ?? string.Empty,
 
                 EnemyApproachElevation = gameState.CurrentWave?.ApproachElevation ?? 45f,
                 EnemyApproachAzimuth = gameState.CurrentWave?.ApproachAzimuth ?? 0f,
@@ -252,6 +355,21 @@ namespace Spacegun_Simulator.Core
 
         public void ApplyToGameState(GameState gameState)
         {
+            // Restore (or migrate) baseline tuning snapshots.
+            // If missing (older saves), snapshot the current config baseline at first load.
+            gameState.ProjectileDefaultsBaseline = ProjectileDefaultsBaseline?.ToValue() ?? DevelopmentTuning.ProjectileDefaults;
+
+            // Restore (or migrate) weapon tuning baseline.
+            // Apply it so all code paths that reference WeaponsTuning.* directly remain grandfathered.
+            var weaponsBaseline = WeaponsTuningBaseline ?? WeaponsTuning.SnapshotCurrentToConfig();
+            WeaponsTuning.Apply(weaponsBaseline);
+            gameState.WeaponsTuningBaseline = weaponsBaseline;
+
+            // Ensure gun-level baseline tunables are refreshed from the (possibly migrated) baseline.
+            // These are not currently persisted as part of the gun state.
+            gameState.Gun.BaseWearPerShot = WeaponsTuning.DefaultBarrelWearPerShot;
+            gameState.Gun.IntegrityFailureThreshold = WeaponsTuning.Gun.IntegrityFailureThreshold;
+
             gameState.CurrentWaveNumber = CurrentWaveNumber;
             gameState.WavesDefeated = WavesDefeated;
             gameState.IsGameOver = IsGameOver;
@@ -279,15 +397,84 @@ namespace Spacegun_Simulator.Core
             gameState.Gun.InstalledUpgrades.Clear();
             gameState.Gun.InstalledUpgrades.AddRange(InstalledUpgrades);
 
+            gameState.Gun.InstalledStatModifiers.Clear();
+            if (InstalledStatModifiers is not null && InstalledStatModifiers.Count > 0)
+            {
+                foreach (var m in InstalledStatModifiers)
+                {
+                    if (m is null) continue;
+                    if (string.IsNullOrWhiteSpace(m.Key)) continue;
+                    if (!Enum.TryParse<StatModifierOp>(m.Op, ignoreCase: true, out var op))
+                        continue;
+                    gameState.Gun.InstalledStatModifiers.Add(new StatModifier(m.Key, op, m.Value));
+                }
+            }
+
             gameState.Gun.DefaultProjectile.Mass = ProjectileMass;
             gameState.Gun.DefaultProjectile.Length = ProjectileLength;
             if (Enum.TryParse<ProjectileType>(ProjectileType, out var projType))
                 gameState.Gun.DefaultProjectile.Type = projType;
-            gameState.Gun.DefaultProjectile.DragCoefficient = ProjectileDragCoefficient;
             gameState.Gun.DefaultProjectile.HasGuidance = ProjectileHasGuidance;
             gameState.Gun.DefaultProjectile.GuidanceAccuracy = ProjectileGuidanceAccuracy;
             if (Enum.TryParse<ArmorPenetrationType>(ProjectilePenetrationType, out var penType))
                 gameState.Gun.DefaultProjectile.PenetrationType = penType;
+
+            // ===== Restore projectile mod shop =====
+            if (gameState.ProjectileModShop != null)
+            {
+                gameState.ProjectileModShop.OwnedCoreIds.Clear();
+                gameState.ProjectileModShop.OwnedPropulsionIds.Clear();
+                gameState.ProjectileModShop.OwnedGuidanceModuleIds.Clear();
+                gameState.ProjectileModShop.OwnedPayloadModuleIds.Clear();
+                gameState.ProjectileModShop.OwnedArmorModuleIds.Clear();
+
+                if (ProjectileOwnedCoreIds is not null)
+                    foreach (var id in ProjectileOwnedCoreIds)
+                        if (!string.IsNullOrWhiteSpace(id)) gameState.ProjectileModShop.OwnedCoreIds.Add(id);
+
+                if (ProjectileOwnedPropulsionIds is not null)
+                    foreach (var id in ProjectileOwnedPropulsionIds)
+                        if (!string.IsNullOrWhiteSpace(id)) gameState.ProjectileModShop.OwnedPropulsionIds.Add(id);
+
+                if (ProjectileOwnedGuidanceModuleIds is not null)
+                    foreach (var id in ProjectileOwnedGuidanceModuleIds)
+                        if (!string.IsNullOrWhiteSpace(id)) gameState.ProjectileModShop.OwnedGuidanceModuleIds.Add(id);
+
+                if (ProjectileOwnedPayloadModuleIds is not null)
+                    foreach (var id in ProjectileOwnedPayloadModuleIds)
+                        if (!string.IsNullOrWhiteSpace(id)) gameState.ProjectileModShop.OwnedPayloadModuleIds.Add(id);
+
+                if (ProjectileOwnedArmorModuleIds is not null)
+                    foreach (var id in ProjectileOwnedArmorModuleIds)
+                        if (!string.IsNullOrWhiteSpace(id)) gameState.ProjectileModShop.OwnedArmorModuleIds.Add(id);
+
+                gameState.ProjectileModShop.OffersWaveNumber = ProjectileModShopOffersWaveNumber;
+                gameState.ProjectileModShop.CoreOfferIds.Clear();
+                gameState.ProjectileModShop.PropulsionOfferIds.Clear();
+                gameState.ProjectileModShop.GuidanceOfferModuleIds.Clear();
+                gameState.ProjectileModShop.PayloadOfferModuleIds.Clear();
+                gameState.ProjectileModShop.ArmorOfferModuleIds.Clear();
+
+                if (ProjectileShopCoreOfferIds is not null)
+                    foreach (var id in ProjectileShopCoreOfferIds)
+                        if (!string.IsNullOrWhiteSpace(id)) gameState.ProjectileModShop.CoreOfferIds.Add(id);
+
+                if (ProjectileShopPropulsionOfferIds is not null)
+                    foreach (var id in ProjectileShopPropulsionOfferIds)
+                        if (!string.IsNullOrWhiteSpace(id)) gameState.ProjectileModShop.PropulsionOfferIds.Add(id);
+
+                if (ProjectileShopGuidanceOfferModuleIds is not null)
+                    foreach (var id in ProjectileShopGuidanceOfferModuleIds)
+                        if (!string.IsNullOrWhiteSpace(id)) gameState.ProjectileModShop.GuidanceOfferModuleIds.Add(id);
+
+                if (ProjectileShopPayloadOfferModuleIds is not null)
+                    foreach (var id in ProjectileShopPayloadOfferModuleIds)
+                        if (!string.IsNullOrWhiteSpace(id)) gameState.ProjectileModShop.PayloadOfferModuleIds.Add(id);
+
+                if (ProjectileShopArmorOfferModuleIds is not null)
+                    foreach (var id in ProjectileShopArmorOfferModuleIds)
+                        if (!string.IsNullOrWhiteSpace(id)) gameState.ProjectileModShop.ArmorOfferModuleIds.Add(id);
+            }
 
             gameState.AccumulatedResources.Clear();
             foreach (var kvp in AccumulatedResources)
@@ -338,6 +525,8 @@ namespace Spacegun_Simulator.Core
                     ArchetypeName: CurrentWaveArchetypeName,
                     ArchetypeDescription: CurrentWaveArchetypeDescription,
                     ArchetypeVelocityMultiplier: CurrentWaveArchetypeVelocityMultiplier,
+                    Doctrine: CurrentWaveDoctrine,
+                    DoctrineSource: CurrentWaveDoctrineSource,
                     TargetName: CurrentWaveTargetName,
                     TargetAltitude: CurrentWaveTargetAltitude,
                     TargetVelocity: CurrentWaveTargetVelocity,
@@ -353,7 +542,7 @@ namespace Spacegun_Simulator.Core
                     AverageVelocity: CurrentWaveAverageVelocity,
                     AverageRadarCrossSection: CurrentWaveAverageRadarCrossSection,
                     HasStealthCoating: CurrentWaveHasStealthCoating,
-                    ShipCount: CurrentWaveShipCount,
+                    ThreatCount: CurrentWaveThreatCount,
                     ApproachElevation: EnemyApproachElevation,
                     ApproachAzimuth: EnemyApproachAzimuth,
                     HasCachedVectors: HasCachedVectors,
@@ -398,7 +587,8 @@ namespace Spacegun_Simulator.Core
                     Id: CampaignEnemyTypeId,
                     ArchetypeId: CampaignEnemyTypeArchetypeId,
                     CustomName: CampaignEnemyTypeCustomName,
-                    Description: CampaignEnemyTypeDescription
+                    Description: CampaignEnemyTypeDescription,
+                    PrimaryDoctrine: CampaignEnemyTypePrimaryDoctrine
                 );
 
                 gameState.CampaignEnemyType = EnemySaveRestore.TryCreateCampaignEnemyType(snapshot);
@@ -428,6 +618,13 @@ namespace Spacegun_Simulator.Core
             {
                 gameState.CurrentPhase = phase;
             }
+        }
+
+        public sealed class SavedStatModifier
+        {
+            public string Key { get; set; } = string.Empty;
+            public string Op { get; set; } = string.Empty;
+            public double Value { get; set; }
         }
 
         private int DeriveLegacySeedFallback()

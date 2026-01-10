@@ -1,4 +1,5 @@
 using Spacegun_Simulator.UI.Pages.FireControl;
+using Spacegun_Simulator.UI.Pages.Development;
 using Spacegun_Simulator.Ballistics;
 using Spacegun_Simulator.Core;
 
@@ -18,6 +19,8 @@ namespace Spacegun_Simulator.UI.Flows
                 var page = new FiringPhasePage();
                 var controller = new UiController(ui, PageId.Firing);
                 controller.Register(page);
+				// Needed for the (G)=Gun Stats shortcut from the firing page.
+				controller.Register(new DetailedWeaponStatusPage());
                 controller.Run();
 
                 if (ui.RequestExitGame || ui.RequestReturnToMenu || game.IsGameOver)
@@ -40,16 +43,23 @@ namespace Spacegun_Simulator.UI.Flows
                     break;
                 }
 
-                var resolved = game.ResolveShotStats(target);
+                var weapon = game.ResolveWeaponStats(target);
+                var resolved = weapon.Shot;
+
+                double modeHitToleranceMultiplier = GameModeTuning.Current.GetHitToleranceMultiplier(game.Mode);
+                var resolvedForMode = resolved with
+                {
+                    AdditionalHitToleranceMultiplier = resolved.AdditionalHitToleranceMultiplier * modeHitToleranceMultiplier
+                };
 
                 var calculator = new FiringSolution(
-                    (float)resolved.ProjectileMassKg,
-                    (float)resolved.EffectiveFractureEnergyMJ,
+                    (float)resolvedForMode.ProjectileMassKg,
+                    (float)resolvedForMode.EffectiveFractureEnergyMJ,
                     target.Mass,
                     enemyCrossSectionM2: target.CrossSection);
-                calculator.ConfigureProjectileModifiers(resolved);
+                calculator.ConfigureProjectileModifiers(resolvedForMode);
 
-                float maxVelocity = (float)resolved.MaxLaunchVelocityMs;
+                float maxVelocity = (float)resolvedForMode.MaxLaunchVelocityMs;
                 if (diffConfig.IsTutorialMode)
                     maxVelocity = (float)Math.Min(maxVelocity, DifficultyConfig.TutorialPotatoCannon.MuzzleVelocityMs);
                 double displayRcs = target.CrossSection * diffConfig.TargetRcsMultiplier;

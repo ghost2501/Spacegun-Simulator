@@ -24,16 +24,46 @@ namespace Spacegun_Simulator.Development.Technology
         /// <summary>
         /// Current tech level for each tree (1-3, starts at 1).
         /// </summary>
-        public Dictionary<TechType, int> CurrentLevel { get; set; } = new();
+        private Dictionary<TechType, int> _currentLevel = new();
+
+        public Dictionary<TechType, int> CurrentLevel
+        {
+            get => _currentLevel;
+            set
+            {
+                _currentLevel = value ?? new Dictionary<TechType, int>();
+                EnsureAllTechTypesPresent();
+            }
+        }
 
         public TechTree()
         {
-            // Initialize all tech trees to level 1
-            CurrentLevel[TechType.Radar] = 1;
-            CurrentLevel[TechType.Mining] = 1;
-            CurrentLevel[TechType.Production] = 1;
-            CurrentLevel[TechType.Weapons] = 1;
-            CurrentLevel[TechType.Projectiles] = 1;
+            // Initialize all tech trees to level 1.
+            // NOTE: CurrentLevel can be overwritten during save restore; keep it normalized.
+            _currentLevel = new Dictionary<TechType, int>();
+            EnsureAllTechTypesPresent();
+        }
+
+        public void EnsureAllTechTypesPresent()
+        {
+            EnsureTechTypePresent(TechType.Radar);
+            EnsureTechTypePresent(TechType.Mining);
+            EnsureTechTypePresent(TechType.Production);
+            EnsureTechTypePresent(TechType.Weapons);
+            EnsureTechTypePresent(TechType.Projectiles);
+        }
+
+        private void EnsureTechTypePresent(TechType tech)
+        {
+            if (!_currentLevel.TryGetValue(tech, out int level) || level < 1)
+            {
+                _currentLevel[tech] = 1;
+                return;
+            }
+
+            // Clamp to the supported tier range.
+            if (level > 3)
+                _currentLevel[tech] = 3;
         }
 
         /// <summary>

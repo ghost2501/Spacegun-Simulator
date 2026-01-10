@@ -40,8 +40,18 @@ namespace Spacegun_Simulator.UI.Flows
             if (target == null) throw new ArgumentNullException(nameof(target));
             if (calculator == null) throw new ArgumentNullException(nameof(calculator));
 
-            var resolved = game.ResolveShotStats(target);
-            bool hasDeltaV = resolved.PropulsionDeltaVCapacityMs > 0.0;
+            var weapon = game.ResolveWeaponStats(target);
+            var resolved = weapon.Shot;
+
+            // Apply mode-level hit tolerance scaling consistently by folding it into the shot's
+            // additional hit tolerance multiplier (the solver consumes this value via ConfigureProjectileModifiers).
+            double modeHitToleranceMultiplier = GameModeTuning.Current.GetHitToleranceMultiplier(game.Mode);
+            var resolvedForMode = resolved with
+            {
+                AdditionalHitToleranceMultiplier = resolved.AdditionalHitToleranceMultiplier * modeHitToleranceMultiplier
+            };
+
+            bool hasDeltaV = resolvedForMode.PropulsionDeltaVCapacityMs > 0.0;
 
             // Step 1: Collect firing parameters via page-based UI (no Console.ReadLine).
             var ui = new UiContext(
@@ -58,20 +68,22 @@ namespace Spacegun_Simulator.UI.Flows
             if (diffConfigForInput.IsTutorialMode)
                 maxVelocity = (float)Math.Min(maxVelocity, DifficultyConfig.TutorialPotatoCannon.MuzzleVelocityMs);
             double effectiveDeltaVAvailableMs = hasDeltaV
-                ? resolved.PropulsionDeltaVCapacityMs * ComputeMassEfficiency(resolved)
+                ? resolvedForMode.PropulsionDeltaVCapacityMs * ComputeMassEfficiency(resolvedForMode)
                 : 0.0;
-            double baseHitToleranceMeters = ComputeBaseHitToleranceMeters(
-                diffConfigForInput,
+            double baseHitToleranceMeters = FiringSolution.CalculateHitToleranceMeters(
+                difficulty: game.SelectedDifficulty,
+                waveNumber: game.CurrentWaveNumber,
+                enemyCrossSectionM2: target.CrossSection,
                 enemyMass: target.Mass,
-                additionalHitToleranceMultiplier: resolved.AdditionalHitToleranceMultiplier);
+                additionalHitToleranceMultiplier: resolvedForMode.AdditionalHitToleranceMultiplier);
 
             var paramPage = new EnterFiringParametersPage(
                 maxVelocity,
                 enableDeltaVAllocation: hasDeltaV,
                 effectiveDeltaVAvailableMs: effectiveDeltaVAvailableMs,
                 baseHitToleranceMeters: baseHitToleranceMeters,
-                baseDefenseRating: resolved.ProjectileDefenseRating,
-                projectileMassKg: resolved.ProjectileMassKg);
+                baseDefenseRating: resolvedForMode.ProjectileDefenseRating,
+                projectileMassKg: resolvedForMode.ProjectileMassKg);
             var controller = new UiController(ui, PageId.EnterFiringParameters);
             controller.Register(paramPage);
             controller.Run();
@@ -104,10 +116,10 @@ namespace Spacegun_Simulator.UI.Flows
             // Apply the player's Δv split for this shot.
             // - Impulse: feeds the solver's impact KE via propulsion delta-v.
             // - Control: improves hit tolerance in the solver (and may also improve Guidance below).
-            var allocated = resolved with
+            var allocated = resolvedForMode with
             {
-                PropulsionDeltaVCapacityMs = resolved.PropulsionDeltaVCapacityMs * impulseFrac,
-                AdditionalHitToleranceMultiplier = resolved.AdditionalHitToleranceMultiplier * (1.0 + controlBonus)
+                PropulsionDeltaVCapacityMs = resolvedForMode.PropulsionDeltaVCapacityMs * impulseFrac,
+                AdditionalHitToleranceMultiplier = resolvedForMode.AdditionalHitToleranceMultiplier * (1.0 + controlBonus)
             };
             calculator.ConfigureProjectileModifiers(allocated);
 
@@ -159,27 +171,6 @@ namespace Spacegun_Simulator.UI.Flows
                 return refMassKg / (refMassKg + massKg);
             }
 
-            static double ComputeBaseHitToleranceMeters(
-                DifficultyConfig diffConfig,
-                double enemyMass,
-                double additionalHitToleranceMultiplier)
-            {
-                // Mirrors FiringSolution.CalculateHitTolerance.
-                if (diffConfig.IsTutorialMode)
-                    return DifficultyConfig.TutorialBeachball.RadiusMeters;
-
-                double diameterM = BallisticsCalculator.CalculateDiameterFromMass(enemyMass);
-
-                if (diffConfig.TargetRcsMultiplier > 1.0)
-                {
-                    double rcsLinear = Math.Sqrt(diffConfig.TargetRcsMultiplier);
-                    diameterM *= rcsLinear;
-                }
-
-                double baseTolerance = diameterM * 0.5;
-                return baseTolerance * diffConfig.HitToleranceMultiplier * additionalHitToleranceMultiplier;
-            }
-
             static double ComputeControlGuidanceBonus(double effectiveDeltaVMs)
             {
                 // Diminishing returns, tuned conservatively.
@@ -229,7 +220,7 @@ namespace Spacegun_Simulator.UI.Flows
             {
                 double maneuver = Math.Clamp(target.Maneuverability, 0.0, 1.0);
                 bool hasGuidanceMod =
-                    (game.CraftedProjectile?.Enhancement?.Id == "guidance")
+                    (game.CraftedProjectile?.HasGuidance == true)
                     || (game.Gun?.DefaultProjectile?.HasGuidance ?? false);
 
                 // Guidance is a projectile-linked capability. If the guidance mod isn't installed,
@@ -254,7 +245,7 @@ namespace Spacegun_Simulator.UI.Flows
             if (hitResult && target.Offense > 0.0)
             {
                 double offense = Math.Clamp(target.Offense, 0.0, 1.0);
-                double defense = Math.Clamp(resolved.ProjectileDefenseRating, 0.0, 1.0);
+                double defense = Math.Clamp(resolvedForMode.ProjectileDefenseRating, 0.0, 1.0);
 
                 if (hasDeltaV && dodgePct > 0)
                 {
@@ -331,13 +322,20 @@ namespace Spacegun_Simulator.UI.Flows
                     : "✗ MISS! Your ballistic solution was inaccurate or lacked sufficient energy.";
             }
 
+            double hitToleranceMetersForDisplay = FiringSolution.CalculateHitToleranceMeters(
+                difficulty: game.SelectedDifficulty,
+                waveNumber: game.CurrentWaveNumber,
+                enemyCrossSectionM2: target.CrossSection,
+                enemyMass: target.Mass,
+                additionalHitToleranceMultiplier: allocated.AdditionalHitToleranceMultiplier);
+
             var resultsLines = BuildResultsLines(
                 solution,
-                resolved.ProjectileMassKg,
+                resolvedForMode.ProjectileMassKg,
                 playerLaunchVelocity,
                 displayRcs,
                 game.SelectedDifficulty,
-                GameModeTuning.Current.GetHitToleranceMultiplier(game.Mode),
+                hitToleranceMetersForDisplay,
                 barrelLine1,
                 barrelLine2,
                 outcomeLine,
@@ -396,7 +394,7 @@ namespace Spacegun_Simulator.UI.Flows
             float velocity,
             double targetRcs,
             GameDifficulty difficulty,
-            double modeHitToleranceMultiplier,
+            double hitToleranceMeters,
             string? barrelLine1,
             string? barrelLine2,
             string outcomeLine,
@@ -433,21 +431,17 @@ namespace Spacegun_Simulator.UI.Flows
                 lines.Add($"  Position deviation: {solution.InterceptDeviation:F1} meters");
 
                 var diffConfig = DifficultyConfig.GetConfig(difficulty);
-                double hitTolerance;
                 if (diffConfig.IsTutorialMode)
                 {
-                    hitTolerance = DifficultyConfig.TutorialBeachball.RadiusMeters;
-                    lines.Add($"  Hit Tolerance: {hitTolerance:F1} m (beachball radius)");
+                    lines.Add($"  Hit Tolerance: {hitToleranceMeters:F1} m (beachball radius)");
                 }
                 else
                 {
-                    double diameterFromRcs = 2.0 * Math.Sqrt(targetRcs / Math.PI);
-                    hitTolerance = diameterFromRcs * 0.5 * diffConfig.HitToleranceMultiplier * modeHitToleranceMultiplier;
-                    lines.Add($"  Hit Tolerance: {hitTolerance:F1} m (from {targetRcs:F1} m² RCS)");
+                    lines.Add($"  Hit Tolerance: {hitToleranceMeters:F1} m (from {targetRcs:F1} m² RCS)");
                 }
 
                 lines.Add($"✓ Accuracy Check: {(solution.CanHit ? "PASS" : "FAIL")}");
-                lines.Add($"  ({solution.InterceptDeviation:F1}m deviation vs {hitTolerance:F1}m tolerance)");
+                lines.Add($"  ({solution.InterceptDeviation:F1}m deviation vs {hitToleranceMeters:F1}m tolerance)");
             }
             else
             {

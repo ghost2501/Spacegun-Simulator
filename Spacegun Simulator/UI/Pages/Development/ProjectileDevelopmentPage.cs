@@ -15,23 +15,45 @@ public sealed class ProjectileDevelopmentPage : PageBase
     public override PageChrome Chrome { get; } = new(
         ShowStatusBar: true,
         ShowSidePanels: true,
-		FooterHint: "Select(↩)   (B)ack (M)enu (Q)uit"
+        FooterHint: "Select(↩)   (B)ack (M)enu (Q)uit"
     );
+
+    private enum ComponentOptionKind
+    {
+        Owned,
+        Offer,
+    }
+
+    private sealed record CoreOption(ProjectileCore Core, ComponentOptionKind Kind);
+
+    private sealed record PropulsionOption(PropulsionSystem Propulsion, ComponentOptionKind Kind);
+
+    private enum ModuleOptionKind
+    {
+        Owned,
+        Offer,
+    }
+
+    private sealed record ModuleOption(ProjectileEnhancement Module, ModuleOptionKind Kind);
 
     private enum Step
     {
         SelectCore,
         SelectPropulsion,
-        SelectEnhancement,
+        SelectGuidanceModule,
+        SelectPayloadModule,
+        SelectArmorModule,
         Summary,
         Result
     }
 
     private Step _step;
 
-    private readonly List<ProjectileCore> _cores = new();
-    private readonly List<PropulsionSystem> _propulsion = new();
-    private readonly List<ProjectileEnhancement> _enhancements = new();
+    private readonly List<CoreOption> _coreOptions = new();
+    private readonly List<PropulsionOption> _propulsionOptions = new();
+    private readonly List<ModuleOption> _guidanceOptions = new();
+    private readonly List<ModuleOption> _payloadOptions = new();
+    private readonly List<ModuleOption> _armorOptions = new();
 
     private int _selectedIndex;
     private int _scroll;
@@ -40,28 +62,29 @@ public sealed class ProjectileDevelopmentPage : PageBase
 
     private ProjectileCore? _selectedCore;
     private PropulsionSystem _selectedPropulsion = PropulsionSystem.None;
-    private ProjectileEnhancement _selectedEnhancement = ProjectileEnhancement.None;
+    private ProjectileEnhancement _selectedGuidance = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Guidance);
+    private ProjectileEnhancement _selectedPayload = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Payload);
+    private ProjectileEnhancement _selectedArmor = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Armor);
 
     private int _weaponsTechLevel;
+    private int _projectilesTechLevel;
     private double _gunBaseVelocity;
 
     private string _resultMessage = string.Empty;
+    private string _inlineMessage = string.Empty;
 
     public override void OnEnter(UiContext ui)
     {
         var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (ProjectileDevelopmentPage requires GameState). ");
 
         _weaponsTechLevel = game.TechTree.CurrentLevel[TechTree.TechType.Weapons];
+        _projectilesTechLevel = game.TechTree.CurrentLevel[TechTree.TechType.Projectiles];
         _gunBaseVelocity = GunConfiguration.GetBaseMuzzleVelocityForTechLevel(_weaponsTechLevel);
 
-        _cores.Clear();
-        _cores.AddRange(CraftedProjectile.GetUnlockedCores(game.TechTree));
-
-        _propulsion.Clear();
-        _propulsion.AddRange(CraftedProjectile.GetUnlockedPropulsion(game.TechTree));
-
-        _enhancements.Clear();
-        _enhancements.AddRange(CraftedProjectile.GetUnlockedEnhancements(game.TechTree));
+        game.EnsureProjectileModShopOffersForCurrentWave();
+        RebuildCoreOptions(game);
+        RebuildPropulsionOptions(game);
+        RebuildModuleOptions(game);
 
         _step = Step.SelectCore;
         _selectedIndex = 0;
@@ -69,9 +92,12 @@ public sealed class ProjectileDevelopmentPage : PageBase
 
         _selectedCore = null;
         _selectedPropulsion = PropulsionSystem.None;
-        _selectedEnhancement = ProjectileEnhancement.None;
+        _selectedGuidance = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Guidance);
+        _selectedPayload = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Payload);
+        _selectedArmor = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Armor);
 
         _resultMessage = string.Empty;
+        _inlineMessage = string.Empty;
         RebuildLines(ui);
     }
 
@@ -104,6 +130,7 @@ public sealed class ProjectileDevelopmentPage : PageBase
 
         _lines.Add("=== GUN SPECIFICATIONS ===");
         _lines.Add(Clamp60($"  Weapons Tech Level: {_weaponsTechLevel}"));
+        _lines.Add(Clamp60($"  Projectiles Tech Level: {_projectilesTechLevel}"));
         _lines.Add(Clamp60($"  Base Muzzle Velocity: {_gunBaseVelocity:N0} m/s ({_gunBaseVelocity / 1000:N0} km/s)"));
         _lines.Add(Clamp60($"  Barrel Integrity: {game.Gun.BarrelIntegrity:P2}"));
         _lines.Add(string.Empty);
@@ -116,8 +143,23 @@ public sealed class ProjectileDevelopmentPage : PageBase
             case Step.SelectPropulsion:
                 BuildPropulsionLines();
                 break;
-            case Step.SelectEnhancement:
-                BuildEnhancementLines();
+            case Step.SelectGuidanceModule:
+                BuildModuleLines(
+                    stepTitle: "=== STEP 3: SELECT GUIDANCE MODULE ===",
+                    stepSubtitle: "(Guidance, brains, and stabilization)",
+                    list: _guidanceOptions);
+                break;
+            case Step.SelectPayloadModule:
+                BuildModuleLines(
+                    stepTitle: "=== STEP 4: SELECT PAYLOAD MODULE ===",
+                    stepSubtitle: "(Penetration, coupling, and terminal effect)",
+                    list: _payloadOptions);
+                break;
+            case Step.SelectArmorModule:
+                BuildModuleLines(
+                    stepTitle: "=== STEP 5: SELECT ARMOR MODULE ===",
+                    stepSubtitle: "(Survivability against interception)",
+                    list: _armorOptions);
                 break;
             case Step.Summary:
                 BuildSummaryLines(game);
@@ -132,28 +174,38 @@ public sealed class ProjectileDevelopmentPage : PageBase
     {
         _lines.Add("=== STEP 1: SELECT PROJECTILE CORE ===");
         _lines.Add("(Determines projectile mass)");
+        _lines.Add("Owned cores: select to equip. Shop offers: Enter to buy.");
         _lines.Add(string.Empty);
 
-        if (_cores.Count == 0)
+        if (!string.IsNullOrWhiteSpace(_inlineMessage))
         {
-            _lines.Add("[No cores unlocked]");
+            _lines.Add(Clamp60(_inlineMessage));
+            _lines.Add(string.Empty);
+        }
+
+        if (_coreOptions.Count == 0)
+        {
+            _lines.Add("[No cores available]");
             _lines.Add("Press B to return.");
             return;
         }
 
-        _selectedIndex = Math.Clamp(_selectedIndex, 0, _cores.Count - 1);
+        _selectedIndex = Math.Clamp(_selectedIndex, 0, _coreOptions.Count - 1);
 
-        for (int i = 0; i < _cores.Count; i++)
+        for (int i = 0; i < _coreOptions.Count; i++)
         {
             int start = _lines.Count;
-            var core = _cores[i];
+            var opt = _coreOptions[i];
+            var core = opt.Core;
             double baseKe = BallisticsCalculator.CalculateKineticEnergyMJ(core.MassKg, _gunBaseVelocity);
 
             string cursor = i == _selectedIndex ? ">" : " ";
-            _lines.Add(Clamp60($"{cursor} [{i + 1}] {core.Name}"));
+            string tag = opt.Kind == ComponentOptionKind.Offer ? "(Shop)" : "(Owned)";
+            _lines.Add(Clamp60($"{cursor} [{i + 1}] {core.Name} {tag}"));
             _lines.Add(Clamp60($"    Mass: {core.MassKg} kg"));
             _lines.Add(Clamp60($"    Base KE (gun only): {baseKe:N0} MJ"));
-            _lines.Add(Clamp60($"    Cost: {core.Cost.Budget:F0} Budget, {core.Cost.Steel:F0} Steel, {core.Cost.ExoticMaterials:F0} Exotic"));
+            if (opt.Kind == ComponentOptionKind.Offer)
+                _lines.Add(Clamp60($"    Buy Cost: {core.Cost.Budget:F0} Budget, {core.Cost.Steel:F0} Steel, {core.Cost.ExoticMaterials:F0} Exotic"));
             _lines.Add(Clamp60($"    {core.Description}"));
             _lines.Add(string.Empty);
             int end = _lines.Count - 1;
@@ -165,7 +217,14 @@ public sealed class ProjectileDevelopmentPage : PageBase
     {
         _lines.Add("=== STEP 2: SELECT PROPULSION SYSTEM ===");
         _lines.Add("(Provides Delta-V boost during flight)");
+        _lines.Add("Owned propulsion: select to equip. Shop offers: Enter to buy.");
         _lines.Add(string.Empty);
+
+        if (!string.IsNullOrWhiteSpace(_inlineMessage))
+        {
+            _lines.Add(Clamp60(_inlineMessage));
+            _lines.Add(string.Empty);
+        }
 
         if (_selectedCore == null)
         {
@@ -173,28 +232,30 @@ public sealed class ProjectileDevelopmentPage : PageBase
             return;
         }
 
-        if (_propulsion.Count == 0)
+        if (_propulsionOptions.Count == 0)
         {
-            _lines.Add("[No propulsion options unlocked]");
+            _lines.Add("[No propulsion options available]");
             _lines.Add("Press B to return.");
             return;
         }
 
-        _selectedIndex = Math.Clamp(_selectedIndex, 0, _propulsion.Count - 1);
+        _selectedIndex = Math.Clamp(_selectedIndex, 0, _propulsionOptions.Count - 1);
 
-        for (int i = 0; i < _propulsion.Count; i++)
+        for (int i = 0; i < _propulsionOptions.Count; i++)
         {
             int start = _lines.Count;
-            var prop = _propulsion[i];
+            var opt = _propulsionOptions[i];
+            var prop = opt.Propulsion;
             string cursor = i == _selectedIndex ? ">" : " ";
+            string tag = opt.Kind == ComponentOptionKind.Offer ? "(Shop)" : "(Owned)";
 
             if (prop.Id == "none")
             {
                 double ke = BallisticsCalculator.CalculateKineticEnergyMJ(_selectedCore.MassKg, _gunBaseVelocity);
-                _lines.Add(Clamp60($"{cursor} [{i + 1}] {prop.Name} (no boost)"));
+                _lines.Add(Clamp60($"{cursor} [{i + 1}] {prop.Name} (no boost) {tag}"));
                 _lines.Add(Clamp60($"    Velocity: {_gunBaseVelocity:N0} m/s (gun only)"));
                 _lines.Add(Clamp60($"    KE: {ke:N0} MJ"));
-                _lines.Add(Clamp60("    Cost: FREE"));
+                _lines.Add(Clamp60("    Buy Cost: FREE"));
             }
             else
             {
@@ -202,12 +263,13 @@ public sealed class ProjectileDevelopmentPage : PageBase
                 double maxVelocity = _gunBaseVelocity + maxDeltaV;
                 double maxKe = BallisticsCalculator.CalculateKineticEnergyMJ(_selectedCore.MassKg, maxVelocity);
 
-                _lines.Add(Clamp60($"{cursor} [{i + 1}] {prop.Name}"));
+                _lines.Add(Clamp60($"{cursor} [{i + 1}] {prop.Name} {tag}"));
                 _lines.Add(Clamp60($"    Delta-V: +{prop.DeltaVCapacityMs:N0} m/s over {prop.BurnDurationSeconds:F1}s"));
                 _lines.Add(Clamp60($"    Effective Delta-V: +{maxDeltaV:N0} m/s"));
                 _lines.Add(Clamp60($"    Max Velocity: {maxVelocity:N0} m/s ({maxVelocity / 1000:N0} km/s)"));
                 _lines.Add(Clamp60($"    Max KE: {maxKe:N0} MJ"));
-                _lines.Add(Clamp60($"    Cost: {prop.Cost.Budget:F0} Budget, {prop.Cost.Steel:F0} Steel, {prop.Cost.ExoticMaterials:F0} Exotic"));
+                if (opt.Kind == ComponentOptionKind.Offer)
+                    _lines.Add(Clamp60($"    Buy Cost: {prop.Cost.Budget:F0} Budget, {prop.Cost.Steel:F0} Steel, {prop.Cost.ExoticMaterials:F0} Exotic"));
                 _lines.Add(Clamp60($"    {prop.Description}"));
             }
 
@@ -217,38 +279,52 @@ public sealed class ProjectileDevelopmentPage : PageBase
         }
     }
 
-    private void BuildEnhancementLines()
+    private void BuildModuleLines(string stepTitle, string stepSubtitle, List<ModuleOption> list)
     {
-        _lines.Add("=== STEP 3: SELECT ENHANCEMENT ===");
-        _lines.Add("(Modifies accuracy or damage)");
+        _lines.Add(stepTitle);
+        _lines.Add(stepSubtitle);
+        _lines.Add("Owned modules: select to equip. Shop offers: Enter to buy.");
         _lines.Add(string.Empty);
 
-        if (_enhancements.Count == 0)
+        if (!string.IsNullOrWhiteSpace(_inlineMessage))
         {
-            _lines.Add("[No enhancements unlocked]");
+            _lines.Add(Clamp60(_inlineMessage));
+            _lines.Add(string.Empty);
+        }
+
+        if (list.Count == 0)
+        {
+            _lines.Add("[No modules available]");
             _lines.Add("Press B to return.");
             return;
         }
 
-        _selectedIndex = Math.Clamp(_selectedIndex, 0, _enhancements.Count - 1);
+        _selectedIndex = Math.Clamp(_selectedIndex, 0, list.Count - 1);
 
-        for (int i = 0; i < _enhancements.Count; i++)
+        for (int i = 0; i < list.Count; i++)
         {
             int start = _lines.Count;
-            var enh = _enhancements[i];
+            var opt = list[i];
+            var enh = opt.Module;
             string cursor = i == _selectedIndex ? ">" : " ";
 
-            string bonusText = "";
+            var bonuses = new List<string>();
             if (enh.HitToleranceBonus != 1.0)
-                bonusText += $"Hit Tolerance: {(enh.HitToleranceBonus - 1) * 100:+0;-0}%  ";
+                bonuses.Add($"Hit Tolerance: {(enh.HitToleranceBonus - 1) * 100:+0;-0}%");
             if (enh.Penetration != 1.0)
-                bonusText += $"Penetration: {(enh.Penetration - 1) * 100:+0;-0}%";
+                bonuses.Add($"Penetration: {(enh.Penetration - 1) * 100:+0;-0}%");
+            if (enh.ImpactCoupling != 1.0)
+                bonuses.Add($"Coupling: {(enh.ImpactCoupling - 1) * 100:+0;-0}%");
+            if (enh.DefenseBonus != 0.0)
+                bonuses.Add($"Defense: {enh.DefenseBonus:+0.00;-0.00}");
+            string bonusText = string.Join("  ", bonuses);
 
-            _lines.Add(Clamp60($"{cursor} [{i + 1}] {enh.Name}"));
+            string tag = opt.Kind == ModuleOptionKind.Offer ? "(Shop)" : "(Owned)";
+            _lines.Add(Clamp60($"{cursor} [{i + 1}] {enh.Name} {tag}"));
             if (!string.IsNullOrEmpty(bonusText))
                 _lines.Add(Clamp60($"    Bonuses: {bonusText}"));
-            if (enh.Id != "none")
-                _lines.Add(Clamp60($"    Cost: {enh.Cost.Budget:F0} Budget, {enh.Cost.Steel:F0} Steel, {enh.Cost.ExoticMaterials:F0} Exotic"));
+            if (opt.Kind == ModuleOptionKind.Offer && !enh.IsNone)
+                _lines.Add(Clamp60($"    Buy Cost: {enh.Cost.Budget:F0} Budget, {enh.Cost.Steel:F0} Steel, {enh.Cost.ExoticMaterials:F0} Exotic"));
             _lines.Add(Clamp60($"    {enh.Description}"));
             _lines.Add(string.Empty);
             int end = _lines.Count - 1;
@@ -264,7 +340,24 @@ public sealed class ProjectileDevelopmentPage : PageBase
             return;
         }
 
-        var crafted = new CraftedProjectile(_selectedCore, _selectedPropulsion, _selectedEnhancement, _gunBaseVelocity);
+        var crafted = new CraftedProjectile(_selectedCore, _selectedPropulsion, _selectedGuidance, _selectedPayload, _selectedArmor, _gunBaseVelocity);
+        var buildCost = new Spacegun_Simulator.Development.Shared.ResourceCost(budget: 0, steel: 0, exotic: 0);
+        var shopPrice = new Spacegun_Simulator.Development.Shared.ResourceCost(
+            budget: _selectedCore.Cost.Budget
+                + _selectedPropulsion.Cost.Budget
+                + _selectedGuidance.Cost.Budget
+                + _selectedPayload.Cost.Budget
+                + _selectedArmor.Cost.Budget,
+            steel: _selectedCore.Cost.Steel
+                + _selectedPropulsion.Cost.Steel
+                + _selectedGuidance.Cost.Steel
+                + _selectedPayload.Cost.Steel
+                + _selectedArmor.Cost.Steel,
+            exotic: _selectedCore.Cost.ExoticMaterials
+                + _selectedPropulsion.Cost.ExoticMaterials
+                + _selectedGuidance.Cost.ExoticMaterials
+                + _selectedPayload.Cost.ExoticMaterials
+                + _selectedArmor.Cost.ExoticMaterials);
 
         _lines.Add("=== PROJECTILE CONFIGURATION - SUMMARY ===");
         _lines.Add(string.Empty);
@@ -281,20 +374,32 @@ public sealed class ProjectileDevelopmentPage : PageBase
         }
 
         _lines.Add(Clamp60($"  Max KE: {crafted.RawKineticEnergyMJ:N0} MJ"));
-        if (crafted.Enhancement?.Penetration is double p && p != 1.0)
+        double p = crafted.PenetrationMultiplier;
+        if (p != 1.0)
             _lines.Add(Clamp60($"  Penetration: {(p - 1) * 100:+0}%"));
         if (crafted.HitToleranceMultiplier != 1.0)
             _lines.Add(Clamp60($"  Hit Tolerance: {(crafted.HitToleranceMultiplier - 1) * 100:+0}%"));
+        if (crafted.ImpactCouplingMultiplier != 1.0)
+            _lines.Add(Clamp60($"  Impact Coupling: {(crafted.ImpactCouplingMultiplier - 1) * 100:+0}%"));
+        if (crafted.DefenseRating > 0.0)
+            _lines.Add(Clamp60($"  Defense: {crafted.DefenseRating:P0}"));
 
         _lines.Add(string.Empty);
-        _lines.Add("  TOTAL COST:");
-        _lines.Add(Clamp60($"    Budget: {crafted.TotalCost.Budget:F0}"));
-        _lines.Add(Clamp60($"    Steel:  {crafted.TotalCost.Steel:F0}"));
-        _lines.Add(Clamp60($"    Exotic: {crafted.TotalCost.ExoticMaterials:F0}"));
+        _lines.Add("  COST MODEL:");
+        _lines.Add(Clamp60("    Build: FREE"));
+        _lines.Add(Clamp60("    Note: You pay only when purchasing items in the Mod Shop."));
+        _lines.Add("    Current loadout prices (reference only):");
+
+        _lines.Add(Clamp60($"      Core:      {FormatCost(_selectedCore.Cost)}"));
+        _lines.Add(Clamp60($"      Propulsion:{FormatCost(_selectedPropulsion.Cost)}"));
+        _lines.Add(Clamp60($"      Guidance:  {FormatCost(_selectedGuidance.Cost)}"));
+        _lines.Add(Clamp60($"      Payload:   {FormatCost(_selectedPayload.Cost)}"));
+        _lines.Add(Clamp60($"      Armor:     {FormatCost(_selectedArmor.Cost)}"));
+        _lines.Add(Clamp60($"      Total:     {FormatCost(shopPrice)}"));
 
         if (game.CurrentWave?.Archetype != null)
         {
-            double penetration = Math.Max(0.1, crafted.Enhancement?.Penetration ?? 1.0);
+            double penetration = Math.Max(0.1, crafted.PenetrationMultiplier);
             double baseRequiredMJ = game.CurrentWave.Targets.Count > 0 ? game.CurrentWave.Targets[0].FractureEnergy : 0.0;
             double requiredMJ = baseRequiredMJ / penetration;
             bool meets = crafted.RawKineticEnergyMJ >= requiredMJ;
@@ -306,8 +411,8 @@ public sealed class ProjectileDevelopmentPage : PageBase
                 _lines.Add(Clamp60("  Note: Tutorial mode uses a fixed beachball target."));
         }
 
-        bool canAfford = CraftedProjectile.CanAfford(crafted, game.AccumulatedResources);
-        _lines.Add(Clamp60($"  Affordability: {(canAfford ? "✓ CAN AFFORD" : "✗ INSUFFICIENT RESOURCES")}"));
+        bool canAfford = CanAffordCost(buildCost, game.AccumulatedResources);
+        _lines.Add(Clamp60($"  Build Affordability: {(canAfford ? "✓ OK" : "✗ INSUFFICIENT RESOURCES")}"));
 
         _lines.Add(string.Empty);
         if (!canAfford)
@@ -318,6 +423,11 @@ public sealed class ProjectileDevelopmentPage : PageBase
         else
         {
             _lines.Add("Confirm build? (Y/N)");
+        }
+
+        static string FormatCost(Spacegun_Simulator.Development.Shared.ResourceCost cost)
+        {
+            return $"{cost.Budget:F0}B {cost.Steel:F0}St {cost.ExoticMaterials:F0}Ex";
         }
     }
 
@@ -380,12 +490,15 @@ public sealed class ProjectileDevelopmentPage : PageBase
             {
                 Step.SelectCore => PageResult.Back(PageId.WeaponDevelopment),
                 Step.SelectPropulsion => GoBackToCore(),
-                Step.SelectEnhancement => GoBackToPropulsion(),
+                Step.SelectGuidanceModule => GoBackToPropulsion(),
+                Step.SelectPayloadModule => GoBackToGuidance(),
+                Step.SelectArmorModule => GoBackToPayload(),
                 Step.Summary => PageResult.Back(PageId.WeaponDevelopment),
                 Step.Result => PageResult.Back(PageId.WeaponDevelopment),
                 _ => PageResult.Back(PageId.WeaponDevelopment)
             };
             _scroll = 0;
+            _inlineMessage = string.Empty;
             RebuildLines(ui);
             return result;
         }
@@ -393,31 +506,40 @@ public sealed class ProjectileDevelopmentPage : PageBase
         switch (_step)
         {
             case Step.SelectCore:
-                return HandleSelection(ui, key, _cores.Count, onChoose: () =>
-                {
-                    _selectedCore = _cores[_selectedIndex];
-                    _step = Step.SelectPropulsion;
-                    _selectedIndex = 0;
-                    _scroll = 0;
-                    RebuildLines(ui);
-                });
+                return HandleCoreSelection(ui, key);
 
             case Step.SelectPropulsion:
-                return HandleSelection(ui, key, _propulsion.Count, onChoose: () =>
+                return HandlePropulsionSelection(ui, key);
+
+            case Step.SelectGuidanceModule:
+                return HandleModuleSelection(ui, key, ProjectileEnhancementSlot.Guidance, _guidanceOptions, onOwnedChoose: m =>
                 {
-                    _selectedPropulsion = _propulsion[_selectedIndex];
-                    _step = Step.SelectEnhancement;
+                    _selectedGuidance = m;
+                    _step = Step.SelectPayloadModule;
                     _selectedIndex = 0;
                     _scroll = 0;
+                    _inlineMessage = string.Empty;
                     RebuildLines(ui);
                 });
 
-            case Step.SelectEnhancement:
-                return HandleSelection(ui, key, _enhancements.Count, onChoose: () =>
+            case Step.SelectPayloadModule:
+                return HandleModuleSelection(ui, key, ProjectileEnhancementSlot.Payload, _payloadOptions, onOwnedChoose: m =>
                 {
-                    _selectedEnhancement = _enhancements[_selectedIndex];
+                    _selectedPayload = m;
+                    _step = Step.SelectArmorModule;
+                    _selectedIndex = 0;
+                    _scroll = 0;
+                    _inlineMessage = string.Empty;
+                    RebuildLines(ui);
+                });
+
+            case Step.SelectArmorModule:
+                return HandleModuleSelection(ui, key, ProjectileEnhancementSlot.Armor, _armorOptions, onOwnedChoose: m =>
+                {
+                    _selectedArmor = m;
                     _step = Step.Summary;
                     _scroll = 0;
+                    _inlineMessage = string.Empty;
                     RebuildLines(ui);
                 });
 
@@ -426,34 +548,6 @@ public sealed class ProjectileDevelopmentPage : PageBase
 
             case Step.Result:
                 return PageResult.Back(PageId.WeaponDevelopment);
-        }
-
-        return PageResult.Stay;
-    }
-
-    private PageResult HandleSelection(UiContext ui, ConsoleKeyInfo key, int count, Action onChoose)
-    {
-        if (count <= 0)
-            return PageResult.Stay;
-
-        switch (key.Key)
-        {
-            case ConsoleKey.UpArrow:
-                _selectedIndex = Math.Max(0, _selectedIndex - 1);
-                RebuildLines(ui);
-                EnsureSelectedVisible(ui);
-                return PageResult.Stay;
-
-            case ConsoleKey.DownArrow:
-                _selectedIndex = Math.Min(count - 1, _selectedIndex + 1);
-                RebuildLines(ui);
-                EnsureSelectedVisible(ui);
-                return PageResult.Stay;
-
-            case ConsoleKey.Enter:
-                _selectedIndex = Math.Clamp(_selectedIndex, 0, count - 1);
-                onChoose();
-                return PageResult.Stay;
         }
 
         return PageResult.Stay;
@@ -491,8 +585,9 @@ public sealed class ProjectileDevelopmentPage : PageBase
         if (_selectedCore == null)
             return PageResult.Back(PageId.WeaponDevelopment);
 
-        var crafted = new CraftedProjectile(_selectedCore, _selectedPropulsion, _selectedEnhancement, _gunBaseVelocity);
-        bool canAfford = CraftedProjectile.CanAfford(crafted, game.AccumulatedResources);
+        var crafted = new CraftedProjectile(_selectedCore, _selectedPropulsion, _selectedGuidance, _selectedPayload, _selectedArmor, _gunBaseVelocity);
+        var buildCost = new Spacegun_Simulator.Development.Shared.ResourceCost(budget: 0, steel: 0, exotic: 0);
+        bool canAfford = CanAffordCost(buildCost, game.AccumulatedResources);
 
         if (!canAfford)
         {
@@ -506,12 +601,6 @@ public sealed class ProjectileDevelopmentPage : PageBase
 
         if (key.Key == ConsoleKey.Y)
         {
-            // Deduct resources
-            game.AccumulatedResources["Budget"] -= crafted.TotalCost.Budget;
-            game.AccumulatedResources["Steel"] -= crafted.TotalCost.Steel;
-            game.AccumulatedResources["Exotic"] -= crafted.TotalCost.ExoticMaterials;
-
-            // Store crafted projectile
             game.CraftedProjectile = crafted;
 
             _resultMessage = "✓ Projectile built successfully!";
@@ -528,13 +617,346 @@ public sealed class ProjectileDevelopmentPage : PageBase
         return PageResult.Stay;
     }
 
+    private void RebuildCoreOptions(GameState game)
+    {
+        _coreOptions.Clear();
+
+        var owned = new List<ProjectileCore>();
+        foreach (var id in game.ProjectileModShop.OwnedCoreIds)
+        {
+            if (ProjectilesCatalog.TryGetCoreById(id, out var core))
+                owned.Add(core);
+        }
+
+        owned = owned
+            .OrderBy(c => c.RequiredTechLevel)
+            .ThenBy(c => c.Name)
+            .ToList();
+
+        foreach (var c in owned)
+            _coreOptions.Add(new CoreOption(c, ComponentOptionKind.Owned));
+
+        foreach (var id in game.ProjectileModShop.CoreOfferIds)
+        {
+            if (game.ProjectileModShop.OwnedCoreIds.Contains(id))
+                continue;
+
+            if (ProjectilesCatalog.TryGetCoreById(id, out var core))
+                _coreOptions.Add(new CoreOption(core, ComponentOptionKind.Offer));
+        }
+    }
+
+    private void RebuildPropulsionOptions(GameState game)
+    {
+        _propulsionOptions.Clear();
+
+        var owned = new List<PropulsionSystem>();
+        foreach (var id in game.ProjectileModShop.OwnedPropulsionIds)
+        {
+            if (ProjectilesCatalog.TryGetPropulsionById(id, out var prop))
+                owned.Add(prop);
+        }
+
+        owned = owned
+            .OrderByDescending(p => string.Equals(p.Id, "none", StringComparison.OrdinalIgnoreCase))
+            .ThenBy(p => p.RequiredTechLevel)
+            .ThenBy(p => p.Name)
+            .ToList();
+
+        foreach (var p in owned)
+            _propulsionOptions.Add(new PropulsionOption(p, ComponentOptionKind.Owned));
+
+        foreach (var id in game.ProjectileModShop.PropulsionOfferIds)
+        {
+            if (game.ProjectileModShop.OwnedPropulsionIds.Contains(id))
+                continue;
+
+            if (ProjectilesCatalog.TryGetPropulsionById(id, out var prop))
+                _propulsionOptions.Add(new PropulsionOption(prop, ComponentOptionKind.Offer));
+        }
+    }
+
+    private void RebuildModuleOptions(GameState game)
+    {
+        _guidanceOptions.Clear();
+        _payloadOptions.Clear();
+        _armorOptions.Clear();
+
+        BuildOptionsForSlot(ProjectileEnhancementSlot.Guidance, _guidanceOptions, game.ProjectileModShop.OwnedGuidanceModuleIds, game.ProjectileModShop.GuidanceOfferModuleIds);
+        BuildOptionsForSlot(ProjectileEnhancementSlot.Payload, _payloadOptions, game.ProjectileModShop.OwnedPayloadModuleIds, game.ProjectileModShop.PayloadOfferModuleIds);
+        BuildOptionsForSlot(ProjectileEnhancementSlot.Armor, _armorOptions, game.ProjectileModShop.OwnedArmorModuleIds, game.ProjectileModShop.ArmorOfferModuleIds);
+
+        static void BuildOptionsForSlot(
+            ProjectileEnhancementSlot slot,
+            List<ModuleOption> options,
+            HashSet<string> ownedIds,
+            List<string> offerIds)
+        {
+            var owned = new List<ProjectileEnhancement>();
+            foreach (var id in ownedIds)
+            {
+                if (ProjectilesCatalog.TryGetEnhancementById(id, out var enh) && enh.Slot == slot)
+                    owned.Add(enh);
+            }
+
+            // Stable ordering for owned list.
+            owned = owned
+                .OrderByDescending(m => m.IsNone)
+                .ThenBy(m => m.RequiredTechLevel)
+                .ThenBy(m => m.Name)
+                .ToList();
+
+            foreach (var m in owned)
+                options.Add(new ModuleOption(m, ModuleOptionKind.Owned));
+
+            foreach (var id in offerIds)
+            {
+                if (ProjectilesCatalog.TryGetEnhancementById(id, out var enh) && enh.Slot == slot)
+                    options.Add(new ModuleOption(enh, ModuleOptionKind.Offer));
+            }
+        }
+    }
+
+    private PageResult HandleCoreSelection(UiContext ui, ConsoleKeyInfo key)
+    {
+        var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (ProjectileDevelopmentPage requires GameState). ");
+
+        if (_coreOptions.Count <= 0)
+            return PageResult.Stay;
+
+        switch (key.Key)
+        {
+            case ConsoleKey.UpArrow:
+                _selectedIndex = Math.Max(0, _selectedIndex - 1);
+                RebuildLines(ui);
+                EnsureSelectedVisible(ui);
+                return PageResult.Stay;
+
+            case ConsoleKey.DownArrow:
+                _selectedIndex = Math.Min(_coreOptions.Count - 1, _selectedIndex + 1);
+                RebuildLines(ui);
+                EnsureSelectedVisible(ui);
+                return PageResult.Stay;
+
+            case ConsoleKey.Enter:
+                _selectedIndex = Math.Clamp(_selectedIndex, 0, _coreOptions.Count - 1);
+                var opt = _coreOptions[_selectedIndex];
+
+                if (opt.Kind == ComponentOptionKind.Offer)
+                {
+                    if (!CanAffordCost(opt.Core.Cost, game.AccumulatedResources))
+                    {
+                        _inlineMessage = "✗ Cannot afford this core offer.";
+                        RebuildLines(ui);
+                        return PageResult.Stay;
+                    }
+
+                    game.AccumulatedResources["Budget"] -= opt.Core.Cost.Budget;
+                    game.AccumulatedResources["Steel"] -= opt.Core.Cost.Steel;
+                    game.AccumulatedResources["Exotic"] -= opt.Core.Cost.ExoticMaterials;
+
+                    game.ProjectileModShop.OwnedCoreIds.Add(opt.Core.Id);
+                    RemoveCoreOfferId(opt.Core.Id, game);
+                    RebuildCoreOptions(game);
+                    _inlineMessage = "✓ Core purchased and added to owned.";
+                }
+
+                _selectedCore = opt.Core;
+                _step = Step.SelectPropulsion;
+                _selectedIndex = 0;
+                _scroll = 0;
+                RebuildLines(ui);
+                return PageResult.Stay;
+        }
+
+        return PageResult.Stay;
+    }
+
+    private PageResult HandlePropulsionSelection(UiContext ui, ConsoleKeyInfo key)
+    {
+        var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (ProjectileDevelopmentPage requires GameState). ");
+
+        if (_propulsionOptions.Count <= 0)
+            return PageResult.Stay;
+
+        switch (key.Key)
+        {
+            case ConsoleKey.UpArrow:
+                _selectedIndex = Math.Max(0, _selectedIndex - 1);
+                RebuildLines(ui);
+                EnsureSelectedVisible(ui);
+                return PageResult.Stay;
+
+            case ConsoleKey.DownArrow:
+                _selectedIndex = Math.Min(_propulsionOptions.Count - 1, _selectedIndex + 1);
+                RebuildLines(ui);
+                EnsureSelectedVisible(ui);
+                return PageResult.Stay;
+
+            case ConsoleKey.Enter:
+                _selectedIndex = Math.Clamp(_selectedIndex, 0, _propulsionOptions.Count - 1);
+                var opt = _propulsionOptions[_selectedIndex];
+
+                if (opt.Kind == ComponentOptionKind.Offer)
+                {
+                    if (!CanAffordCost(opt.Propulsion.Cost, game.AccumulatedResources))
+                    {
+                        _inlineMessage = "✗ Cannot afford this propulsion offer.";
+                        RebuildLines(ui);
+                        return PageResult.Stay;
+                    }
+
+                    game.AccumulatedResources["Budget"] -= opt.Propulsion.Cost.Budget;
+                    game.AccumulatedResources["Steel"] -= opt.Propulsion.Cost.Steel;
+                    game.AccumulatedResources["Exotic"] -= opt.Propulsion.Cost.ExoticMaterials;
+
+                    game.ProjectileModShop.OwnedPropulsionIds.Add(opt.Propulsion.Id);
+                    RemovePropulsionOfferId(opt.Propulsion.Id, game);
+                    RebuildPropulsionOptions(game);
+                    _inlineMessage = "✓ Propulsion purchased and added to owned.";
+                }
+
+                _selectedPropulsion = opt.Propulsion;
+                _step = Step.SelectGuidanceModule;
+                _selectedIndex = 0;
+                _scroll = 0;
+                RebuildLines(ui);
+                return PageResult.Stay;
+        }
+
+        return PageResult.Stay;
+    }
+
+    private PageResult HandleModuleSelection(
+        UiContext ui,
+        ConsoleKeyInfo key,
+        ProjectileEnhancementSlot slot,
+        List<ModuleOption> options,
+        Action<ProjectileEnhancement> onOwnedChoose)
+    {
+        var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (ProjectileDevelopmentPage requires GameState). ");
+
+        if (options.Count <= 0)
+            return PageResult.Stay;
+
+        switch (key.Key)
+        {
+            case ConsoleKey.UpArrow:
+                _selectedIndex = Math.Max(0, _selectedIndex - 1);
+                RebuildLines(ui);
+                EnsureSelectedVisible(ui);
+                return PageResult.Stay;
+
+            case ConsoleKey.DownArrow:
+                _selectedIndex = Math.Min(options.Count - 1, _selectedIndex + 1);
+                RebuildLines(ui);
+                EnsureSelectedVisible(ui);
+                return PageResult.Stay;
+
+            case ConsoleKey.Enter:
+                _selectedIndex = Math.Clamp(_selectedIndex, 0, options.Count - 1);
+                var opt = options[_selectedIndex];
+                if (opt.Kind == ModuleOptionKind.Owned)
+                {
+                    onOwnedChoose(opt.Module);
+                    return PageResult.Stay;
+                }
+
+                // Offer: attempt purchase.
+                if (!CanAffordCost(opt.Module.Cost, game.AccumulatedResources))
+                {
+                    _inlineMessage = "✗ Cannot afford this module offer.";
+                    RebuildLines(ui);
+                    return PageResult.Stay;
+                }
+
+                game.AccumulatedResources["Budget"] -= opt.Module.Cost.Budget;
+                game.AccumulatedResources["Steel"] -= opt.Module.Cost.Steel;
+                game.AccumulatedResources["Exotic"] -= opt.Module.Cost.ExoticMaterials;
+
+                game.ProjectileModShop.TryAddOwned(slot, opt.Module.Id);
+                RemoveOfferId(slot, opt.Module.Id, game);
+                RebuildModuleOptions(game);
+
+                _inlineMessage = "✓ Module purchased and added to owned.";
+                onOwnedChoose(opt.Module);
+                return PageResult.Stay;
+        }
+
+        return PageResult.Stay;
+    }
+
+    private static void RemoveOfferId(ProjectileEnhancementSlot slot, string moduleId, GameState game)
+    {
+        if (string.IsNullOrWhiteSpace(moduleId))
+            return;
+
+        var list = slot switch
+        {
+            ProjectileEnhancementSlot.Guidance => game.ProjectileModShop.GuidanceOfferModuleIds,
+            ProjectileEnhancementSlot.Payload => game.ProjectileModShop.PayloadOfferModuleIds,
+            ProjectileEnhancementSlot.Armor => game.ProjectileModShop.ArmorOfferModuleIds,
+            _ => null,
+        };
+
+        if (list is null || list.Count == 0)
+            return;
+
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            if (string.Equals(list[i], moduleId, StringComparison.OrdinalIgnoreCase))
+                list.RemoveAt(i);
+        }
+    }
+
+    private static void RemoveCoreOfferId(string coreId, GameState game)
+    {
+        if (string.IsNullOrWhiteSpace(coreId))
+            return;
+
+        var list = game.ProjectileModShop.CoreOfferIds;
+        if (list.Count == 0)
+            return;
+
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            if (string.Equals(list[i], coreId, StringComparison.OrdinalIgnoreCase))
+                list.RemoveAt(i);
+        }
+    }
+
+    private static void RemovePropulsionOfferId(string propulsionId, GameState game)
+    {
+        if (string.IsNullOrWhiteSpace(propulsionId))
+            return;
+
+        var list = game.ProjectileModShop.PropulsionOfferIds;
+        if (list.Count == 0)
+            return;
+
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            if (string.Equals(list[i], propulsionId, StringComparison.OrdinalIgnoreCase))
+                list.RemoveAt(i);
+        }
+    }
+
+    private static bool CanAffordCost(Spacegun_Simulator.Development.Shared.ResourceCost cost, Dictionary<string, double> resources)
+    {
+        return resources.GetValueOrDefault("Budget", 0) >= cost.Budget
+            && resources.GetValueOrDefault("Steel", 0) >= cost.Steel
+            && resources.GetValueOrDefault("Exotic", 0) >= cost.ExoticMaterials;
+    }
+
     private PageResult GoBackToCore()
     {
         _step = Step.SelectCore;
         _selectedIndex = 0;
         _selectedCore = null;
         _selectedPropulsion = PropulsionSystem.None;
-        _selectedEnhancement = ProjectileEnhancement.None;
+        _selectedGuidance = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Guidance);
+        _selectedPayload = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Payload);
+        _selectedArmor = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Armor);
         return PageResult.Stay;
     }
 
@@ -543,7 +965,28 @@ public sealed class ProjectileDevelopmentPage : PageBase
         _step = Step.SelectPropulsion;
         _selectedIndex = 0;
         _selectedPropulsion = PropulsionSystem.None;
-        _selectedEnhancement = ProjectileEnhancement.None;
+        _selectedGuidance = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Guidance);
+        _selectedPayload = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Payload);
+        _selectedArmor = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Armor);
+        return PageResult.Stay;
+    }
+
+    private PageResult GoBackToGuidance()
+    {
+        _step = Step.SelectGuidanceModule;
+        _selectedIndex = 0;
+        _selectedGuidance = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Guidance);
+        _selectedPayload = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Payload);
+        _selectedArmor = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Armor);
+        return PageResult.Stay;
+    }
+
+    private PageResult GoBackToPayload()
+    {
+        _step = Step.SelectPayloadModule;
+        _selectedIndex = 0;
+        _selectedPayload = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Payload);
+        _selectedArmor = ProjectilesCatalog.GetNoneModule(ProjectileEnhancementSlot.Armor);
         return PageResult.Stay;
     }
 }

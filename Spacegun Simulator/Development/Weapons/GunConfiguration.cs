@@ -1,6 +1,7 @@
 ﻿namespace Spacegun_Simulator.Development.Weapons
 {
     using Spacegun_Simulator.Core;
+    using Spacegun_Simulator.Core.Stats;
     using Spacegun_Simulator.Development;
     using Spacegun_Simulator.Development.Projectiles;
 
@@ -51,6 +52,13 @@
         public ProjectileConfiguration DefaultProjectile { get; set; }
 
         public List<string> InstalledUpgrades { get; set; } = new();
+
+        /// <summary>
+        /// Persistent stat modifiers applied during stat resolution.
+        /// Intended for projectile/shot modifiers where the underlying objects are immutable
+        /// (e.g., crafted projectile components).
+        /// </summary>
+        public List<StatModifier> InstalledStatModifiers { get; set; } = new();
 
         // ===== NEW: Base Muzzle Velocity System =====
         /// <summary>

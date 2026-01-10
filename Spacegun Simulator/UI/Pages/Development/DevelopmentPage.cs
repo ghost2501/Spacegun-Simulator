@@ -63,47 +63,23 @@ public sealed class DevelopmentPage : PageBase
             _lines.Add("=== TARGET REQUIREMENT ===");
             _lines.Add($"  Archetype: {archetype.Name}");
 
-            var mat = DevelopmentTuning.TierTargetMaterial;
-            int tierCount = GameConstants.TierCount;
-            int tierIndex = GameConstants.GetTierForWave(game.CurrentWaveNumber).TierIndex;
-
-            bool hasMaterialTuning =
-                mat.TierEnemyMassTonsMin.Length >= tierCount &&
-                mat.TierEnemyMassTonsMax.Length >= tierCount &&
-                mat.TierEnemyDensityKgM3Min.Length >= tierCount &&
-                mat.TierEnemyDensityKgM3Max.Length >= tierCount &&
-                mat.TierEnemyBulkModulusGpaMin.Length >= tierCount &&
-                mat.TierEnemyBulkModulusGpaMax.Length >= tierCount;
-
-            if (hasMaterialTuning)
+            // Provide an approximate per-wave estimate to guide tech choices without revealing
+            // exact numbers (exact values are shown on the Firing Solution page).
+            var t = game.CurrentWave.Targets.Count > 0 ? game.CurrentWave.Targets[0] : null;
+            if (t is not null)
             {
-                int safe = Math.Clamp(tierIndex, 0, tierCount - 1);
+                const double band = 0.15; // ±15% guidance band
 
-                double massMinTons = mat.TierEnemyMassTonsMin[safe];
-                double massMaxTons = mat.TierEnemyMassTonsMax[safe];
-                if (massMaxTons < massMinTons) (massMinTons, massMaxTons) = (massMaxTons, massMinTons);
+                double massTons = Math.Max(0.0, t.Mass / 1000.0);
+                double massMinTons = massTons * (1.0 - band);
+                double massMaxTons = massTons * (1.0 + band);
 
-                double densityMin = mat.TierEnemyDensityKgM3Min[safe];
-                double densityMax = mat.TierEnemyDensityKgM3Max[safe];
-                if (densityMax < densityMin) (densityMin, densityMax) = (densityMax, densityMin);
+                double fractureMj = Math.Max(0.0, t.FractureEnergy);
+                double fractureMin = fractureMj * (1.0 - band);
+                double fractureMax = fractureMj * (1.0 + band);
 
-                double bulkMin = mat.TierEnemyBulkModulusGpaMin[safe];
-                double bulkMax = mat.TierEnemyBulkModulusGpaMax[safe];
-                if (bulkMax < bulkMin) (bulkMin, bulkMax) = (bulkMax, bulkMin);
-
-                double fractureMin = BallisticsCalculator.CalculateFractureEnergyMJFromMassDensityAndBulkModulus(
-                    massMinTons,
-                    densityMax,
-                    bulkMin,
-                    mat.FractureStrain);
-                double fractureMax = BallisticsCalculator.CalculateFractureEnergyMJFromMassDensityAndBulkModulus(
-                    massMaxTons,
-                    densityMin,
-                    bulkMax,
-                    mat.FractureStrain);
-
-                _lines.Add($"  Fracture Energy Needed: {fractureMin:N0} - {fractureMax:N0} MJ");
-                _lines.Add($"  Mass: {massMinTons:N0} - {massMaxTons:N0} metric tons");
+                _lines.Add($"  Fracture Energy Needed (est.): {fractureMin:N0} - {fractureMax:N0} MJ");
+                _lines.Add($"  Mass (est.): {massMinTons:N0} - {massMaxTons:N0} metric tons");
             }
             else
             {
@@ -127,7 +103,8 @@ public sealed class DevelopmentPage : PageBase
             _lines.Add($"  Projectile: {proj.DisplayName}");
             _lines.Add($"  Mass: {proj.MassKg} kg | Velocity: {proj.MaxVelocityMs:N0} m/s");
             _lines.Add($"  Kinetic Energy (max): {proj.RawKineticEnergyMJ:N0} MJ");
-            if (proj.Enhancement?.Penetration is double p && p != 1.0)
+            double p = proj.PenetrationMultiplier;
+            if (p != 1.0)
                 _lines.Add($"  Penetration: {(p - 1) * 100:+0}%");
             if (proj.HitToleranceMultiplier != 1.0)
                 _lines.Add($"  Hit Tolerance Bonus: {(proj.HitToleranceMultiplier - 1) * 100:+0}%");
@@ -152,7 +129,11 @@ public sealed class DevelopmentPage : PageBase
         {
             _lines.Add($"    Power Capacity: {game.Gun.PowerCapacity:F0} MW");
         }
-        _lines.Add($"    Effective Range: {GameConstants.FormatDistance(GameConstants.GetTierForWave(game.CurrentWaveNumber).MaxEffectiveGunRange)}");
+        var diffConfig = DifficultyConfig.GetConfig(game.SelectedDifficulty);
+        double effectiveRangeMeters = diffConfig.IsTutorialMode
+            ? DifficultyConfig.TutorialPotatoCannon.EffectiveRangeMeters
+            : game.GetCurrentEffectiveGunRangeMeters();
+        _lines.Add($"    Effective Range: {GameConstants.FormatDistance(effectiveRangeMeters)}");
         _lines.Add("");
     }
 

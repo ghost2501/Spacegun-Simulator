@@ -13,7 +13,7 @@ namespace Spacegun_Simulator.Enemies
     {
         /// <summary>
         /// Target identifier for display and logging.
-        /// Combines archetype name with ship type and instance ID.
+        /// Combines archetype name with designation type and instance ID.
         /// </summary>
         public string Name { get; set; } = string.Empty;
 

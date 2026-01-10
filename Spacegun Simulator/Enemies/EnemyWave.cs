@@ -13,11 +13,11 @@ namespace Spacegun_Simulator.Enemies
         public List<EnemyTarget> Targets { get; set; } = new List<EnemyTarget>();
 
         /// <summary>
-        /// Number of ships in this wave.
+        /// Number of threats (projectiles/objects) in this wave.
         /// Full mode only; Pure mode always uses 1.
-        /// Note: Current gameplay is still single-target; this models future multi-ship waves.
+        /// Note: Current gameplay is still single-target; this models future multi-threat waves.
         /// </summary>
-        public int ShipCount { get; set; } = 1;
+        public int ThreatCount { get; set; } = 1;
 
         public double InitialDistance { get; set; }
         public double CurrentDistance { get; set; }
@@ -26,9 +26,21 @@ namespace Spacegun_Simulator.Enemies
         public bool HasStealthCoating { get; set; }
 
         /// <summary>
-        /// Archetype for this wave (Scout, Balanced, Titan, Sniper, or Beachball for tutorial).
+        /// Archetype for this wave (Needle, Slug, Boulder, RKV, or Beachball for tutorial).
         /// </summary>
         public EnemyArchetype Archetype { get; set; } = null!;
+
+        /// <summary>
+        /// Doctrine for this wave (soft modifiers layered on top of archetype + tier).
+        /// Typically matches the campaign's primary doctrine.
+        /// </summary>
+        public EnemyDoctrine Doctrine { get; set; } = EnemyDoctrine.None;
+
+        public EnemyDoctrineSource DoctrineSource { get; set; } = EnemyDoctrineSource.None;
+
+        public string DoctrineName => EnemyDoctrineProfile.Get(Doctrine).Name;
+        public string DoctrineDescription => EnemyDoctrineProfile.Get(Doctrine).Description;
+        public bool IsGuestDoctrine => DoctrineSource == EnemyDoctrineSource.Guest;
 
         /// <summary>
         /// Approach elevation angle (generated during firing phase, not detection).
@@ -77,9 +89,9 @@ namespace Spacegun_Simulator.Enemies
         /// </summary>
         public bool IsTutorialWave { get; set; } = false;
 
-        // ShipCount is the gameplay-relevant count (Full mode can spawn multi-ship waves).
+        // ThreatCount is the gameplay-relevant count (Full mode can spawn multi-target waves).
         // Targets currently stores a single representative target used by firing-phase mechanics.
-        public int TargetCount => Math.Max(1, ShipCount);
+        public int TargetCount => Math.Max(1, ThreatCount);
         public double TimeToImpact => AverageVelocity > 0 ? CurrentDistance / AverageVelocity : double.PositiveInfinity;
 
         public EnemyWave(int waveNumber)
@@ -107,7 +119,9 @@ namespace Spacegun_Simulator.Enemies
             var wave = new EnemyWave(waveNumber)
             {
                 IsTutorialWave = true,
-                Archetype = EnemyArchetype.Beachball,  // Use beachball archetype
+                Archetype = EnemyArchetypeCatalog.GetById("beachball"),
+                Doctrine = EnemyDoctrine.None,
+                DoctrineSource = EnemyDoctrineSource.None,
                 InitialDistance = scenario.StartDistanceMeters,
                 CurrentDistance = scenario.StartDistanceMeters,
                 AverageVelocity = scenario.ApproachSpeedMs,
@@ -198,12 +212,41 @@ namespace Spacegun_Simulator.Enemies
             // If we have a campaign enemy type (ongoing game), use it
             if (campaignEnemyType != null)
             {
-                return GenerateWaveFromArchetype(waveNumber, campaignEnemyType.Archetype, rng, ruleset);
+                var tier = GameConstants.GetTierForWave(waveNumber);
+                int tierIndex = tier.TierIndex;
+
+                EnemyDoctrine doctrine = campaignEnemyType.PrimaryDoctrine;
+                EnemyDoctrineSource source = EnemyDoctrineSource.Campaign;
+
+                // Rare "guest doctrine" injections for variety and soft-counter spikes.
+                // Keep probability low to avoid strategy whiplash.
+                if (ruleset != EnemyGenerationRuleset.Pure
+                    && doctrine != EnemyDoctrine.None
+                    && tierIndex >= 1)
+                {
+                    double guestChance = tierIndex switch
+                    {
+                        1 => 0.05,
+                        2 => 0.08,
+                        _ => 0.10
+                    };
+
+                    if (rng.NextDouble() < guestChance)
+                    {
+                        doctrine = EnemyDoctrineSelector.SelectGuestDoctrine(campaignEnemyType.PrimaryDoctrine, campaignEnemyType.Archetype, rng);
+                        if (doctrine != EnemyDoctrine.None && doctrine != campaignEnemyType.PrimaryDoctrine)
+                            source = EnemyDoctrineSource.Guest;
+                        else
+                            doctrine = campaignEnemyType.PrimaryDoctrine;
+                    }
+                }
+
+                return GenerateWaveFromArchetype(waveNumber, campaignEnemyType.Archetype, rng, ruleset, doctrine, source);
             }
 
             // Fallback: Generate with random archetype
-            var archetype = EnemyArchetype.SelectRandom(rng);
-            return GenerateWaveFromArchetype(waveNumber, archetype, rng, ruleset);
+            var archetype = EnemyArchetypeCatalog.SelectRandom(rng);
+            return GenerateWaveFromArchetype(waveNumber, archetype, rng, ruleset, EnemyDoctrine.None, EnemyDoctrineSource.None);
         }
 
         /// <summary>
@@ -213,7 +256,9 @@ namespace Spacegun_Simulator.Enemies
             int waveNumber,
             EnemyArchetype archetype,
             Random rng,
-            EnemyGenerationRuleset ruleset)
+            EnemyGenerationRuleset ruleset,
+            EnemyDoctrine doctrine,
+            EnemyDoctrineSource doctrineSource)
         {
             if (rng is null) throw new ArgumentNullException(nameof(rng));
             if (archetype is null) throw new ArgumentNullException(nameof(archetype));
@@ -223,10 +268,19 @@ namespace Spacegun_Simulator.Enemies
 
             var wave = new EnemyWave(waveNumber);
             wave.Archetype = archetype;
+            wave.Doctrine = doctrine;
+            wave.DoctrineSource = doctrine == EnemyDoctrine.None ? EnemyDoctrineSource.None : doctrineSource;
 
-            wave.ShipCount = ruleset == EnemyGenerationRuleset.Pure
+            var doctrineProfile = EnemyDoctrineProfile.Get(doctrine);
+
+            wave.ThreatCount = ruleset == EnemyGenerationRuleset.Pure
                 ? 1
-                : GenerateShipCountForWave(waveNumber, rng);
+                : GenerateThreatCountForWave(waveNumber, rng);
+
+            // Doctrine: Swarm increases threat-count pressure.
+            // Note: still capped by existing wave bucket logic.
+            if (ruleset != EnemyGenerationRuleset.Pure && doctrine == EnemyDoctrine.Swarm)
+                wave.ThreatCount = Math.Clamp(wave.ThreatCount + 1, 1, 6);
 
             // ===== DETECTION PHASE GENERATION =====
 
@@ -241,15 +295,16 @@ namespace Spacegun_Simulator.Enemies
 
             // Generate velocity uniformly within tier constraints
             // NO archetype multiplier - velocity is determined by tier alone
-            wave.AverageVelocity = enemyMinVel + rng.NextDouble() * (enemyMaxVel - enemyMinVel);
+            double rawVel = enemyMinVel + rng.NextDouble() * (enemyMaxVel - enemyMinVel);
+            wave.AverageVelocity = rawVel * doctrineProfile.VelocityMultiplier;
 
             // Generate target with stats
-            var target = GenerateTargetFromArchetype(waveNumber, tierIndex, archetype, rng, ruleset);
+            var target = GenerateTargetFromArchetype(waveNumber, tierIndex, archetype, rng, ruleset, doctrineProfile);
             wave.Targets.Add(target);
 
             // Canonical meaning: CrossSection is radar cross-sectional AREA in m^2.
             // This is derived from tier-sampled mass + density inside GenerateTargetFromArchetype.
-            wave.AverageRadarCrossSection = target.CrossSection;
+            wave.AverageRadarCrossSection = target.CrossSection * doctrineProfile.RadarCrossSectionMultiplier;
             // Pure mode: keep enemy stats as simple physical variables only.
             // No stealth / maneuver modifiers.
             if (ruleset == EnemyGenerationRuleset.Pure)
@@ -259,7 +314,8 @@ namespace Spacegun_Simulator.Enemies
             }
             else
             {
-                wave.HasStealthCoating = tierIndex >= 2 && rng.NextDouble() < GameConstants.StealthChanceForLateTiers;
+                double stealthChance = GameConstants.StealthChanceForLateTiers * doctrineProfile.StealthChanceMultiplier;
+                wave.HasStealthCoating = tierIndex >= 2 && rng.NextDouble() < Math.Clamp(stealthChance, 0.0, 1.0);
             }
 
             // Calculate display information (timeToImpact maybe used elsewhere)
@@ -276,11 +332,12 @@ namespace Spacegun_Simulator.Enemies
             int tierIndex,
             EnemyArchetype archetype,
             Random rng,
-            EnemyGenerationRuleset ruleset)
+            EnemyGenerationRuleset ruleset,
+            EnemyDoctrineProfile doctrine)
         {
             if (rng is null) throw new ArgumentNullException(nameof(rng));
 
-            // Select ship type from tier-appropriate pool
+            // Select threat designation from tier-appropriate pool
             string[] typePool = tierIndex switch
             {
                 0 => GameConstants.EarlyTypes,
@@ -305,6 +362,17 @@ namespace Spacegun_Simulator.Enemies
                 maneuverability = rng.NextDouble() * manMax;
                 defense = rng.NextDouble() * defMax;
                 offense = rng.NextDouble() * offMax;
+
+                // Apply doctrine multipliers (soft counters).
+                acceleration *= doctrine.AccelerationMultiplier;
+                maneuverability *= doctrine.ManeuverabilityMultiplier;
+                defense *= doctrine.DefenseMultiplier;
+                offense *= doctrine.OffenseMultiplier;
+
+                // Keep factors in reasonable bounds.
+                maneuverability = Math.Clamp(maneuverability, 0.0, 1.0);
+                defense = Math.Clamp(defense, 0.0, 1.0);
+                offense = Math.Clamp(offense, 0.0, 1.0);
             }
 
             // Tier-derived base properties (single-source physics).
@@ -349,9 +417,9 @@ namespace Spacegun_Simulator.Enemies
             };
         }
 
-        private static int GenerateShipCountForWave(int waveNumber, Random rng)
+        private static int GenerateThreatCountForWave(int waveNumber, Random rng)
         {
-            // Ship-count pattern by wave bucket (Tier 1..5):
+            // Threat-count pattern by wave bucket (Tier 1..5):
             // 1-5: 1
             // 6-10: 1-2
             // 11-15: 1-3

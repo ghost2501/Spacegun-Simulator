@@ -1,0 +1,153 @@
+{
+  "$schema": "./EnemyDoctrines.schema.json",
+  "Profiles": [
+    {
+      "Doctrine": "None",
+      "Name": "None",
+      "Description": "No special doctrine applied.",
+      "VelocityMultiplier": 1.0,
+      "AccelerationMultiplier": 1.0,
+      "ManeuverabilityMultiplier": 1.0,
+      "DefenseMultiplier": 1.0,
+      "OffenseMultiplier": 1.0,
+      "StealthChanceMultiplier": 1.0,
+      "RadarCrossSectionMultiplier": 1.0
+    },
+    {
+      "Doctrine": "Kinetics",
+      "Name": "Kinetics",
+      "Description": "Prioritizes closing speed and impact tempo.",
+      "VelocityMultiplier": 1.08,
+      "AccelerationMultiplier": 1.05,
+      "ManeuverabilityMultiplier": 0.98,
+      "DefenseMultiplier": 0.98,
+      "OffenseMultiplier": 1.05,
+      "StealthChanceMultiplier": 1.0,
+      "RadarCrossSectionMultiplier": 1.02
+    },
+    {
+      "Doctrine": "Evasion",
+      "Name": "Evasion",
+      "Description": "Hard to track; forces guidance/aim upgrades.",
+      "VelocityMultiplier": 1.02,
+      "AccelerationMultiplier": 1.06,
+      "ManeuverabilityMultiplier": 1.15,
+      "DefenseMultiplier": 0.95,
+      "OffenseMultiplier": 0.98,
+      "StealthChanceMultiplier": 1.0,
+      "RadarCrossSectionMultiplier": 0.98
+    },
+    {
+      "Doctrine": "Armor",
+      "Name": "Armor",
+      "Description": "Defensive posture; raises effective fracture energy via defense.",
+      "VelocityMultiplier": 0.98,
+      "AccelerationMultiplier": 0.95,
+      "ManeuverabilityMultiplier": 0.95,
+      "DefenseMultiplier": 1.18,
+      "OffenseMultiplier": 0.98,
+      "StealthChanceMultiplier": 1.0,
+      "RadarCrossSectionMultiplier": 1.10
+    },
+    {
+      "Doctrine": "Stealth",
+      "Name": "Stealth",
+      "Description": "More stealth coating and lower radar profile.",
+      "VelocityMultiplier": 1.0,
+      "AccelerationMultiplier": 1.0,
+      "ManeuverabilityMultiplier": 1.02,
+      "DefenseMultiplier": 0.98,
+      "OffenseMultiplier": 0.98,
+      "StealthChanceMultiplier": 1.35,
+      "RadarCrossSectionMultiplier": 0.90
+    },
+    {
+      "Doctrine": "Swarm",
+      "Name": "Swarm",
+      "Description": "More threats per wave; individual threats are weaker.",
+      "VelocityMultiplier": 1.0,
+      "AccelerationMultiplier": 1.0,
+      "ManeuverabilityMultiplier": 1.0,
+      "DefenseMultiplier": 0.92,
+      "OffenseMultiplier": 0.92,
+      "StealthChanceMultiplier": 1.0,
+      "RadarCrossSectionMultiplier": 1.0
+    },
+    {
+      "Doctrine": "Sniper",
+      "Name": "Sniper",
+      "Description": "High-velocity profiles; punishes slow tracking.",
+      "VelocityMultiplier": 1.12,
+      "AccelerationMultiplier": 1.02,
+      "ManeuverabilityMultiplier": 0.95,
+      "DefenseMultiplier": 0.98,
+      "OffenseMultiplier": 1.05,
+      "StealthChanceMultiplier": 1.0,
+      "RadarCrossSectionMultiplier": 1.0
+    },
+    {
+      "Doctrine": "Jamming",
+      "Name": "Jamming",
+      "Description": "Detection/identification harder (modeled via stealth chance + lower RCS).",
+      "VelocityMultiplier": 1.0,
+      "AccelerationMultiplier": 1.0,
+      "ManeuverabilityMultiplier": 1.02,
+      "DefenseMultiplier": 1.0,
+      "OffenseMultiplier": 1.0,
+      "StealthChanceMultiplier": 1.20,
+      "RadarCrossSectionMultiplier": 0.93
+    },
+    {
+      "Doctrine": "Siege",
+      "Name": "Siege",
+      "Description": "Slow, tough, and dangerous (modeled via defense/offense).",
+      "VelocityMultiplier": 0.95,
+      "AccelerationMultiplier": 0.92,
+      "ManeuverabilityMultiplier": 0.92,
+      "DefenseMultiplier": 1.10,
+      "OffenseMultiplier": 1.10,
+      "StealthChanceMultiplier": 1.0,
+      "RadarCrossSectionMultiplier": 1.08
+    },
+    {
+      "Doctrine": "StealthEvasion",
+      "Name": "Stealth + Evasion",
+      "Description": "Low observability plus high agility.",
+      "VelocityMultiplier": 1.01,
+      "AccelerationMultiplier": 1.06,
+      "ManeuverabilityMultiplier": 1.12,
+      "DefenseMultiplier": 0.95,
+      "OffenseMultiplier": 0.98,
+      "StealthChanceMultiplier": 1.25,
+      "RadarCrossSectionMultiplier": 0.90
+    },
+    {
+      "Doctrine": "ArmorSiege",
+      "Name": "Armor + Siege",
+      "Description": "Heavy and resilient; favors attrition.",
+      "VelocityMultiplier": 0.94,
+      "AccelerationMultiplier": 0.92,
+      "ManeuverabilityMultiplier": 0.90,
+      "DefenseMultiplier": 1.18,
+      "OffenseMultiplier": 1.08,
+      "StealthChanceMultiplier": 1.0,
+      "RadarCrossSectionMultiplier": 1.12
+    }
+  ],
+
+  "PrimaryDoctrinePoolsByArchetypeId": {
+    "scout": ["Evasion", "Stealth", "StealthEvasion", "Jamming", "Kinetics"],
+    "sniper": ["Sniper", "Kinetics", "Jamming"],
+    "titan": ["Armor", "Siege", "ArmorSiege"],
+    "balanced": ["Kinetics", "Evasion", "Armor", "Siege", "Jamming"],
+    "*": ["Kinetics", "Evasion", "Armor", "Stealth", "Siege"]
+  },
+
+  "GuestDoctrinePoolsByArchetypeId": {
+    "scout": ["Kinetics", "Jamming", "Evasion", "Stealth"],
+    "sniper": ["Kinetics", "Jamming", "Evasion"],
+    "titan": ["Siege", "Armor", "Kinetics"],
+    "balanced": ["Kinetics", "Evasion", "Armor", "Stealth", "Jamming", "Siege"],
+    "*": ["Kinetics", "Evasion", "Armor", "Stealth", "Jamming", "Siege"]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "./EnemyDesignations.schema.json",
+  "TargetCountBase": 2,
+  "TargetCountTierBonus": 1,
+  "TargetCountRandomMaxExclusive": 3,
+
+  "EarlyTypes": ["Shard", "Dart", "Slug"],
+  "MidTypes": ["Penetrator", "Impactor", "Kinetic Vehicle"],
+  "LateTypes": ["Payload Bus", "Rod Cluster", "Mass Driver Boulder"],
+
+  "CrossSectionRanges": {
+    "Shard": { "Min": 10, "Max": 30 },
+    "Dart": { "Min": 20, "Max": 50 },
+    "Slug": { "Min": 40, "Max": 80 },
+    "Penetrator": { "Min": 80, "Max": 140 },
+    "Impactor": { "Min": 100, "Max": 180 },
+    "Kinetic Vehicle": { "Min": 50, "Max": 100 },
+    "Payload Bus": { "Min": 150, "Max": 250 },
+    "Rod Cluster": { "Min": 250, "Max": 400 },
+    "Mass Driver Boulder": { "Min": 300, "Max": 500 }
+  },
+
+  "StealthChanceForLateTiers": 0.3,
+
+  "CampaignNamePrefixes": ["Relativistic", "Hypervelocity", "Ablative", "Tungsten", "Osmium", "Guided", "Terminal", "Fragment", "Ballistic", "Kinetic"],
+  "CampaignNameSuffixes": ["Impactor", "Dart", "Slug", "Penetrator", "RKV", "Shard", "Rod", "Bus", "Boulder", "Package"]
+}

@@ -28,6 +28,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 		private DifficultyConfig? _diff;
 		private Vector3 _pos;
 		private Vector3 _vel;
+		private double _gunRangeMeters;
 
 		private readonly List<string> _lines = new();
 		private int _scroll;
@@ -44,6 +45,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 				_diff = null;
 				_pos = Vector3.Zero;
 				_vel = Vector3.Zero;
+				_gunRangeMeters = 0;
 				_inputBuffer = "";
 				_result = null;
 				BuildUnavailableLines();
@@ -54,6 +56,9 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 			_diff = DifficultyConfig.GetConfig(game.SelectedDifficulty);
 			_pos = firingProblem.EnemyPosition;
 			_vel = firingProblem.EnemyVelocity;
+			_gunRangeMeters = _diff.IsTutorialMode
+				? DifficultyConfig.TutorialPotatoCannon.EffectiveRangeMeters
+				: game.GetCurrentEffectiveGunRangeMeters();
 			_mode = Mode.Timeline;
 			_inputBuffer = "";
 			_result = null;
@@ -118,7 +123,7 @@ namespace Spacegun_Simulator.UI.Pages.FireControl
 			_lines.Add("Time | Target Range      | Status".PadRight(60));
 			_lines.Add("-----+-------------------+----------------------".PadRight(60));
 
-			double gunRange = 1_500_000.0; // 1.5 Mm
+			double gunRange = _gunRangeMeters;
 			for (int t = 0; t <= 20; t++)
 			{
 				var r = TargetMotionComputer.CalculateMotionAtTime(_pos, _vel, t);

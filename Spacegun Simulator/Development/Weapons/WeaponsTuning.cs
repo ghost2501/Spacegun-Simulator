@@ -28,6 +28,104 @@ namespace Spacegun_Simulator.Core
 
         public static GunTuningValues Gun { get; private set; } = GunTuningValues.CreateDefaults();
 
+        /// <summary>
+        /// Creates a serializable snapshot of the currently effective weapon tuning.
+        /// Intended for per-save baseline persistence (grandfathered saves).
+        /// </summary>
+        public static WeaponsTuningConfig SnapshotCurrentToConfig()
+        {
+            WeaponsTechLevelConfig[]? tech;
+            if (WeaponsTechLevels is { Length: > 0 })
+            {
+                tech = new WeaponsTechLevelConfig[WeaponsTechLevels.Length];
+                for (int i = 0; i < tech.Length; i++)
+                {
+                    var row = WeaponsTechLevels[i];
+                    tech[i] = new WeaponsTechLevelConfig
+                    {
+                        TechLevel = row.TechLevel,
+                        Name = row.Name,
+                        PropulsionSystem = row.PropulsionSystem.ToString(),
+                        MuzzleVelocityMultiplier = row.MuzzleVelocityMultiplier,
+                        BarrelWearMultiplier = row.BarrelWearMultiplier,
+                        FireControlQualityMultiplier = row.FireControlQualityMultiplier,
+                        ProjectileMassMultiplier = row.ProjectileMassMultiplier,
+                        PenetrationMultiplier = row.PenetrationMultiplier,
+                    };
+                }
+            }
+            else
+            {
+                tech = null;
+            }
+
+            var g = Gun;
+            var gunCfg = new GunTuningConfig
+            {
+                DefaultBarrelLength = g.DefaultBarrelLength,
+                DefaultBoreDiameter = g.DefaultBoreDiameter,
+                DefaultBarrelMaterial = g.DefaultBarrelMaterial,
+                DefaultBarrelIntegrity = g.DefaultBarrelIntegrity,
+                DefaultFireControlQuality = g.DefaultFireControlQuality,
+                DefaultPropulsionSystem = g.DefaultPropulsionSystem,
+                DefaultPropellantMass = g.DefaultPropellantMass,
+                DefaultPropellantEnergyDensity = g.DefaultPropellantEnergyDensity,
+                DefaultPowerCapacity = g.DefaultPowerCapacity,
+                DefaultCapacitorEfficiency = g.DefaultCapacitorEfficiency,
+                DefaultCoolingSystem = g.DefaultCoolingSystem,
+                DefaultCoolingCapacity = g.DefaultCoolingCapacity,
+                DefaultAmmunitionCount = g.DefaultAmmunitionCount,
+
+                IntegrityFailureThreshold = g.IntegrityFailureThreshold,
+
+                RangeReferenceBarrelLength = g.RangeReferenceBarrelLength,
+                RangeMultiplierMin = g.RangeMultiplierMin,
+                RangeMultiplierMax = g.RangeMultiplierMax,
+
+                WearHeatCoolingCapacityMin = g.WearHeatCoolingCapacityMin,
+                WearHeatFactorMin = g.WearHeatFactorMin,
+                WearPressureFactorMin = g.WearPressureFactorMin,
+                WearPerShotClampMin = g.WearPerShotClampMin,
+                WearPerShotClampMax = g.WearPerShotClampMax,
+
+                UpgradeWearModifierMin = g.UpgradeWearModifierMin,
+                WearModifiersByUpgradeId = g.WearModifiersByUpgradeId is null
+                    ? null
+                    : new Dictionary<string, double>(g.WearModifiersByUpgradeId),
+
+                MaxPressureByBarrelMaterial = g.MaxPressureByBarrelMaterial is null
+                    ? null
+                    : new Dictionary<string, double>(g.MaxPressureByBarrelMaterial),
+
+                SteelSafePropellantEnergyDensityCap = g.SteelSafePropellantEnergyDensityCap,
+                PropellantEnergyDensityCapMultiplierByBarrelMaterial = g.PropellantEnergyDensityCapMultiplierByBarrelMaterial is null
+                    ? null
+                    : new Dictionary<string, double>(g.PropellantEnergyDensityCapMultiplierByBarrelMaterial),
+
+                HeatGenerationCoefficientByPropulsion = g.HeatGenerationCoefficientByPropulsion is null
+                    ? null
+                    : new Dictionary<string, double>(g.HeatGenerationCoefficientByPropulsion),
+                HeatGenerationPowerCoefficientByPropulsion = g.HeatGenerationPowerCoefficientByPropulsion is null
+                    ? null
+                    : new Dictionary<string, double>(g.HeatGenerationPowerCoefficientByPropulsion),
+
+                ReloadBaseTimeSeconds = g.ReloadBaseTimeSeconds,
+                ReloadCoolingModifierByCoolingSystem = g.ReloadCoolingModifierByCoolingSystem is null
+                    ? null
+                    : new Dictionary<string, double>(g.ReloadCoolingModifierByCoolingSystem),
+                ReloadHeatRatioThreshold = g.ReloadHeatRatioThreshold,
+            };
+
+            return new WeaponsTuningConfig
+            {
+                Version = 1,
+                BaseMuzzleVelocityMs = BaseMuzzleVelocityMs,
+                DefaultBarrelWearPerShot = DefaultBarrelWearPerShot,
+                WeaponsTechLevels = tech,
+                GunTuning = gunCfg,
+            };
+        }
+
         public static void Apply(WeaponsTuningConfig cfg)
         {
             if (cfg.BaseMuzzleVelocityMs.HasValue)

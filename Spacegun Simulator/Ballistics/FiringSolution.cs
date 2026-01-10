@@ -363,6 +363,46 @@ namespace Spacegun_Simulator.Ballistics
         }
 
         /// <summary>
+        /// Computes hit tolerance in meters using the same formula as the solver.
+        /// Intended for UI/tooling so displayed tolerances match the solver's actual checks.
+        /// </summary>
+        public static double CalculateHitToleranceMeters(
+            GameDifficulty difficulty,
+            int waveNumber,
+            double enemyCrossSectionM2,
+            double enemyMass,
+            double additionalHitToleranceMultiplier)
+        {
+            var diffConfig = DifficultyConfig.GetConfig(difficulty);
+
+            if (diffConfig.IsTutorialMode)
+                return DifficultyConfig.TutorialBeachball.RadiusMeters;
+
+            double baseCrossSectionM2 = enemyCrossSectionM2;
+            if (baseCrossSectionM2 <= 0.0)
+            {
+                double fallbackDiameterM = BallisticsCalculator.CalculateDiameterFromMass(enemyMass);
+                double fallbackRadiusM = Math.Max(0.0, fallbackDiameterM) * 0.5;
+                baseCrossSectionM2 = Math.PI * fallbackRadiusM * fallbackRadiusM;
+            }
+
+            double effectiveCrossSectionM2 = Math.Max(0.0, baseCrossSectionM2) * Math.Max(0.0, diffConfig.TargetRcsMultiplier);
+            double diameterM = 2.0 * Math.Sqrt(effectiveCrossSectionM2 / Math.PI);
+            double baseTolerance = diameterM * 0.5;
+
+            double tierToleranceMult = 1.0;
+            var tierMults = diffConfig.TierHitToleranceMultipliers;
+            if (tierMults is { Length: > 0 } && waveNumber > 0)
+            {
+                int tierIndex = GameConstants.GetTierForWave(waveNumber).TierIndex;
+                tierIndex = Math.Clamp(tierIndex, 0, tierMults.Length - 1);
+                tierToleranceMult = Math.Max(0.0, tierMults[tierIndex]);
+            }
+
+            return baseTolerance * diffConfig.HitToleranceMultiplier * additionalHitToleranceMultiplier * tierToleranceMult;
+        }
+
+        /// <summary>
         /// Calculate enemy position at time T (measured from engagement start).
         /// PRECISION: Using double for all time calculations to maintain sub-meter accuracy.
         /// </summary>

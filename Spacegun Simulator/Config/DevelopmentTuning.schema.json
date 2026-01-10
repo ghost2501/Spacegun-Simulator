@@ -6,35 +6,6 @@
   "properties": {
     "Version": { "type": "integer", "minimum": 1 },
 
-    "EnemyTuning": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "TargetCountBase": { "type": "integer", "minimum": 0 },
-        "TargetCountTierBonus": { "type": "integer", "minimum": 0 },
-        "TargetCountRandomMaxExclusive": { "type": "integer", "minimum": 1 },
-
-        "EarlyTypes": { "type": "array", "items": { "type": "string" } },
-        "MidTypes": { "type": "array", "items": { "type": "string" } },
-        "LateTypes": { "type": "array", "items": { "type": "string" } },
-
-        "CrossSectionRanges": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["Min", "Max"],
-            "properties": {
-              "Min": { "type": "number" },
-              "Max": { "type": "number" }
-            }
-          }
-        },
-
-        "StealthChanceForLateTiers": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
-      }
-    },
-
     "TierVelocityTuning": {
       "type": "object",
       "additionalProperties": false,
@@ -78,10 +49,12 @@
       "properties": {
         "Mass": { "type": "number", "minimum": 0.0 },
         "Length": { "type": "number", "minimum": 0.0 },
-        "DragCoefficient": { "type": "number", "minimum": 0.0 },
         "HasGuidance": { "type": "boolean" },
         "GuidanceAccuracy": { "type": "number", "minimum": 0.0 },
-        "ImpactCoupling": { "type": "number", "minimum": 0.0 }
+        "ImpactCoupling": { "type": "number", "minimum": 0.0 },
+        "ImpactCouplingReferenceMassKg": { "type": "number", "minimum": 0.0 },
+        "ImpactCouplingMassExponent": { "type": "number", "minimum": 0.0 },
+        "ImpactCouplingTechMultiplierPerWeaponsLevel": { "type": "number", "minimum": 0.0 }
       }
     },
 
