@@ -7,7 +7,7 @@ namespace Spacegun_Simulator.Detection
     // DETECTION SYSTEM - Detection Phase Only
     // ============================================================================
     // IMPORTANT: Detection operates on a completely separate scale from engagement.
-    // Detection distance is measured in AU (Oort Cloud distances).
+    // Detection distance is measured in AU-scale early-warning distances.
     // Engagement distance is measured in meters (tactical 1000-1200km range).
     // These are NOT compared against each other.
 

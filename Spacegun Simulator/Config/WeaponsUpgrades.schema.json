@@ -5,6 +5,7 @@
   "additionalProperties": false,
   "required": ["Version", "Upgrades"],
   "properties": {
+    "$schema": { "type": "string" },
     "Version": { "type": "integer", "minimum": 1 },
     "Upgrades": {
       "type": "array",

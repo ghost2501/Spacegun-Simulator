@@ -115,9 +115,9 @@ namespace Spacegun_Simulator.Core
             double[] ProductionBonusByLevel)
         {
             public static TechTreeTuningValues CreateDefaults() => new(
-                ResearchCostToLevel2: new ResourceCost(budget: 500, steel: 300, exotic: 50),
-                ResearchCostToLevel3: new ResourceCost(budget: 1500, steel: 800, exotic: 200),
-                ProductionBonusByLevel: [1.0, 1.2, 1.5]
+                ResearchCostToLevel2: new ResourceCost(budget: 350, steel: 250, exotic: 0),
+                ResearchCostToLevel3: new ResourceCost(budget: 450, steel: 350, exotic: 0),
+                ProductionBonusByLevel: [1.0, 1.2, 1.8]
             );
 
             public TechTreeTuningValues Apply(TechTreeTuningConfig c) => this with

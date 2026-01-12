@@ -224,6 +224,26 @@ approaches.
 All core systems, rules, and calculations are intentionally designed, reviewed, and constrained.
 The game relies on deterministic, explainable mechanics rather than opaque automation.
 
+### Headless / Diagnostics Flags
+
+These are useful for balancing work and quick regression checks.
+
+- `--consistency-check` runs internal validation checks without launching the UI.
+- `--tuninglab-smoke` runs quick tuning smoke tests without launching the UI.
+- `--test-campaign` runs a fast, headless “autoplay” campaign that auto-allocates years, auto-researches any affordable tech, and forces a successful shot each wave (still consumes barrel wear).
+
+Examples:
+
+```bash
+dotnet run --project "Spacegun Simulator/SpacegunSimulator.csproj" -c Release -- --test-campaign --waves 25 --seed 12345
+```
+
+Optional args:
+
+- `--waves N` limits the number of waves to simulate.
+- `--seed N` makes the run deterministic.
+- `--mode <GameModeId>` selects the game mode by enum name.
+
 ---
 
 ## Licensing

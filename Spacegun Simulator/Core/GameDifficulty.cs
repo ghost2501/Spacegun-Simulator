@@ -246,8 +246,13 @@ namespace Spacegun_Simulator.Core
                 TargetRcsMultiplier = 1.6,
 
                 // Per-tier hit tolerance scaling (applied after base hitbox derivation).
-                // Tuned for the Tuning Lab energy report curve target: 10, 6, 3, 0, 0 (CanHit/BallisticsOk).
-                TierHitToleranceMultipliers = [1.0, 0.11, 0.50, 0.0001, 0.0001],
+                // Design intent: above T1 mods are meaningfully helpful, and above T3 they become necessary.
+                // Note: late tiers currently have far higher typical miss deviations, so their multipliers
+                // need to exceed earlier tiers to keep "BestBuild" solvable at all.
+                // Calibration target (per 5 waves/tier in campaign harness):
+                // - NoMods: T0 ~100%, T1 ~60-70%, T2 ~30-40%, T3 ~0%, T4 ~0%
+                // - BestBuild: 100% all tiers (requires strong projectile/enhancement bonuses)
+                TierHitToleranceMultipliers = [1.0, 0.80, 1.50, 0.12, 0.08],
 
                 LaunchDelayPrecision = new PrecisionConfig { DecimalPlaces = 4, Increment = 0.0001 },
                 ElevationPrecision = new PrecisionConfig { DecimalPlaces = 3, Increment = 0.001 },

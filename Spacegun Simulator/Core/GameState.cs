@@ -221,15 +221,23 @@ namespace Spacegun_Simulator.Core
         private Random CreateWaveRng(int waveNumber) => CreateDeterministicRng("Wave", waveNumber);
         private Random CreateEventRng(int waveNumber) => CreateDeterministicRng("Event", waveNumber);
 
-        private void InitializeResourceAccumulation()
+        private void InitializeResourceAccumulation(bool reset = true)
         {
-            AccumulatedResources.Clear();
-            AccumulatedResources["Steel"] = 0;
-            AccumulatedResources["Budget"] = 0;
-            AccumulatedResources["SpecializedAlloys"] = 0;
-            AccumulatedResources["RareEarthElements"] = 0;
-            AccumulatedResources["PowerCells"] = 0;
-            AccumulatedResources["Exotic"] = 0;
+            if (reset)
+                AccumulatedResources.Clear();
+
+            EnsureKey("Steel");
+            EnsureKey("Budget");
+            EnsureKey("SpecializedAlloys");
+            EnsureKey("RareEarthElements");
+            EnsureKey("PowerCells");
+            EnsureKey("Exotic");
+
+            void EnsureKey(string key)
+            {
+                if (!AccumulatedResources.ContainsKey(key))
+                    AccumulatedResources[key] = 0;
+            }
         }
 
         // ====================================================================
@@ -275,7 +283,7 @@ namespace Spacegun_Simulator.Core
                 // Tutorial uses simple time (seconds, not years)
                 AvailableYears = 1;  // Minimal - tutorial skips resource phase anyway
                 RemainingYears = AvailableYears;
-                InitializeResourceAccumulation();
+                InitializeResourceAccumulation(reset: true);
 
                 result.WaveDetected = true;
                 result.AvailableYears = AvailableYears;
@@ -391,7 +399,7 @@ namespace Spacegun_Simulator.Core
             // Round to whole years, minimum 1 year
             AvailableYears = Math.Max(1, (long)Math.Round(secondsUntilGunRange / GameConstants.SECONDS_PER_YEAR));
             RemainingYears = AvailableYears;
-            InitializeResourceAccumulation();
+            InitializeResourceAccumulation(reset: false);
 
             result.WaveDetected = true;
             result.AvailableYears = AvailableYears;
@@ -416,10 +424,32 @@ namespace Spacegun_Simulator.Core
             Detection.DetectionRangeMultiplier = radarLevel switch
             {
                 1 => 1.0,
-                2 => 1.15,
-                3 => 1.30,
-                _ => 1.30
+                2 => 1.20,
+                3 => 1.35,
+                _ => 1.35
             };
+
+            // Stealth coating is intended to be a serious threat; Radar tech is the intended counter.
+            // Without penetration, stealth waves become effectively undetectable at the reduced early-warning ranges.
+            Detection.StealthPenetration = radarLevel switch
+            {
+                1 => 0.0,
+                2 => 0.85,
+                3 => 0.95,
+                _ => 0.95
+            };
+
+            // Better sensors improve the fidelity of (still-noisy) intel.
+            Detection.IntelResolution = radarLevel switch
+            {
+                1 => 0.20,
+                2 => 0.45,
+                3 => 0.70,
+                _ => 0.70
+            };
+
+            // Radar III includes space-based coverage in the setting.
+            Detection.HasSpaceBasedRadar = radarLevel >= 3;
 
             Detection.MaxSimultaneousTargets = radarLevel switch
             {
@@ -428,24 +458,6 @@ namespace Spacegun_Simulator.Core
                 3 => 12,
                 _ => 12
             };
-
-            Detection.StealthPenetration = radarLevel switch
-            {
-                1 => 0.0,
-                2 => 0.40,
-                3 => 0.75,
-                _ => 0.75
-            };
-
-            Detection.IntelResolution = radarLevel switch
-            {
-                1 => 0.20,
-                2 => 0.50,
-                3 => 0.80,
-                _ => 0.80
-            };
-
-            // Keep existing space-based flag (some modes may set it elsewhere).
         }
 
         public double GetCurrentEffectiveGunRangeMeters()

@@ -8,9 +8,9 @@
   },
 
   "TechTreeTuning": {
-    "ResearchCostToLevel2": { "Budget": 500, "Steel": 300, "Exotic": 50 },
-    "ResearchCostToLevel3": { "Budget": 1500, "Steel": 800, "Exotic": 200 },
-    "ProductionBonusByLevel": [1.0, 1.2, 1.5]
+    "ResearchCostToLevel2": { "Budget": 450, "Steel": 300, "Exotic": 0 },
+    "ResearchCostToLevel3": { "Budget": 900, "Steel": 600, "Exotic": 0 },
+    "ProductionBonusByLevel": [1.0, 1.2, 1.8]
   },
 
   "ProjectileDefaults": {

@@ -371,6 +371,18 @@ namespace Spacegun_Simulator.Enemies
 
                 // Keep factors in reasonable bounds.
                 maneuverability = Math.Clamp(maneuverability, 0.0, 1.0);
+
+                // Late tiers should never have "free" zero-evasion targets.
+                // This supports the intended curve where unmodded shots cannot reliably win at Tier 3+.
+                double maneuverabilityFloor = tierIndex switch
+                {
+                    3 => 0.18,
+                    >= 4 => 0.22,
+                    _ => 0.0
+                };
+                if (maneuverabilityFloor > 0.0)
+                    maneuverability = Math.Max(maneuverability, maneuverabilityFloor);
+
                 defense = Math.Clamp(defense, 0.0, 1.0);
                 offense = Math.Clamp(offense, 0.0, 1.0);
             }
@@ -450,8 +462,8 @@ namespace Spacegun_Simulator.Enemies
                 0 => (AccMin: 0.00, AccMax: 0.00, ManMax: 0.00, DefMax: 0.00, OffMax: 0.00),
                 1 => (AccMin: 0.05, AccMax: 0.25, ManMax: 0.15, DefMax: 0.10, OffMax: 0.10),
                 2 => (AccMin: 0.10, AccMax: 0.50, ManMax: 0.30, DefMax: 0.20, OffMax: 0.20),
-                3 => (AccMin: 0.20, AccMax: 1.00, ManMax: 0.45, DefMax: 0.35, OffMax: 0.35),
-                _ => (AccMin: 0.35, AccMax: 1.75, ManMax: 0.60, DefMax: 0.50, OffMax: 0.50),
+                3 => (AccMin: 0.20, AccMax: 1.00, ManMax: 0.35, DefMax: 0.35, OffMax: 0.35),
+                _ => (AccMin: 0.35, AccMax: 1.75, ManMax: 0.45, DefMax: 0.50, OffMax: 0.50),
             };
         }
 

@@ -44,7 +44,12 @@ internal static class GamePhaseRouter
             return;
 
         if (developmentPage.Action == DevelopmentPage.DevelopmentMenuAction.Done)
+        {
             GamePhaseTransitionRules.Apply(game, GamePhaseTransitionRules.PhaseEvent.DevelopmentCompleted);
+            // Development is where the player commits upgrades and projectile choices.
+            // Persist immediately so Resume doesn't rewind to pre-development.
+            game.AutoSaveGame();
+        }
     }
 
     public static void ApplyAfterPhaseControllerRun(UiContext ui, GameState.GamePhase phaseThatWasRunning)

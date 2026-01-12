@@ -6,17 +6,41 @@
       "Id": "BarrelRepair",
       "Name": "Barrel Repair",
       "Description": "Restore barrel integrity to 100%",
-      "Cost": { "Budget": 60, "Steel": 40, "Exotic": 0 },
-      "Modifiers": [
-        { "Key": "Gun.BarrelIntegrity01", "Op": "Set", "Value": 1.0 }
-      ]
+      "Cost": { "Budget": 150, "Steel": 100, "Exotic": 0 },
+      "Parameters": { "SetIntegrityTo": 1.0 }
+    },
+
+    {
+      "Id": "PropellantOptimization",
+      "Name": "Propellant Optimization",
+      "Description": "Increase propellant energy density by 20% (material-capped)",
+      "Cost": { "Budget": 350, "Steel": 200, "Exotic": 50 },
+      "RequiresPropulsion": "Chemical",
+      "Parameters": { "Multiplier": 1.2 }
+    },
+
+    {
+      "Id": "PowerCapacitorUpgrade",
+      "Name": "Power Capacitor Upgrade",
+      "Description": "Increase power capacity by 20%",
+      "Cost": { "Budget": 350, "Steel": 200, "Exotic": 50 },
+      "RequiresPropulsion": "NonChemical",
+      "Parameters": { "Multiplier": 1.2 }
+    },
+
+    {
+      "Id": "BarrelExtension",
+      "Name": "Barrel Extension",
+      "Description": "Increase barrel length by 10% (improves effective range)",
+      "Cost": { "Budget": 450, "Steel": 350, "Exotic": 70 },
+      "Parameters": { "Multiplier": 1.1, "Max": 200.0 }
     },
 
     {
       "Id": "CeramicLiner",
       "Name": "Ceramic Liner",
-      "Description": "Wear reduction (moderate)",
-      "Cost": { "Budget": 140, "Steel": 120, "Exotic": 10 },
+      "Description": "Reduce wear moderately",
+      "Cost": { "Budget": 350, "Steel": 250, "Exotic": 70 },
       "MinWeaponsTechLevel": 2,
       "Parameters": { "WearMultiplier": 0.8 }
     },
@@ -24,8 +48,8 @@
     {
       "Id": "ReinforcedBarrel",
       "Name": "Reinforced Barrel",
-      "Description": "Wear reduction (major)",
-      "Cost": { "Budget": 260, "Steel": 180, "Exotic": 35 },
+      "Description": "Reduce barrel degradation per shot by 40%",
+      "Cost": { "Budget": 500, "Steel": 350, "Exotic": 120 },
       "MinWeaponsTechLevel": 3,
       "Prerequisites": ["CeramicLiner"],
       "Parameters": { "WearMultiplier": 0.6 }
@@ -34,44 +58,28 @@
     {
       "Id": "HighTempCoating",
       "Name": "High Temperature Coating",
-      "Description": "Wear reduction under high thermal stress",
-      "Cost": { "Budget": 220, "Steel": 140, "Exotic": 55 },
-      }
-      "MinWeaponsTechLevel": 2,
-      "Prerequisites": ["PowerCapacitorUpgrade"],
-      "Modifiers": [
-        { "Key": "Gun.PowerCapacityMW", "Op": "Mul", "Value": 1.08 }
-      ]
+      "Description": "Reduce heat-driven wear",
+      "Cost": { "Budget": 450, "Steel": 300, "Exotic": 180 },
+      "MinWeaponsTechLevel": 3,
+      "Prerequisites": ["CeramicLiner"],
+      "Parameters": { "WearMultiplier": 0.75 }
     },
-    {
-      "Id": "BarrelExtension",
-      "Name": "Barrel Extension",
-      "Description": "Increase barrel length by 10% (improves effective range)",
-      "Cost": { "Budget": 200, "Steel": 160, "Exotic": 25 },
-      "Modifiers": [
-        { "Key": "Gun.BarrelLengthM", "Op": "Mul", "Value": 1.1 },
-        { "Key": "Gun.BarrelLengthM", "Op": "ClampMax", "Value": 200.0 }
-      ]
-    },
+
     {
       "Id": "GuidanceCalibration",
       "Name": "Guidance Calibration",
       "Description": "Improve guidance to counter enemy maneuverability (+15%)",
-      "Cost": { "Budget": 220, "Steel": 100, "Exotic": 40 },
+      "Cost": { "Budget": 500, "Steel": 250, "Exotic": 160 },
       "MinProjectilesTechLevel": 3,
       "RequiresGuidanceMod": true,
-      "Modifiers": [
-        { "Key": "Gun.FireControlQuality", "Op": "ClampMin", "Value": 0.1 },
-        { "Key": "Gun.FireControlQuality", "Op": "Mul", "Value": 1.15 },
-        { "Key": "Gun.FireControlQuality", "Op": "ClampMax", "Value": 3.0 }
-      ]
+      "Parameters": { "Multiplier": 1.15, "MinInput": 0.1, "Max": 3.0 }
     },
 
     {
       "Id": "TrackingComputer",
       "Name": "Tracking Computer",
       "Description": "Transmit tracking data so guidance can follow the target",
-      "Cost": { "Budget": 190, "Steel": 110, "Exotic": 45 },
+      "Cost": { "Budget": 450, "Steel": 250, "Exotic": 140 },
       "MinWeaponsTechLevel": 2,
       "MinProjectilesTechLevel": 2,
       "RequiresGuidanceMod": true,
@@ -81,71 +89,66 @@
         { "Key": "Gun.FireControlQuality", "Op": "ClampMax", "Value": 3.0 }
       ]
     },
+
     {
-      "Id": "ReinforcedBarrel",
-      "Name": "Reinforced Barrel",
-      "Description": "Reduce barrel degradation per shot by 50%",
-      "Cost": { "Budget": 200, "Steel": 120, "Exotic": 40 },
-      "Parameters": { "WearMultiplier": 0.6 }
+      "Id": "GuidanceFins",
+      "Name": "Guidance Fins",
+      "Description": "Improve hit tolerance (+8%) (requires guidance)",
+      "Cost": { "Budget": 420, "Steel": 220, "Exotic": 140 },
+      "MinProjectilesTechLevel": 3,
+      "RequiresGuidanceMod": true,
+      "Modifiers": [
+        { "Key": "Projectile.HitToleranceMult", "Op": "Mul", "Value": 1.08 }
+      ]
     },
 
-      {
-        "Id": "GuidanceFins",
-        "Name": "Guidance Fins",
-        "Description": "Improve hit tolerance (+8%) (requires guidance)",
-        "Cost": { "Budget": 160, "Steel": 80, "Exotic": 35 },
-        "MinProjectilesTechLevel": 3,
-        "RequiresGuidanceMod": true,
-        "Modifiers": [
-          { "Key": "Projectile.HitToleranceMult", "Op": "Mul", "Value": 1.08 }
-        ]
-      },
+    {
+      "Id": "LightweightSabot",
+      "Name": "Lightweight Sabot",
+      "Description": "Reduce projectile mass by 8% (improves velocity envelope)",
+      "Cost": { "Budget": 380, "Steel": 200, "Exotic": 110 },
+      "MinProjectilesTechLevel": 2,
+      "Modifiers": [
+        { "Key": "Projectile.MassKg", "Op": "Mul", "Value": 0.92 }
+      ]
+    },
 
-      {
-        "Id": "LightweightSabot",
-        "Name": "Lightweight Sabot",
-        "Description": "Reduce projectile mass by 8% (improves velocity envelope)",
-        "Cost": { "Budget": 170, "Steel": 90, "Exotic": 30 },
-        "MinProjectilesTechLevel": 2,
-        "Modifiers": [
-          { "Key": "Projectile.MassKg", "Op": "Mul", "Value": 0.92 }
-        ]
-      },
+    {
+      "Id": "DensePenetrator",
+      "Name": "Dense Penetrator",
+      "Description": "Increase penetration (+10%), slightly heavier projectile (+5%)",
+      "Cost": { "Budget": 520, "Steel": 350, "Exotic": 180 },
+      "MinProjectilesTechLevel": 2,
+      "Prerequisites": ["LightweightSabot"],
+      "Modifiers": [
+        { "Key": "Projectile.PenetrationMult", "Op": "Mul", "Value": 1.10 },
+        { "Key": "Projectile.MassKg", "Op": "Mul", "Value": 1.05 }
+      ]
+    },
 
-      {
-        "Id": "DensePenetrator",
-        "Name": "Dense Penetrator",
-        "Description": "Increase penetration (+10%), slightly heavier projectile (+5%)",
-        "Cost": { "Budget": 210, "Steel": 140, "Exotic": 45 },
-        "MinProjectilesTechLevel": 2,
-        "Prerequisites": ["LightweightSabot"],
-        "Modifiers": [
-          { "Key": "Projectile.PenetrationMult", "Op": "Mul", "Value": 1.10 },
-          { "Key": "Projectile.MassKg", "Op": "Mul", "Value": 1.05 }
-        ]
-      },
+    {
+      "Id": "CouplingLiner",
+      "Name": "Coupling Liner",
+      "Description": "Increase impact coupling (+8%)",
+      "Cost": { "Budget": 600, "Steel": 400, "Exotic": 220 },
+      "MinProjectilesTechLevel": 3,
+      "Prerequisites": ["DensePenetrator"],
+      "Modifiers": [
+        { "Key": "Projectile.ImpactCouplingMult", "Op": "Mul", "Value": 1.08 }
+      ]
+    },
 
-      {
-        "Id": "CouplingLiner",
-        "Name": "Coupling Liner",
-        "Description": "Increase impact coupling (+8%)",
-        "Cost": { "Budget": 230, "Steel": 160, "Exotic": 55 },
-        "MinProjectilesTechLevel": 3,
-        "Prerequisites": ["DensePenetrator"],
-        "Modifiers": [
-          { "Key": "Projectile.ImpactCouplingMult", "Op": "Mul", "Value": 1.08 }
-        ]
-      },
+    {
+      "Id": "ProjectileArmor",
+      "Name": "Projectile Armor",
+      "Description": "Increase projectile defense rating (+0.10)",
+      "Cost": { "Budget": 480, "Steel": 420, "Exotic": 160 },
+      "MinProjectilesTechLevel": 3,
+      "Modifiers": [
+        { "Key": "Projectile.DefenseRating01", "Op": "Add", "Value": 0.10 },
+        { "Key": "Projectile.DefenseRating01", "Op": "ClampMax", "Value": 0.90 }
+      ]
+    }
+  ]
+}
 
-      {
-        "Id": "ProjectileArmor",
-        "Name": "Projectile Armor",
-        "Description": "Increase projectile defense rating (+0.10)",
-        "Cost": { "Budget": 190, "Steel": 170, "Exotic": 40 },
-        "MinProjectilesTechLevel": 3,
-        "Modifiers": [
-          { "Key": "Projectile.DefenseRating01", "Op": "Add", "Value": 0.10 },
-          { "Key": "Projectile.DefenseRating01", "Op": "ClampMax", "Value": 0.90 }
-        ]
-      }
-      

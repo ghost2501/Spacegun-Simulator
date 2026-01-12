@@ -49,7 +49,7 @@ namespace Spacegun_Simulator.Core
             public int StartWave { get; set; }
             public int EndWave { get; set; }
 
-            // Distance ranges (meters) - where enemies are detected in Oort Cloud
+            // Distance ranges (meters) - strategic early-warning distance at detection.
             public double DetectionRangeMin { get; set; }
             public double DetectionRangeMax { get; set; }
 
@@ -111,13 +111,15 @@ namespace Spacegun_Simulator.Core
                 TierIndex = 0,
                 StartWave = 1,
                 EndWave = 5,
-                DetectionRangeMin = 15_000.0 * AU_TO_METERS,
-                DetectionRangeMax = 25_000.0 * AU_TO_METERS,
+                // Tuned for economy pacing: warning time is now on the order of years, not millennia.
+                // Note: Wave generation samples InitialDistance from this range.
+                DetectionRangeMin = 50.0 * AU_TO_METERS,
+                DetectionRangeMax = 100.0 * AU_TO_METERS,
                 VelocityMin = 50_000,           // 50 km/s
                 VelocityMax = 90_000,           // 90 km/s
                 MaxEffectiveGunRange = 1_500_000.0,
-                TimeToImpactMin = (long)(150.0 * SECONDS_PER_YEAR),
-                TimeToImpactMax = (long)(400.0 * SECONDS_PER_YEAR)
+                TimeToImpactMin = (long)(7.0 * SECONDS_PER_YEAR),
+                TimeToImpactMax = (long)(30.0 * SECONDS_PER_YEAR)
             },
 
             // TIER 1: Mid-game (Waves 6-10)
@@ -126,13 +128,13 @@ namespace Spacegun_Simulator.Core
                 TierIndex = 1,
                 StartWave = 6,
                 EndWave = 10,
-                DetectionRangeMin = 60_000.0 * AU_TO_METERS,
-                DetectionRangeMax = 100_000.0 * AU_TO_METERS,
+                DetectionRangeMin = 60.0 * AU_TO_METERS,
+                DetectionRangeMax = 120.0 * AU_TO_METERS,
                 VelocityMin = 200_000,          // 200 km/s
                 VelocityMax = 500_000,          // 500 km/s
                 MaxEffectiveGunRange = 5_000_000.0,
-                TimeToImpactMin = (long)(15.0 * SECONDS_PER_YEAR),
-                TimeToImpactMax = (long)(40.0 * SECONDS_PER_YEAR)
+                TimeToImpactMin = (long)(5.0 * SECONDS_PER_YEAR),
+                TimeToImpactMax = (long)(22.0 * SECONDS_PER_YEAR)
             },
 
             // TIER 2: Late-game (Waves 11-15)
@@ -141,13 +143,13 @@ namespace Spacegun_Simulator.Core
                 TierIndex = 2,
                 StartWave = 11,
                 EndWave = 15,
-                DetectionRangeMin = 50_000.0 * AU_TO_METERS,
-                DetectionRangeMax = 150_000.0 * AU_TO_METERS,
+                DetectionRangeMin = 70.0 * AU_TO_METERS,
+                DetectionRangeMax = 140.0 * AU_TO_METERS,
                 VelocityMin = 1_000_000,        // 1,000 km/s
                 VelocityMax = 3_000_000,        // 3,000 km/s
                 MaxEffectiveGunRange = 15_000_000.0,
-                TimeToImpactMin = (long)(2.0 * SECONDS_PER_YEAR),
-                TimeToImpactMax = (long)(8.0 * SECONDS_PER_YEAR)
+                TimeToImpactMin = (long)(4.0 * SECONDS_PER_YEAR),
+                TimeToImpactMax = (long)(18.0 * SECONDS_PER_YEAR)
             },
 
             // TIER 3: Endgame (Waves 16-20)
@@ -156,13 +158,13 @@ namespace Spacegun_Simulator.Core
                 TierIndex = 3,
                 StartWave = 16,
                 EndWave = 20,
-                DetectionRangeMin = 100_000.0 * AU_TO_METERS,
-                DetectionRangeMax = 325_000.0 * AU_TO_METERS,
+                DetectionRangeMin = 80.0 * AU_TO_METERS,
+                DetectionRangeMax = 160.0 * AU_TO_METERS,
                 VelocityMin = 3_000_000,        // 3,000 km/s
                 VelocityMax = 6_500_000,        // 6,500 km/s
                 MaxEffectiveGunRange = 30_000_000.0,
-                TimeToImpactMin = (long)(1.5 * SECONDS_PER_YEAR),
-                TimeToImpactMax = (long)(5.0 * SECONDS_PER_YEAR)
+                TimeToImpactMin = (long)(3.0 * SECONDS_PER_YEAR),
+                TimeToImpactMax = (long)(12.0 * SECONDS_PER_YEAR)
             },
 
             // TIER 4: Final tier (Waves 21-25)
@@ -171,13 +173,13 @@ namespace Spacegun_Simulator.Core
                 TierIndex = 4,
                 StartWave = 21,
                 EndWave = 25,
-                DetectionRangeMin = 150_000.0 * AU_TO_METERS,
-                DetectionRangeMax = 500_000.0 * AU_TO_METERS,
+                DetectionRangeMin = 90.0 * AU_TO_METERS,
+                DetectionRangeMax = 180.0 * AU_TO_METERS,
                 VelocityMin = 5_000_000,        // 5,000 km/s
                 VelocityMax = 10_000_000,       // 10,000 km/s
                 MaxEffectiveGunRange = 45_000_000.0,
-                TimeToImpactMin = (long)(1.0 * SECONDS_PER_YEAR),
-                TimeToImpactMax = (long)(2.0 * SECONDS_PER_YEAR)
+                TimeToImpactMin = (long)(2.0 * SECONDS_PER_YEAR),
+                TimeToImpactMax = (long)(7.0 * SECONDS_PER_YEAR)
             }
         };
 
