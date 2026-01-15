@@ -1,5 +1,8 @@
 # 🔫 Spacegun Simulator
 
+<img width="2576" height="1287" alt="Title" src="https://github.com/user-attachments/assets/61f3d142-3b8b-422e-ae6f-da765e5315d8" />
+
+
 **A command-line engineering simulation game about building the biggest gun in human history — and getting the maths right.**
 
 ## Playtesting
