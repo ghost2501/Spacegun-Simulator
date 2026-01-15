@@ -22,6 +22,7 @@ public class LoFiMusicGenerator
     private double _crackleIntensity = 0;
     private int _samplesPerBeat;
     private int _samplesSinceBeat = 0;
+    private int _musicBeatCounter = 0;
     private int _measuresPlayed = 0;
     private int _barsSinceChange = 0;
 
@@ -1018,6 +1019,14 @@ public class LoFiMusicGenerator
     private double _filterCutoff = 1.0;
     private int _leadMelodyPattern = 0;
 
+    // Small state to avoid immediate repeats.
+    private int _lastProgressionIndex = -1;
+    private int _lastRootTranspose = int.MinValue;
+    private string? _lastDrumPatternPath;
+
+    // Procedural drum micro-state
+    private int _hiHatRandomWhich = 0; // 0=downbeat, 1=offbeat
+
     // Perlin-like smooth variation
     private double _smoothVariation = 0;
     private double _variationSpeed = 0.00005;
@@ -1076,8 +1085,24 @@ public class LoFiMusicGenerator
 
     private void SelectNewSection()
     {
-        _activeProgression = _allProgressions[_random.Next(_allProgressions.Count)];
-        _rootTranspose = new[] { -12, -7, -5, -3, 0, 0, 3, 5, 7, 12 }[_random.Next(10)]; // Full octave range
+        int progressionIndex = _random.Next(_allProgressions.Count);
+        if (_allProgressions.Count > 1)
+        {
+            for (int attempt = 0; attempt < 6 && progressionIndex == _lastProgressionIndex; attempt++)
+                progressionIndex = _random.Next(_allProgressions.Count);
+        }
+
+        _activeProgression = _allProgressions[progressionIndex];
+        _lastProgressionIndex = progressionIndex;
+
+        var transposeChoices = new[] { -12, -7, -5, -3, 0, 0, 3, 5, 7, 12 };
+        _rootTranspose = transposeChoices[_random.Next(transposeChoices.Length)]; // Full octave range
+        if (transposeChoices.Length > 1)
+        {
+            for (int attempt = 0; attempt < 6 && _rootTranspose == _lastRootTranspose; attempt++)
+                _rootTranspose = transposeChoices[_random.Next(transposeChoices.Length)];
+        }
+        _lastRootTranspose = _rootTranspose;
 
         _hiHatActive = _random.NextDouble() > 0.15;
         _rideActive = _random.NextDouble() > 0.1;
@@ -1093,12 +1118,23 @@ public class LoFiMusicGenerator
         _variationSpeed = 0.00003 + _random.NextDouble() * 0.00004;
 
         // Pick a random drum pattern from the chosen style folder
+        _drumPatternBars = null; // prevent stale patterns from carrying across sections
+        _drumPatternPath = null;
+        _drumPatternSwing = 0.0;
         if (!string.IsNullOrEmpty(_drumStyleFolder))
         {
             var patterns = Directory.GetFiles(_drumStyleFolder, "*.txt");
             if (patterns.Length > 0)
             {
-                _drumPatternPath = patterns[_random.Next(patterns.Length)];
+                string picked = patterns[_random.Next(patterns.Length)];
+                if (patterns.Length > 1)
+                {
+                    for (int attempt = 0; attempt < 8 && string.Equals(picked, _lastDrumPatternPath, StringComparison.OrdinalIgnoreCase); attempt++)
+                        picked = patterns[_random.Next(patterns.Length)];
+                }
+
+                _drumPatternPath = picked;
+                _lastDrumPatternPath = picked;
                 ParseDrumPattern(_drumPatternPath);
             }
         }
@@ -1118,8 +1154,13 @@ public class LoFiMusicGenerator
             var swingLine = lines.FirstOrDefault(l => l.StartsWith("Swing:", StringComparison.OrdinalIgnoreCase));
             if (swingLine != null)
             {
-                var swingVal = swingLine.Split(':')[1].Trim();
-                double.TryParse(swingVal, out _drumPatternSwing);
+                var parts = swingLine.Split(':', 2);
+                if (parts.Length == 2)
+                {
+                    var swingVal = parts[1].Trim();
+                    if (double.TryParse(swingVal, out var swing))
+                        _drumPatternSwing = swing;
+                }
             }
 
             // Find first pattern block
@@ -1138,6 +1179,12 @@ public class LoFiMusicGenerator
                         var raw = lines[idx].Trim();
                         if (raw.Length > 0)
                         {
+                            if (raw.StartsWith("#") || raw.StartsWith("//"))
+                            {
+                                idx++;
+                                continue;
+                            }
+
                             var parts = raw.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
                             if (parts.Length >= 2)
                             {
@@ -1217,6 +1264,7 @@ public class LoFiMusicGenerator
         {
             _samplesSinceBeat = 0;
             _isSwingBeat = !_isSwingBeat;
+            _musicBeatCounter++;
         }
 
         // Independent drum clock
@@ -1628,7 +1676,8 @@ public class LoFiMusicGenerator
         if (_bellActive && _enableBell && _samplesInCurrentChord < _samplesPerChord / 8)
         {
             bool shouldPlay = false;
-            if (_beatCounter % 3 == 0 || _beatCounter % 5 == 2) shouldPlay = true;
+            // Use the real beat clock (not the per-chord counter) so this doesn't devolve into a slow, obvious loop.
+            if (_musicBeatCounter % 3 == 0 || _musicBeatCounter % 5 == 2) shouldPlay = true;
             if (_random.NextDouble() < 0.15) shouldPlay = true; // Random sparkle
 
             if (shouldPlay)
@@ -1851,6 +1900,21 @@ public class LoFiMusicGenerator
         int samplesPerStep = Math.Max(1, drumBarSamples / steps);
         int sampleInStep = _drumSamplesInBar % samplesPerStep;
 
+        // If a pattern defines swing, delay the "off" steps (odd indices) slightly.
+        double swing = Math.Clamp(_drumPatternSwing, 0.0, 0.90);
+        int swingDelay = 0;
+        if (swing > 0.0001 && (step % 2) == 1)
+        {
+            // Keep it subtle: max ~45% of the step length.
+            swingDelay = (int)(samplesPerStep * (swing * 0.5));
+            swingDelay = Math.Clamp(swingDelay, 0, Math.Max(0, samplesPerStep - 1));
+            if (sampleInStep < swingDelay)
+                return 0f;
+        }
+
+        int swungSampleInStep = (swingDelay > 0) ? (sampleInStep - swingDelay) : sampleInStep;
+        int swungTotal = Math.Max(1, samplesPerStep - swingDelay);
+
         foreach (var lane in bar.Lanes)
         {
             if (step >= lane.Steps.Length)
@@ -1871,7 +1935,7 @@ public class LoFiMusicGenerator
 
             float g = GetLaneGain(lane.Lane);
             // Use the lane synth so *all* lanes can contribute to audible patterns.
-            drumSample += SynthLane(lane.Lane, sampleInStep, samplesPerStep) * g;
+            drumSample += SynthLane(lane.Lane, swungSampleInStep, swungTotal) * g;
         }
 
         return drumSample;
@@ -1990,20 +2054,40 @@ public class LoFiMusicGenerator
         // Hi-hat with patterns
         if (_hiHatActive && _enableHiHat)
         {
-            bool playHiHat = false;
+            int half = Math.Max(1, adjustedBeatLength / 2);
+            int window = Math.Max(1, adjustedBeatLength / 60);
+            bool downWindow = _drumSamplesSinceBeat < window;
+            bool offWindow = Math.Abs(_drumSamplesSinceBeat - half) < window;
+
+            bool wantDown = false;
+            bool wantOff = false;
+
             switch (_drumPattern)
             {
-                case 0: playHiHat = _drumSamplesSinceBeat > adjustedBeatLength / 2; break;
-                case 1: playHiHat = _drumBeatCounter % 2 == 0 && _drumSamplesSinceBeat > adjustedBeatLength / 2; break;
-                case 2: playHiHat = true; break;
-                case 3: playHiHat = _random.NextDouble() < 0.6; break;
+                case 0: // offbeats only
+                    wantOff = true;
+                    break;
+                case 1: // offbeats on alternating beats
+                    if ((_drumBeatCounter % 2) == 0) wantOff = true;
+                    break;
+                case 2: // steady 8ths
+                    wantDown = true;
+                    wantOff = true;
+                    break;
+                case 3: // random but stable-per-beat (avoid per-sample spam)
+                    if (_drumSamplesSinceBeat == 0)
+                        _hiHatRandomWhich = (_random.NextDouble() < 0.55) ? 1 : 0; // slightly prefer offbeat
+                    wantDown = _hiHatRandomWhich == 0;
+                    wantOff = _hiHatRandomWhich == 1;
+                    break;
             }
 
-            if (playHiHat && _drumSamplesSinceBeat < adjustedBeatLength / 30)
+            bool hitNow = (wantDown && downWindow) || (wantOff && offWindow);
+            if (hitNow && IsLaneEnabled(DrumLane.CH))
             {
+                int t = downWindow ? _drumSamplesSinceBeat : Math.Abs(_drumSamplesSinceBeat - half);
                 float noise = (float)(_random.NextDouble() - 0.5);
-                if (IsLaneEnabled(DrumLane.CH))
-                    drumSample += noise * 0.68f * (float)Math.Exp(-_drumSamplesSinceBeat * 0.01) * GetLaneGain(DrumLane.CH);
+                drumSample += noise * 0.68f * (float)Math.Exp(-t * 0.02) * GetLaneGain(DrumLane.CH);
             }
         }
 

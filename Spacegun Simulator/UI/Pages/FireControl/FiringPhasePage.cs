@@ -30,6 +30,7 @@ public sealed class FiringPhasePage : PageBase
 
     private readonly List<string> _lines = new();
     private int _scroll;
+    private bool _followSelection;
     private int _selectedToolIndex;
     private int _toolListFirstLineIndex;
 
@@ -40,6 +41,7 @@ public sealed class FiringPhasePage : PageBase
     {
         Action = FiringMenuAction.None;
         _scroll = 0;
+        _followSelection = true;
         _selectedToolIndex = 0;
         _toolListFirstLineIndex = -1;
 
@@ -179,7 +181,7 @@ public sealed class FiringPhasePage : PageBase
         }
 
         _lines.Add("");
-        _lines.Add("=== FIRE CONTROL TOOLS ===");
+        _lines.Add("=== FIRE CONTROL TOOLS (scroll & select) ===");
         _lines.Add("");
 
         _toolListFirstLineIndex = _lines.Count;
@@ -215,7 +217,8 @@ public sealed class FiringPhasePage : PageBase
 
         int viewport = ui.ContentViewportHeight > 0 ? ui.ContentViewportHeight : 18;
 
-        EnsureSelectedToolVisible(viewport);
+        if (_followSelection)
+            EnsureSelectedToolVisible(viewport);
 
         int maxScroll = Math.Max(0, _lines.Count - viewport);
         if (_scroll < 0) _scroll = 0;
@@ -228,6 +231,7 @@ public sealed class FiringPhasePage : PageBase
 
     protected override PageResult HandleInputBody(UiContext ui, ConsoleKeyInfo key)
     {
+        const int lineStep = 1;
         const int pageStep = 6;
 
         if (key.Key == ConsoleKey.B)
@@ -238,8 +242,14 @@ public sealed class FiringPhasePage : PageBase
 
         switch (key.Key)
         {
-            case ConsoleKey.PageUp: _scroll -= pageStep; return PageResult.Stay;
-            case ConsoleKey.PageDown: _scroll += pageStep; return PageResult.Stay;
+            case ConsoleKey.PageUp:
+                _followSelection = false;
+                _scroll -= pageStep;
+                return PageResult.Stay;
+            case ConsoleKey.PageDown:
+                _followSelection = false;
+                _scroll += pageStep;
+                return PageResult.Stay;
         }
 
         var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (FiringPhasePage requires GameState).");
@@ -253,15 +263,35 @@ public sealed class FiringPhasePage : PageBase
 
         if (key.Key == ConsoleKey.UpArrow)
         {
-            _selectedToolIndex = (_selectedToolIndex + 5 - 1) % 5;
-            BuildLines(ui);
+            if (_selectedToolIndex > 0)
+            {
+                _followSelection = true;
+                _selectedToolIndex = Math.Max(0, _selectedToolIndex - 1);
+                BuildLines(ui);
+            }
+            else
+            {
+                // At top of tool list: UpArrow scrolls page up.
+                _followSelection = false;
+                _scroll -= lineStep;
+            }
             return PageResult.Stay;
         }
 
         if (key.Key == ConsoleKey.DownArrow)
         {
-            _selectedToolIndex = (_selectedToolIndex + 1) % 5;
-            BuildLines(ui);
+            if (_selectedToolIndex < 4)
+            {
+                _followSelection = true;
+                _selectedToolIndex = Math.Min(4, _selectedToolIndex + 1);
+                BuildLines(ui);
+            }
+            else
+            {
+                // At bottom of tool list: DownArrow scrolls page down.
+                _followSelection = false;
+                _scroll += lineStep;
+            }
             return PageResult.Stay;
         }
 

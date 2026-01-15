@@ -37,10 +37,9 @@ public sealed class DetailedWeaponStatusPage : PageBase
 		{
 			var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (DetailedWeaponStatusPage requires GameState). ");
 			var projectileBaseline = game.ProjectileDefaultsBaseline;
-			var weaponsBaseline = game.WeaponsTuningBaseline;
-			var gunBaseline = weaponsBaseline.GunTuning;
 
 			EnemyTarget? statusTarget = game.CurrentWave?.Targets?.FirstOrDefault();
+			double modeHitTolMult = GameModeTuning.Current.GetHitToleranceMultiplier(game.Mode);
 
 			int weaponsTechLevel = game.TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Weapons, out int weaponsTechLevelFromTree)
 				? weaponsTechLevelFromTree
@@ -49,13 +48,24 @@ public sealed class DetailedWeaponStatusPage : PageBase
 				? projectilesTechLevelFromTree
 				: 1;
 
-			// Tech Levels
 			_lines.Add("=== TECHNOLOGY LEVELS ===");
 			_lines.Add(Clamp60($"  Weapons:     Level {weaponsTechLevel}"));
 			_lines.Add(Clamp60($"               {TechTree.GetTechDescription(TechTree.TechType.Weapons, weaponsTechLevel)}"));
 			_lines.Add(Clamp60($"  Projectiles: Level {projectilesTechLevel}"));
 			_lines.Add(Clamp60($"               {TechTree.GetTechDescription(TechTree.TechType.Projectiles, projectilesTechLevel)}"));
 			_lines.Add("");
+
+			// Verbose blocks hidden (not deleted) for gameplay.
+			/*
+			var weaponsBaseline = game.WeaponsTuningBaseline;
+			var gunBaseline = weaponsBaseline.GunTuning;
+
+			int weaponsTechLevel = game.TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Weapons, out int weaponsTechLevelFromTree)
+				? weaponsTechLevelFromTree
+				: 1;
+			int projectilesTechLevel = game.TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Projectiles, out int projectilesTechLevelFromTree)
+				? projectilesTechLevelFromTree
+				: 1;
 
 		_lines.Add("=== BASELINE TUNING (CANONICAL) ===");
 		double baseMuzzleVelocityL1 = weaponsBaseline.BaseMuzzleVelocityMs ?? GameConstants.BaseMuzzleVelocityMs;
@@ -90,7 +100,9 @@ public sealed class DetailedWeaponStatusPage : PageBase
 		_lines.Add(Clamp60($"  Coupling Tech/Level: {projectileBaseline.ImpactCouplingTechMultiplierPerWeaponsLevel:F3}x"));
 		_lines.Add("");
 
-		_lines.Add("=== CURRENT LIMITS (CANONICAL) ===");
+		*/
+
+			_lines.Add("=== CURRENT LIMITS (CANONICAL) ===");
 		var diffCfg = DifficultyConfig.GetConfig(game.SelectedDifficulty);
 		double effectiveGunRange = diffCfg.IsTutorialMode
 			? DifficultyConfig.TutorialPotatoCannon.EffectiveRangeMeters
@@ -131,11 +143,13 @@ public sealed class DetailedWeaponStatusPage : PageBase
 		_lines.Add(Clamp60($"    Hit Tolerance Mult: {diffCfg.HitToleranceMultiplier:F3}x"));
 		_lines.Add("");
 
+		/*
 		_lines.Add("=== MODE TUNING (CANONICAL) ===");
-		double modeHitTolMult = GameModeTuning.Current.GetHitToleranceMultiplier(game.Mode);
-		_lines.Add(Clamp60($"  Hit Tolerance Mult (Mode): {modeHitTolMult:F3}x"));
+		double modeHitTolMult2 = GameModeTuning.Current.GetHitToleranceMultiplier(game.Mode);
+		_lines.Add(Clamp60($"  Hit Tolerance Mult (Mode): {modeHitTolMult2:F3}x"));
 		_lines.Add(Clamp60($"  Fracture Energy Defense Scale: {GameModeTuning.Current.FractureEnergyDefenseScale:F3}x"));
 		_lines.Add("");
+		*/
 
 		_lines.Add("=== INSTALLED UPGRADES (GUN) ===");
 		if (game.Gun?.InstalledUpgrades is null || game.Gun.InstalledUpgrades.Count == 0)
@@ -247,11 +261,17 @@ public sealed class DetailedWeaponStatusPage : PageBase
 						}
 
 						if (Math.Abs(b) < 1e-12)
-							_lines.Add(Clamp60($"       Combined: x * {Fmt(a)}"));
+						{
+							// _lines.Add(Clamp60($"       Combined: x * {Fmt(a)}"));
+						}
 						else if (Math.Abs(a - 1.0) < 1e-12)
-							_lines.Add(Clamp60($"       Combined: x + {Fmt(b)}"));
+						{
+							// _lines.Add(Clamp60($"       Combined: x + {Fmt(b)}"));
+						}
 						else
-							_lines.Add(Clamp60($"       Combined: x * {Fmt(a)} + {Fmt(b)}"));
+						{
+							// _lines.Add(Clamp60($"       Combined: x * {Fmt(a)} + {Fmt(b)}"));
+						}
 					}
 					else
 					{
@@ -271,7 +291,7 @@ public sealed class DetailedWeaponStatusPage : PageBase
 							};
 						}
 
-						_lines.Add(Clamp60($"       Combined: {expr}"));
+						// _lines.Add(Clamp60($"       Combined: {expr}"));
 					}
 
 					foreach (var pair in mods)
@@ -282,6 +302,7 @@ public sealed class DetailedWeaponStatusPage : PageBase
 			_lines.Add("");
 		}
 
+		/*
 		_lines.Add("=== INSTALLED STAT MODIFIERS (PERSISTENT) ===");
 		_lines.Add(Clamp60("  (Applied during ResolveWeaponStats; affects Projectile/Propulsion/Shot keys)"));
 		if (game.Gun?.InstalledStatModifiers is null || game.Gun.InstalledStatModifiers.Count == 0)
@@ -292,79 +313,10 @@ public sealed class DetailedWeaponStatusPage : PageBase
 		else
 		{
 			_lines.Add(Clamp60($"  Count: {game.Gun.InstalledStatModifiers.Count}"));
-
-			static string Fmt(double v) => v.ToString("G6");
-
-			var byKey = new Dictionary<string, List<StatModifier>>(StringComparer.OrdinalIgnoreCase);
-			foreach (var m in game.Gun.InstalledStatModifiers)
-			{
-				if (m is null) continue;
-				if (string.IsNullOrWhiteSpace(m.Key)) continue;
-				if (!byKey.TryGetValue(m.Key, out var list))
-				{
-					list = new List<StatModifier>();
-					byKey[m.Key] = list;
-				}
-				list.Add(m);
-			}
-
-			foreach (var key in byKey.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
-			{
-				var mods = byKey[key];
-				_lines.Add(Clamp60($"  -- {key} --"));
-
-				bool affine = mods.All(m => m.Op is StatModifierOp.Add or StatModifierOp.Mul);
-				if (affine)
-				{
-					// Fold ordered ops into: x -> a*x + b
-					double a = 1.0;
-					double b = 0.0;
-					foreach (var m in mods)
-					{
-						if (m.Op == StatModifierOp.Add)
-						{
-							b += m.Value;
-						}
-						else // Mul
-						{
-							a *= m.Value;
-							b *= m.Value;
-						}
-					}
-
-					if (Math.Abs(b) < 1e-12)
-						_lines.Add(Clamp60($"     Combined: x * {Fmt(a)}"));
-					else if (Math.Abs(a - 1.0) < 1e-12)
-						_lines.Add(Clamp60($"     Combined: x + {Fmt(b)}"));
-					else
-						_lines.Add(Clamp60($"     Combined: x * {Fmt(a)} + {Fmt(b)}"));
-				}
-				else
-				{
-					// Render an order-preserving expression.
-					string expr = "x";
-					foreach (var m in mods)
-					{
-						expr = m.Op switch
-						{
-							StatModifierOp.Add => $"({expr}+{Fmt(m.Value)})",
-							StatModifierOp.Mul => $"({expr}*{Fmt(m.Value)})",
-							StatModifierOp.Set => Fmt(m.Value),
-							StatModifierOp.ClampMin => $"max({expr},{Fmt(m.Value)})",
-							StatModifierOp.ClampMax => $"min({expr},{Fmt(m.Value)})",
-							_ => expr,
-						};
-					}
-
-					_lines.Add(Clamp60($"     Combined: {expr}"));
-				}
-
-				foreach (var m in mods)
-					_lines.Add(Clamp60($"     - {m.Op} {Fmt(m.Value)}"));
-			}
-
+			// (Verbose listing hidden for gameplay.)
 			_lines.Add("");
 		}
+		*/
 
 		_lines.Add("=== CRAFTED PROJECTILE (RAW COMPONENTS) ===");
 		if (game.CraftedProjectile is null)
@@ -402,6 +354,7 @@ public sealed class DetailedWeaponStatusPage : PageBase
 			_lines.Add("");
 		}
 
+		/*
 		_lines.Add("=== STAT BREAKDOWN (BY KEY) ===");
 		_lines.Add(Clamp60("  Baseline -> Components -> Mods -> Final (Resolved)"));
 		if (statusTarget is null)
@@ -704,6 +657,7 @@ public sealed class DetailedWeaponStatusPage : PageBase
 		AfterBreakdown:
 			;
 		}
+		*/
 
 		_lines.Add("=== RESOLVED (CANONICAL) ===");
 		if (statusTarget is null)
@@ -770,6 +724,7 @@ public sealed class DetailedWeaponStatusPage : PageBase
 			}
 		}
 
+		/*
 		// Gun Base Velocity
 		int weaponsTechLevelForBaseVelocity = 1;
 		if (game.TechTree?.CurrentLevel != null && game.TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Weapons, out int wt))
@@ -816,8 +771,13 @@ public sealed class DetailedWeaponStatusPage : PageBase
 		foreach (var m in armor)
 			_lines.Add(Clamp60($"    - {m.Name}"));
 		_lines.Add("");
+		*/
 
 		// Gun Status
+		int weaponsTechLevelForBaseVelocity = 1;
+		if (game.TechTree?.CurrentLevel != null && game.TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Weapons, out int wt2))
+			weaponsTechLevelForBaseVelocity = Math.Max(1, wt2);
+
 		_lines.Add("=== GUN CONFIGURATION ===");
 		var gun = game.Gun ?? throw new InvalidOperationException("GameState.Gun is null.");
 		_lines.Add(Clamp60($"  Barrel Integrity: {gun.BarrelIntegrity:P0}"));
