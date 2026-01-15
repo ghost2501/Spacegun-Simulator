@@ -30,7 +30,7 @@ No Automation.
 No computers.  
 Just charts, mechanical calculators, and your ability to solve real physics problems under pressure.
 
-nb. There is still a lot to do. The tech paths are very nascent and general balancing has barely begun. Any input, esp maths corrections, would be greatly appreciated.
+nb. Any input, esp maths corrections, would be greatly appreciated.
 
 ---
 
@@ -38,7 +38,7 @@ nb. There is still a lot to do. The tech paths are very nascent and general bala
 
 - **Real physics calculations** (no hidden RNG at the point of firing)
 - **Command-line interface** with ASCII art and page-based UI
-- **Procedural systems** for targets, resources, and technology paths (in development)
+- **Procedural systems** for targets, resources, and technology paths 
 - **High-stakes permadeath** (single save, no save scumming)
 - **Procedural lo-fi / dieselpunk audio** to reinforce tension and pacing
 
@@ -84,7 +84,7 @@ Hitting an object the size of a bus, moving at thousands of kilometers per hour,
 - Benign dystopia
 - Heavy industry, rivets, steel, slide rules
 - Stark ASCII diagrams and schematic-style layouts
-- Functional, utilitarian UI — nothing ornamental
+- Functional, utilitarian UI
 
 ---
 
@@ -179,7 +179,7 @@ Difficulty scales **numerically**, not artificially.
   *(bus-sized target at relativistic speed)*
 
 The game does not cheat.  
-The maths always works.  
+The maths always (?) works.  
 Failure is always explainable.
 
 ---
@@ -196,9 +196,8 @@ Failure is always explainable.
 
 ## 🎧 Audio
 
-Spacegun Simulator includes a deeply customisable **procedural, lo-fi soundscape** generator:
+Spacegun Simulator includes a deeply customisable **procedural, lo-fi soundscape** synth:
 
-- Non-repeating  (mostly)
 - Drum loops and procedural, mechanical rhythms  
 - Melody seed editor
 - Customisable drumloop library
