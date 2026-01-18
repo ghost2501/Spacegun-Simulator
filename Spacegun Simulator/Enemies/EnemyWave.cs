@@ -296,7 +296,9 @@ namespace Spacegun_Simulator.Enemies
             // Generate velocity uniformly within tier constraints
             // NO archetype multiplier - velocity is determined by tier alone
             double rawVel = enemyMinVel + rng.NextDouble() * (enemyMaxVel - enemyMinVel);
-            wave.AverageVelocity = rawVel * doctrineProfile.VelocityMultiplier;
+            // Doctrine applies a soft modifier, but we must preserve the tier's kinematic envelope.
+            // Otherwise doctrine multipliers can generate waves that are literally impossible to intercept.
+            wave.AverageVelocity = Math.Clamp(rawVel * doctrineProfile.VelocityMultiplier, enemyMinVel, enemyMaxVel);
 
             // Generate target with stats
             var target = GenerateTargetFromArchetype(waveNumber, tierIndex, archetype, rng, ruleset, doctrineProfile);
@@ -376,8 +378,10 @@ namespace Spacegun_Simulator.Enemies
                 // This supports the intended curve where unmodded shots cannot reliably win at Tier 3+.
                 double maneuverabilityFloor = tierIndex switch
                 {
-                    3 => 0.18,
-                    >= 4 => 0.22,
+                    1 => 0.06,
+                    2 => 0.14,
+                    3 => 0.28,
+                    >= 4 => 0.35,
                     _ => 0.0
                 };
                 if (maneuverabilityFloor > 0.0)
@@ -385,6 +389,19 @@ namespace Spacegun_Simulator.Enemies
 
                 defense = Math.Clamp(defense, 0.0, 1.0);
                 offense = Math.Clamp(offense, 0.0, 1.0);
+
+                // Add a small "minimum armor" floor from Tier 1 onward so energy gating
+                // starts showing up before the final tiers.
+                double defenseFloor = tierIndex switch
+                {
+                    1 => 0.08,
+                    2 => 0.16,
+                    3 => 0.26,
+                    >= 4 => 0.34,
+                    _ => 0.0
+                };
+                if (defenseFloor > 0.0)
+                    defense = Math.Max(defense, defenseFloor);
             }
 
             // Tier-derived base properties (single-source physics).
@@ -460,10 +477,10 @@ namespace Spacegun_Simulator.Enemies
             return tierIndex switch
             {
                 0 => (AccMin: 0.00, AccMax: 0.00, ManMax: 0.00, DefMax: 0.00, OffMax: 0.00),
-                1 => (AccMin: 0.05, AccMax: 0.25, ManMax: 0.15, DefMax: 0.10, OffMax: 0.10),
-                2 => (AccMin: 0.10, AccMax: 0.50, ManMax: 0.30, DefMax: 0.20, OffMax: 0.20),
-                3 => (AccMin: 0.20, AccMax: 1.00, ManMax: 0.35, DefMax: 0.35, OffMax: 0.35),
-                _ => (AccMin: 0.35, AccMax: 1.75, ManMax: 0.45, DefMax: 0.50, OffMax: 0.50),
+                1 => (AccMin: 0.08, AccMax: 0.40, ManMax: 0.40, DefMax: 0.22, OffMax: 0.12),
+                2 => (AccMin: 0.15, AccMax: 0.80, ManMax: 0.60, DefMax: 0.32, OffMax: 0.22),
+                3 => (AccMin: 0.20, AccMax: 1.10, ManMax: 0.70, DefMax: 0.45, OffMax: 0.35),
+                _ => (AccMin: 0.35, AccMax: 1.85, ManMax: 0.80, DefMax: 0.60, OffMax: 0.50),
             };
         }
 

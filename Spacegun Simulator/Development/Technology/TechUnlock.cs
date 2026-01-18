@@ -80,13 +80,8 @@ namespace Spacegun_Simulator.Development.Technology
         /// </summary>
         public static bool CanAffordResearch(TechUnlock unlock, Dictionary<string, double> accumulatedResources)
         {
-            double budget = accumulatedResources.ContainsKey("Budget") ? accumulatedResources["Budget"] : 0;
-            double steel = accumulatedResources.ContainsKey("Steel") ? accumulatedResources["Steel"] : 0;
-            double exotic = accumulatedResources.ContainsKey("Exotic") ? accumulatedResources["Exotic"] : 0;
-
-            return budget >= unlock.ResearchCost.Budget &&
-                   steel >= unlock.ResearchCost.Steel &&
-                   exotic >= unlock.ResearchCost.ExoticMaterials;
+			ResourceCostLedger.EnsureKeys(accumulatedResources);
+			return ResourceCostLedger.CanAfford(accumulatedResources, unlock.ResearchCost);
         }
 
         /// <summary>
@@ -101,10 +96,7 @@ namespace Spacegun_Simulator.Development.Technology
             if (!CanAffordResearch(unlock, accumulatedResources))
                 return false;
 
-            // Deduct cost
-            accumulatedResources["Budget"] -= unlock.ResearchCost.Budget;
-            accumulatedResources["Steel"] -= unlock.ResearchCost.Steel;
-            accumulatedResources["Exotic"] -= unlock.ResearchCost.ExoticMaterials;
+			ResourceCostLedger.Spend(accumulatedResources, unlock.ResearchCost);
 
             // Apply tech upgrade
             return techTree.ResearchTech(unlock.TechType);

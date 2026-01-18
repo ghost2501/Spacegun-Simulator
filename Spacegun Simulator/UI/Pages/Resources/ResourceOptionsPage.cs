@@ -27,6 +27,7 @@ public sealed class ResourceOptionsPage : PageBase
 		"Budget",
 		"Specialized Alloys",
 		"Rare Earth Elements",
+		"Advanced Ore",
 		"Power Cells",
 		"Exotic Materials"
 	};
@@ -38,6 +39,7 @@ public sealed class ResourceOptionsPage : PageBase
 		"Budget",
 		"SpecializedAlloys",
 		"RareEarthElements",
+		"AdvancedOre",
 		"PowerCells",
 		"Exotic"
 	};
@@ -48,12 +50,13 @@ public sealed class ResourceOptionsPage : PageBase
 		ResourceType.Budget,
 		ResourceType.SpecializedAlloys,
 		ResourceType.RareEarthElements,
+		ResourceType.AdvancedOre,
 		ResourceType.PowerCells,
 		ResourceType.ExoticMaterials
 	};
 
-	private long[] _yearsAllocated = new long[6];
-	private double[] _productionRates = new double[6];
+	private long[] _yearsAllocated = new long[7];
+	private double[] _productionRates = new double[7];
 	private int _allocationStep;
 	private string _inputBuffer = "";
 
@@ -84,8 +87,8 @@ public sealed class ResourceOptionsPage : PageBase
 
 	private void ResetAllocationState()
 	{
-		_yearsAllocated = new long[6];
-		_productionRates = new double[6];
+		_yearsAllocated = new long[7];
+		_productionRates = new double[7];
 		for (int i = 0; i < _resourceTypes.Length; i++)	
 		{
 			var t = _resourceTypes[i];
@@ -120,23 +123,23 @@ public sealed class ResourceOptionsPage : PageBase
 			var rate = _productionRates[i];
 			var years = _yearsAllocated[i];
 			string locked = rate <= 0 ? " (LOCKED)" : "";
-			_lines.Add($"{i + 1}/6 - {_resourceNames[i]}{locked}: {years} years");
+			_lines.Add($"{i + 1}/{_resourceNames.Length} - {_resourceNames[i]}{locked}: {years} years");
 		}
 
 		_lines.Add("");
 
 		// Skip locked resources automatically
-		while (_allocationStep < 6 && _productionRates[_allocationStep] <= 0)
+		while (_allocationStep < _resourceNames.Length && _productionRates[_allocationStep] <= 0)
 			_allocationStep++;
 
-		if (_allocationStep >= 6)
+		if (_allocationStep >= _resourceNames.Length)
 		{
 			_lines.Add("Allocation complete.");
 			_lines.Add("Press [Enter] to apply. B returns to the hub.");
 			return;
 		}
 
-		_lines.Add($"{_allocationStep + 1}/6 - Years for {_resourceNames[_allocationStep]}: {_inputBuffer}_");
+		_lines.Add($"{_allocationStep + 1}/{_resourceNames.Length} - Years for {_resourceNames[_allocationStep]}: {_inputBuffer}_");
 	}
 
 	protected override void RenderBody(UiContext ui)
@@ -172,10 +175,10 @@ public sealed class ResourceOptionsPage : PageBase
 			return PageResult.Back();
 
 		// Skip locked resources automatically
-		while (_allocationStep < 6 && _productionRates[_allocationStep] <= 0)
+		while (_allocationStep < _resourceNames.Length && _productionRates[_allocationStep] <= 0)
 			_allocationStep++;
 
-		if (_allocationStep >= 6)
+		if (_allocationStep >= _resourceNames.Length)
 		{
 			if (key.Key == ConsoleKey.Enter)
 			{

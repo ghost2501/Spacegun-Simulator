@@ -19,6 +19,6 @@
     "TimeBudgetMultiplierFull": 1.0,
     "HitToleranceMultiplierPure": 1.0,
     "HitToleranceMultiplierFull": 1.0,
-    "FractureEnergyDefenseScale": 1.0
+    "FractureEnergyDefenseScale": 1.5
   }
 }

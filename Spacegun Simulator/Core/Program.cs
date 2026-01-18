@@ -390,6 +390,10 @@ namespace Spacegun_Simulator.Core
             int waves = TryParseIntArg(args, "--waves") ?? GameConstants.TotalWaves;
             waves = Math.Max(1, waves);
 
+            // Balance-testing helper: enforce a minimum tech pacing.
+            // Example: --min-tech-progress-waves 5 => min tech=1 for waves 1-5, tech=2 for waves 6-10, tech=3 for waves 11+.
+            int minTechProgressWaves = TryParseIntArg(args, "--min-tech-progress-waves") ?? 0;
+
             bool auditBallistics = args.Any(a => string.Equals(a, "--ballistics-audit", StringComparison.OrdinalIgnoreCase)
                                               || string.Equals(a, "--audit-ballistics", StringComparison.OrdinalIgnoreCase)
                                               || string.Equals(a, "--audit-can-hit", StringComparison.OrdinalIgnoreCase));
@@ -476,6 +480,10 @@ namespace Spacegun_Simulator.Core
             double totalBudgetGathered = 0;
             double totalSteelGathered = 0;
             double totalExoticGathered = 0;
+            double totalAdvancedOreGathered = 0;
+            double totalPowerCellsGathered = 0;
+            double totalSpecializedAlloysGathered = 0;
+            double totalRareEarthElementsGathered = 0;
             int totalTechUpgrades = 0;
 
             // Track tech pacing signals needed for balance verification.
@@ -494,6 +502,38 @@ namespace Spacegun_Simulator.Core
             var auditBestBuildByTier = new Dictionary<int, (int Waves, int NoModsKill, int BestKill, int Helpful, int Necessary)>();
             var auditBestProjectileMaxTechByTier = new Dictionary<int, (int Waves, int NoModsKill, int BestKill, int Helpful, int Necessary)>();
             var auditBestBuildMaxTechByTier = new Dictionary<int, (int Waves, int NoModsKill, int BestKill, int Helpful, int Necessary)>();
+
+            // Cost/store audit (per tier): verifies offers exist and are purchasable over time.
+            var costAuditByTier = new Dictionary<int, (int Waves, int ProjOffersTotal, int ProjOffersAffordable, int ProjOffersInvalid, int MinProjOffersTotal, int MinProjOffersAffordable, int TechUnlocksAvailable, int TechUnlocksAffordable, int MinTechUnlocksAffordable)>();
+
+            static void ApplyMinTechProgressFloor(GameState game, int waveNumber, int minProgressWaves)
+            {
+                if (minProgressWaves <= 0)
+                    return;
+                if (waveNumber <= 0)
+                    return;
+                if (game.TechTree?.CurrentLevel == null)
+                    return;
+
+                int minLevel = 1 + ((waveNumber - 1) / minProgressWaves);
+                minLevel = Math.Clamp(minLevel, 1, 3);
+
+                var techs = new[]
+                {
+                    TechTree.TechType.Radar,
+                    TechTree.TechType.Mining,
+                    TechTree.TechType.Production,
+                    TechTree.TechType.Weapons,
+                    TechTree.TechType.Projectiles,
+                };
+
+                foreach (var t in techs)
+                {
+                    if (!game.TechTree.CurrentLevel.TryGetValue(t, out int cur))
+                        cur = 1;
+                    game.TechTree.CurrentLevel[t] = Math.Max(cur, minLevel);
+                }
+            }
 
             static void AccumulateAudit(
                 Dictionary<int, (int Waves, int NoModsKill, int NoModsHitOnly, int NoModsEnergyOnly, int NoModsNeither, int CurrentKill, int Helpful, int Necessary)> byTier,
@@ -976,6 +1016,9 @@ namespace Spacegun_Simulator.Core
                 {
                     game.GenerateWaveEvent();
 
+                    // Optional balance-testing override: force a minimum tech progression cadence.
+                    ApplyMinTechProgressFloor(game, waveNumber, minTechProgressWaves);
+
                     long yearsThisWave = game.RemainingYears;
                     totalYears += yearsThisWave;
 
@@ -983,6 +1026,10 @@ namespace Spacegun_Simulator.Core
                     totalSteelGathered += gathered.Steel;
                     totalBudgetGathered += gathered.Budget;
                     totalExoticGathered += gathered.Exotic;
+                    totalAdvancedOreGathered += gathered.AdvancedOre;
+                    totalPowerCellsGathered += gathered.PowerCells;
+                    totalSpecializedAlloysGathered += gathered.SpecializedAlloys;
+                    totalRareEarthElementsGathered += gathered.RareEarthElements;
 
                     // Tech pacing hint: how close are we to at least one upgrade?
                     // NOTE: GameState.GetAvailableTechs() returns only *already-affordable* techs.
@@ -1010,15 +1057,115 @@ namespace Spacegun_Simulator.Core
                         }
                     }
 
-                    GamePhaseTransitionRules.Apply(game, GamePhaseTransitionRules.PhaseEvent.ResourcePhaseCompleted);
-
                     string techHint = techCount == 0
                         ? "Tech: none"
                         : cheapestYears == long.MaxValue
                             ? $"Tech: affordable {affordable}/{techCount}"
                             : $"Tech: affordable {affordable}/{techCount}, cheapest≈{cheapestYears}y";
 
-                    Console.WriteLine($"Wave {waveNumber}: Resources gathered | Budget={game.AccumulatedResources.GetValueOrDefault("Budget", 0):F0} Steel={game.AccumulatedResources.GetValueOrDefault("Steel", 0):F0} Exotic={game.AccumulatedResources.GetValueOrDefault("Exotic", 0):F1} | {techHint}");
+                    Console.WriteLine($"Wave {waveNumber}: Resources gathered | Budget={game.AccumulatedResources.GetValueOrDefault("Budget", 0):F0} Steel={game.AccumulatedResources.GetValueOrDefault("Steel", 0):F0} AdvOre={game.AccumulatedResources.GetValueOrDefault("AdvancedOre", 0):F1} Exotic={game.AccumulatedResources.GetValueOrDefault("Exotic", 0):F1} | {techHint}");
+
+                    // ===== Cost/store audit snapshot (after gathering, before auto-research spending) =====
+                    try
+                    {
+                        int tierIndex = GameConstants.GetTierForWave(waveNumber).TierIndex;
+
+                        game.EnsureProjectileModShopOffersForCurrentWave();
+
+                        int offersTotal = 0;
+                        int offersAffordable = 0;
+                        int offersInvalid = 0;
+
+                        void AuditCost(Development.Shared.ResourceCost cost, int mkTier)
+                        {
+                            offersTotal++;
+                            bool allowed = Development.Shared.ResourceCostLedger.IsCostAllowedForMkTier(cost, mkTier);
+                            bool unlocked = Development.Shared.ResourceCostLedger.AreAllRequiredResourcesUnlocked(cost, game.TechTree);
+                            if (!allowed || !unlocked)
+                                offersInvalid++;
+
+                            if (allowed && unlocked && Development.Shared.ResourceCostLedger.CanAfford(game.AccumulatedResources, cost))
+                                offersAffordable++;
+                        }
+
+                        foreach (var id in game.ProjectileModShop.CoreOfferIds)
+                        {
+                            if (ProjectilesCatalog.TryGetCoreById(id, out var core))
+                                AuditCost(core.Cost, mkTier: Math.Clamp(core.RequiredTechLevel, 1, 3));
+                            else
+                                offersInvalid++;
+                        }
+
+                        foreach (var id in game.ProjectileModShop.PropulsionOfferIds)
+                        {
+                            if (ProjectilesCatalog.TryGetPropulsionById(id, out var prop))
+                                AuditCost(prop.Cost, mkTier: Math.Clamp(prop.RequiredTechLevel, 1, 3));
+                            else
+                                offersInvalid++;
+                        }
+
+                        foreach (var id in game.ProjectileModShop.GuidanceOfferModuleIds)
+                        {
+                            if (ProjectilesCatalog.TryGetEnhancementById(id, out var m))
+                                AuditCost(m.Cost, mkTier: Math.Clamp(m.RequiredTechLevel, 1, 3));
+                            else
+                                offersInvalid++;
+                        }
+
+                        foreach (var id in game.ProjectileModShop.PayloadOfferModuleIds)
+                        {
+                            if (ProjectilesCatalog.TryGetEnhancementById(id, out var m))
+                                AuditCost(m.Cost, mkTier: Math.Clamp(m.RequiredTechLevel, 1, 3));
+                            else
+                                offersInvalid++;
+                        }
+
+                        foreach (var id in game.ProjectileModShop.ArmorOfferModuleIds)
+                        {
+                            if (ProjectilesCatalog.TryGetEnhancementById(id, out var m))
+                                AuditCost(m.Cost, mkTier: Math.Clamp(m.RequiredTechLevel, 1, 3));
+                            else
+                                offersInvalid++;
+                        }
+
+                        if (!costAuditByTier.TryGetValue(tierIndex, out var cm))
+                        {
+                            cm = (
+                                Waves: 0,
+                                ProjOffersTotal: 0,
+                                ProjOffersAffordable: 0,
+                                ProjOffersInvalid: 0,
+                                MinProjOffersTotal: int.MaxValue,
+                                MinProjOffersAffordable: int.MaxValue,
+                                TechUnlocksAvailable: 0,
+                                TechUnlocksAffordable: 0,
+                                MinTechUnlocksAffordable: int.MaxValue);
+                        }
+
+                        cm.Waves++;
+                        cm.ProjOffersTotal += offersTotal;
+                        cm.ProjOffersAffordable += offersAffordable;
+                        cm.ProjOffersInvalid += offersInvalid;
+                        // Only treat a wave as contributing to minima if the shop actually had offers.
+                        // (Some phases/waves may leave the shop empty; we don't want that to force mins to 0.)
+                        if (offersTotal > 0)
+                        {
+                            cm.MinProjOffersTotal = Math.Min(cm.MinProjOffersTotal, offersTotal);
+                            cm.MinProjOffersAffordable = Math.Min(cm.MinProjOffersAffordable, offersAffordable);
+                        }
+                        cm.TechUnlocksAvailable += techCount;
+                        cm.TechUnlocksAffordable += affordable;
+                        if (techCount > 0)
+                            cm.MinTechUnlocksAffordable = Math.Min(cm.MinTechUnlocksAffordable, affordable);
+
+                        costAuditByTier[tierIndex] = cm;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Wave {waveNumber}: CostAudit ERROR: {ex.Message}");
+                    }
+
+                    GamePhaseTransitionRules.Apply(game, GamePhaseTransitionRules.PhaseEvent.ResourcePhaseCompleted);
                 }
 
                 // ===== Development (auto-research) =====
@@ -1266,7 +1413,7 @@ namespace Spacegun_Simulator.Core
             Console.WriteLine("\n[TEST CAMPAIGN SUMMARY]");
             Console.WriteLine($"WavesDefeated: {game.WavesDefeated}/{waves}");
             Console.WriteLine($"TotalYearsAllocated: {totalYears}");
-            Console.WriteLine($"Gathered: Budget={totalBudgetGathered:F0} Steel={totalSteelGathered:F0} Exotic={totalExoticGathered:F1}");
+            Console.WriteLine($"Gathered: Budget={totalBudgetGathered:F0} Steel={totalSteelGathered:F0} AdvOre={totalAdvancedOreGathered:F1} Exotic={totalExoticGathered:F1}");
             Console.WriteLine($"TechUpgradesPurchased: {totalTechUpgrades}");
             Console.WriteLine($"FinalTech: Radar={game.TechTree.CurrentLevel[TechTree.TechType.Radar]} Mining={game.TechTree.CurrentLevel[TechTree.TechType.Mining]} Prod={game.TechTree.CurrentLevel[TechTree.TechType.Production]} Weapons={game.TechTree.CurrentLevel[TechTree.TechType.Weapons]} Proj={game.TechTree.CurrentLevel[TechTree.TechType.Projectiles]}");
 
@@ -1329,13 +1476,19 @@ namespace Spacegun_Simulator.Core
                             totalBudgetGathered: totalBudgetGathered,
                             totalSteelGathered: totalSteelGathered,
                             totalExoticGathered: totalExoticGathered,
+                            totalAdvancedOreGathered: totalAdvancedOreGathered,
+                            totalPowerCellsGathered: totalPowerCellsGathered,
+                            totalSpecializedAlloysGathered: totalSpecializedAlloysGathered,
+                            totalRareEarthElementsGathered: totalRareEarthElementsGathered,
                             totalTechUpgradesPurchased: totalTechUpgrades,
+                            minTechProgressWaves: minTechProgressWaves,
                             finalTech: game.TechTree.CurrentLevel,
                             techEndByTier: techEndByTier,
                             firstTierAtTech3: firstTierAtTech3,
                             auditByTier: auditByTier,
                             auditBestBuildByTier: auditBestBuildByTier,
-                            auditBestBuildMaxTechByTier: auditBestBuildMaxTechByTier);
+                            auditBestBuildMaxTechByTier: auditBestBuildMaxTechByTier,
+                            costAuditByTier: costAuditByTier);
 
                         Console.WriteLine($"[TEST CAMPAIGN] ballistics audit CSV appended: {auditBallisticsCsvPath}");
                     }
@@ -1357,13 +1510,19 @@ namespace Spacegun_Simulator.Core
                 double totalBudgetGathered,
                 double totalSteelGathered,
                 double totalExoticGathered,
+                double totalAdvancedOreGathered,
+                double totalPowerCellsGathered,
+                double totalSpecializedAlloysGathered,
+                double totalRareEarthElementsGathered,
                 int totalTechUpgradesPurchased,
+                int minTechProgressWaves,
                 Dictionary<TechTree.TechType, int> finalTech,
                 Dictionary<int, (int Radar, int Mining, int Production, int Weapons, int Projectiles)> techEndByTier,
                 Dictionary<TechTree.TechType, int?> firstTierAtTech3,
                 Dictionary<int, (int Waves, int NoModsKill, int NoModsHitOnly, int NoModsEnergyOnly, int NoModsNeither, int CurrentKill, int Helpful, int Necessary)> auditByTier,
                 Dictionary<int, (int Waves, int NoModsKill, int BestKill, int Helpful, int Necessary)> auditBestBuildByTier,
-                Dictionary<int, (int Waves, int NoModsKill, int BestKill, int Helpful, int Necessary)> auditBestBuildMaxTechByTier)
+                Dictionary<int, (int Waves, int NoModsKill, int BestKill, int Helpful, int Necessary)> auditBestBuildMaxTechByTier,
+                Dictionary<int, (int Waves, int ProjOffersTotal, int ProjOffersAffordable, int ProjOffersInvalid, int MinProjOffersTotal, int MinProjOffersAffordable, int TechUnlocksAvailable, int TechUnlocksAffordable, int MinTechUnlocksAffordable)> costAuditByTier)
             {
                 static string CsvEscape(string s)
                 {
@@ -1386,6 +1545,7 @@ namespace Spacegun_Simulator.Core
                         "Seed",
                         "Mode",
                         "BallisticsDrivenResearch",
+                        "MinTechProgressWaves",
                         "WavesRequested",
                         "WavesDefeated",
                         "Tier",
@@ -1396,6 +1556,14 @@ namespace Spacegun_Simulator.Core
                         "NoModsNeither",
                         "BestBuildKill",
                         "BestBuildMaxTechKill",
+                        "ProjOffersTotal",
+                        "ProjOffersAffordable",
+                        "ProjOffersInvalid",
+                        "MinProjOffersTotal",
+                        "MinProjOffersAffordable",
+                        "TechUnlocksAvailable",
+                        "TechUnlocksAffordable",
+                        "MinTechUnlocksAffordable",
                         "TierEndTech_Radar",
                         "TierEndTech_Mining",
                         "TierEndTech_Production",
@@ -1410,6 +1578,10 @@ namespace Spacegun_Simulator.Core
                         "GatheredBudget",
                         "GatheredSteel",
                         "GatheredExotic",
+                        "GatheredAdvancedOre",
+                        "GatheredPowerCells",
+                        "GatheredSpecializedAlloys",
+                        "GatheredRareEarthElements",
                         "TechUpgradesPurchased",
                         "FinalTech_Radar",
                         "FinalTech_Mining",
@@ -1424,11 +1596,19 @@ namespace Spacegun_Simulator.Core
                 int GetFirstTierTech3(TechTree.TechType t)
                     => firstTierAtTech3.TryGetValue(t, out var v) && v.HasValue ? v.Value : -1;
 
+                static int NormalizeMin(int value)
+                    => value == int.MaxValue ? 0 : value;
+
                 for (int tier = 0; tier < GameConstants.TierCount; tier++)
                 {
                     auditByTier.TryGetValue(tier, out var baseTier);
                     auditBestBuildByTier.TryGetValue(tier, out var bestTier);
                     auditBestBuildMaxTechByTier.TryGetValue(tier, out var bestMaxTier);
+                    costAuditByTier.TryGetValue(tier, out var costTier);
+
+                    int minProjTotal = NormalizeMin(costTier.MinProjOffersTotal);
+                    int minProjAffordable = NormalizeMin(costTier.MinProjOffersAffordable);
+                    int minTechAffordable = NormalizeMin(costTier.MinTechUnlocksAffordable);
 
                     int tierWaves = baseTier.Waves;
                     int noModsKill = baseTier.NoModsKill;
@@ -1441,6 +1621,7 @@ namespace Spacegun_Simulator.Core
                         seed.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         CsvEscape(mode.ToString()),
                         (ballisticsDrivenResearch ? "1" : "0"),
+                        minTechProgressWaves.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         wavesRequested.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         wavesDefeated.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         tier.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -1451,6 +1632,14 @@ namespace Spacegun_Simulator.Core
                         baseTier.NoModsNeither.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         bestBuildKill.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         bestBuildMaxTechKill.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        costTier.ProjOffersTotal.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        costTier.ProjOffersAffordable.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        costTier.ProjOffersInvalid.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        minProjTotal.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        minProjAffordable.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        costTier.TechUnlocksAvailable.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        costTier.TechUnlocksAffordable.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        minTechAffordable.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         techEnd.Radar.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         techEnd.Mining.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         techEnd.Production.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -1465,6 +1654,10 @@ namespace Spacegun_Simulator.Core
                         totalBudgetGathered.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         totalSteelGathered.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         totalExoticGathered.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        totalAdvancedOreGathered.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        totalPowerCellsGathered.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        totalSpecializedAlloysGathered.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        totalRareEarthElementsGathered.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         totalTechUpgradesPurchased.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         GetTech(TechTree.TechType.Radar).ToString(System.Globalization.CultureInfo.InvariantCulture),
                         GetTech(TechTree.TechType.Mining).ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -1492,16 +1685,20 @@ namespace Spacegun_Simulator.Core
             }
         }
 
-        private static (double Steel, double Budget, double Exotic) AutoAllocateAllYears(GameState game)
+        private static (double Steel, double Budget, double Exotic, double AdvancedOre, double PowerCells, double SpecializedAlloys, double RareEarthElements) AutoAllocateAllYears(GameState game)
         {
             long years = game.RemainingYears;
             if (years <= 0)
-                return (0, 0, 0);
+            return (0, 0, 0, 0, 0, 0, 0);
 
             // Return deltas for reporting.
             double steelBefore = game.AccumulatedResources.GetValueOrDefault("Steel", 0);
             double budgetBefore = game.AccumulatedResources.GetValueOrDefault("Budget", 0);
             double exoticBefore = game.AccumulatedResources.GetValueOrDefault("Exotic", 0);
+            double advancedOreBefore = game.AccumulatedResources.GetValueOrDefault("AdvancedOre", 0);
+            double powerCellsBefore = game.AccumulatedResources.GetValueOrDefault("PowerCells", 0);
+            double specializedAlloysBefore = game.AccumulatedResources.GetValueOrDefault("SpecializedAlloys", 0);
+            double rareEarthElementsBefore = game.AccumulatedResources.GetValueOrDefault("RareEarthElements", 0);
 
             // Match UI behavior: effective rates depend on difficulty, tech, and wave event.
             double eventMultiplier = game.CurrentWaveEvent?.ProductionMultiplier ?? 1.0;
@@ -1514,6 +1711,7 @@ namespace Spacegun_Simulator.Core
                 { Economy.ResourceType.RareEarthElements, "RareEarthElements" },
                 { Economy.ResourceType.PowerCells, "PowerCells" },
                 { Economy.ResourceType.ExoticMaterials, "Exotic" },
+                { Economy.ResourceType.AdvancedOre, "AdvancedOre" },
             };
 
             var effectiveRates = new Dictionary<Economy.ResourceType, double>();
@@ -1527,7 +1725,7 @@ namespace Spacegun_Simulator.Core
             if (effectiveRates.Count == 0)
             {
                 game.RemainingYears = 0;
-                return (0, 0, 0);
+                return (0, 0, 0, 0, 0, 0, 0);
             }
 
             // Frugal policy: only use tech-targeted allocation early, when years are plentiful.
@@ -1565,6 +1763,9 @@ namespace Spacegun_Simulator.Core
             bool exoticUnlocked = effectiveRates.TryGetValue(Economy.ResourceType.ExoticMaterials, out var exoticRate) && exoticRate > 0;
             bool productionTier3 = game.TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Production, out int prodLvl) && prodLvl >= 3;
 
+            bool advancedOreUnlocked = effectiveRates.TryGetValue(Economy.ResourceType.AdvancedOre, out var advancedOreRate) && advancedOreRate > 0;
+            bool miningTier3 = game.TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Mining, out int miningLvl) && miningLvl >= 3;
+
             double targetBudgetFrac;
             if (game.CurrentWaveNumber <= 6)
                 targetBudgetFrac = 0.45; // early game: don't starve Steel; invest into tech.
@@ -1583,9 +1784,12 @@ namespace Spacegun_Simulator.Core
                 long reservedOtherYears = 0;
                 if (years >= 2 && effectiveRates.TryGetValue(Economy.ResourceType.Steel, out var steelRate) && steelRate > 0)
                     reservedOtherYears += 1;
-                if (years - reservedOtherYears >= 2 && effectiveRates.TryGetValue(Economy.ResourceType.PowerCells, out var pcRate) && pcRate > 0)
+                // In short waves, still reserve PowerCells if we can (even a single year matters).
+                if (years - reservedOtherYears >= 1 && effectiveRates.TryGetValue(Economy.ResourceType.PowerCells, out var pcRate) && pcRate > 0)
                     reservedOtherYears += 1;
-                if (years - reservedOtherYears >= 2 && exoticUnlocked && productionTier3)
+                if (years - reservedOtherYears >= 1 && exoticUnlocked && productionTier3)
+                    reservedOtherYears += 1;
+                if (years - reservedOtherYears >= 1 && advancedOreUnlocked && miningTier3)
                     reservedOtherYears += 1;
 
                 long budgetYears = (long)Math.Ceiling(years * targetBudgetFrac);
@@ -1615,6 +1819,13 @@ namespace Spacegun_Simulator.Core
                 years -= 1;
             }
 
+            // Advanced Ore is a Tier-3 mining resource. Allocate a small trickle once unlocked.
+            if (years > 0 && advancedOreUnlocked && miningTier3)
+            {
+                ApplyGathered(Economy.ResourceType.AdvancedOre, 1);
+                years -= 1;
+            }
+
             // Spend remaining years across other unlocked resources.
             // Keep Steel non-zero for general development costs, but don't starve Budget.
             var weights = new Dictionary<Economy.ResourceType, double>
@@ -1624,6 +1835,7 @@ namespace Spacegun_Simulator.Core
                 { Economy.ResourceType.SpecializedAlloys, 0.15 },
                 { Economy.ResourceType.RareEarthElements, 0.10 },
                 { Economy.ResourceType.ExoticMaterials, 0.05 },
+                { Economy.ResourceType.AdvancedOre, 0.05 },
             };
 
             double totalWeight = 0;
@@ -1802,12 +2014,23 @@ namespace Spacegun_Simulator.Core
                 }
             }
 
-            (double Steel, double Budget, double Exotic) SummarizeDelta()
+            (double Steel, double Budget, double Exotic, double AdvancedOre, double PowerCells, double SpecializedAlloys, double RareEarthElements) SummarizeDelta()
             {
                 double steelAfter = game.AccumulatedResources.GetValueOrDefault("Steel", 0);
                 double budgetAfter = game.AccumulatedResources.GetValueOrDefault("Budget", 0);
                 double exoticAfter = game.AccumulatedResources.GetValueOrDefault("Exotic", 0);
-                return (steelAfter - steelBefore, budgetAfter - budgetBefore, exoticAfter - exoticBefore);
+                double advancedOreAfter = game.AccumulatedResources.GetValueOrDefault("AdvancedOre", 0);
+                double powerCellsAfter = game.AccumulatedResources.GetValueOrDefault("PowerCells", 0);
+                double specializedAlloysAfter = game.AccumulatedResources.GetValueOrDefault("SpecializedAlloys", 0);
+                double rareEarthElementsAfter = game.AccumulatedResources.GetValueOrDefault("RareEarthElements", 0);
+                return (
+                    steelAfter - steelBefore,
+                    budgetAfter - budgetBefore,
+                    exoticAfter - exoticBefore,
+                    advancedOreAfter - advancedOreBefore,
+                    powerCellsAfter - powerCellsBefore,
+                    specializedAlloysAfter - specializedAlloysBefore,
+                    rareEarthElementsAfter - rareEarthElementsBefore);
             }
         }
 

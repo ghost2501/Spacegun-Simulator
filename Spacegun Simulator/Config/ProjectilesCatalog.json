@@ -15,7 +15,7 @@
       "Description": "6.5t dense slug - reliable workhorse",
       "MassKg": 6500,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 100, "Steel": 80, "Exotic": 10 }
+      "Cost": { "Budget": 100, "Steel": 80, "PowerCells": 5, "Exotic": 0 }
     },
     {
       "Id": "slug",
@@ -23,7 +23,7 @@
       "Description": "7t slug - heavier KE package",
       "MassKg": 7000,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 140, "Steel": 110, "Exotic": 10 }
+      "Cost": { "Budget": 140, "Steel": 110, "PowerCells": 5, "Exotic": 0 }
     },
     {
       "Id": "c1_02_needle",
@@ -31,7 +31,7 @@
       "Description": "Doctrine counter: Swarm. Very low mass for high velocity and Δv efficiency (less KE).",
       "MassKg": 3700,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 231, "Steel": 130, "Exotic": 33 }
+      "Cost": { "Budget": 231, "Steel": 130, "PowerCells": 17, "Exotic": 0 }
     },
     {
       "Id": "c1_13_ghost",
@@ -39,7 +39,7 @@
       "Description": "Doctrine counter: Stealth. Mid-light mass for good velocity without collapsing KE.",
       "MassKg": 4950,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 206, "Steel": 147, "Exotic": 27 }
+      "Cost": { "Budget": 206, "Steel": 147, "PowerCells": 14, "Exotic": 0 }
     },
 
     {
@@ -48,7 +48,7 @@
       "Description": "Lower mass core for better velocity envelope (~-8% vs 5t)",
       "MassKg": 4600,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 170, "Steel": 90, "Exotic": 30 }
+      "Cost": { "Budget": 170, "Steel": 90, "PowerCells": 2, "SpecializedAlloys": 18, "RareEarthElements": 6, "Exotic": 0 }
     },
     {
       "Id": "heavy",
@@ -56,7 +56,7 @@
       "Description": "8t armored slug - high mass",
       "MassKg": 8000,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 200, "Steel": 180, "Exotic": 30 }
+      "Cost": { "Budget": 200, "Steel": 180, "PowerCells": 2, "SpecializedAlloys": 20, "RareEarthElements": 8, "Exotic": 0 }
     },
     {
       "Id": "ram",
@@ -64,7 +64,7 @@
       "Description": "9t slug - maximum KE bias for tech II",
       "MassKg": 9000,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 280, "Steel": 240, "Exotic": 45 }
+      "Cost": { "Budget": 280, "Steel": 240, "PowerCells": 3, "SpecializedAlloys": 30, "RareEarthElements": 10, "Exotic": 0 }
     },
     {
       "Id": "c2_12_pursuit",
@@ -72,7 +72,7 @@
       "Description": "Doctrine counter: Evasion. Low-ish mass to keep speed and tracking margin at range.",
       "MassKg": 4450,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 299, "Steel": 187, "Exotic": 49 }
+      "Cost": { "Budget": 299, "Steel": 187, "PowerCells": 4, "SpecializedAlloys": 32, "RareEarthElements": 12, "Exotic": 0 }
     },
     {
       "Id": "c2_13_ghost",
@@ -80,7 +80,7 @@
       "Description": "Doctrine counter: Jamming. Mass tuned for mid-flight Δv efficiency (less wasted burn).",
       "MassKg": 5000,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 265, "Steel": 190, "Exotic": 41 }
+      "Cost": { "Budget": 265, "Steel": 190, "PowerCells": 4, "SpecializedAlloys": 28, "RareEarthElements": 10, "Exotic": 0 }
     },
 
     {
@@ -89,7 +89,7 @@
       "Description": "10t exotic alloy - maximum mass core",
       "MassKg": 10000,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 400, "Steel": 300, "Exotic": 80 }
+      "Cost": { "Budget": 400, "Steel": 300, "PowerCells": 10, "SpecializedAlloys": 35, "RareEarthElements": 12, "AdvancedOre": 40, "Exotic": 0 }
     },
     {
       "Id": "hullbuster",
@@ -97,7 +97,7 @@
       "Description": "Heavy core tuned for brutal coupling into fracture work",
       "MassKg": 10000,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 460, "Steel": 340, "Exotic": 95 }
+      "Cost": { "Budget": 460, "Steel": 340, "PowerCells": 10, "SpecializedAlloys": 40, "RareEarthElements": 14, "AdvancedOre": 45, "Exotic": 0 }
     },
     {
       "Id": "c3_11_glide",
@@ -105,7 +105,7 @@
       "Description": "Doctrine counter: Evasion. Very low mass for high velocity and Δv efficiency.",
       "MassKg": 3800,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 382, "Steel": 222, "Exotic": 82 }
+      "Cost": { "Budget": 382, "Steel": 222, "PowerCells": 8, "SpecializedAlloys": 28, "RareEarthElements": 10, "AdvancedOre": 30, "Exotic": 0 }
     },
     {
       "Id": "c3_13_ghost",
@@ -113,7 +113,7 @@
       "Description": "Doctrine counter: StealthEvasion. Light core that keeps velocity high without going featherweight.",
       "MassKg": 4250,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 416, "Steel": 237, "Exotic": 90 }
+      "Cost": { "Budget": 416, "Steel": 237, "PowerCells": 9, "SpecializedAlloys": 30, "RareEarthElements": 11, "AdvancedOre": 32, "Exotic": 0 }
     },
     {
       "Id": "c3_18_rammer",
@@ -121,7 +121,7 @@
       "Description": "Doctrine counter: Armor. Mid-heavy mass to push KE while still leaving some Δv headroom.",
       "MassKg": 7050,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 433, "Steel": 290, "Exotic": 94 }
+      "Cost": { "Budget": 433, "Steel": 290, "PowerCells": 10, "SpecializedAlloys": 34, "RareEarthElements": 12, "AdvancedOre": 38, "Exotic": 0 }
     }
   ],
 
@@ -145,7 +145,7 @@
       "BurnDurationSeconds": 2,
       "ReferenceMassKg": 5000,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 80, "Steel": 40, "Exotic": 10 }
+      "Cost": { "Budget": 80, "Steel": 40, "PowerCells": 2, "SpecializedAlloys": 6, "RareEarthElements": 2, "Exotic": 0 }
     },
     {
       "Id": "liquid_sustainer",
@@ -155,7 +155,7 @@
       "BurnDurationSeconds": 8,
       "ReferenceMassKg": 5000,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 150, "Steel": 80, "Exotic": 30 }
+      "Cost": { "Budget": 150, "Steel": 80, "PowerCells": 3, "SpecializedAlloys": 12, "RareEarthElements": 4, "Exotic": 0 }
     },
     {
       "Id": "p2_09_arcjet",
@@ -165,7 +165,7 @@
       "BurnDurationSeconds": 13.9,
       "ReferenceMassKg": 9100,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 613, "Steel": 275, "Exotic": 45 }
+      "Cost": { "Budget": 613, "Steel": 275, "PowerCells": 10, "SpecializedAlloys": 35, "RareEarthElements": 12, "Exotic": 0 }
     },
     {
       "Id": "p2_12_throttle_pack",
@@ -175,7 +175,7 @@
       "BurnDurationSeconds": 2.64,
       "ReferenceMassKg": 3900,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 287, "Steel": 131, "Exotic": 10 }
+      "Cost": { "Budget": 287, "Steel": 131, "PowerCells": 4, "SpecializedAlloys": 16, "RareEarthElements": 5, "Exotic": 0 }
     },
     {
       "Id": "p2_17_vernier_array",
@@ -185,58 +185,58 @@
       "BurnDurationSeconds": 6.22,
       "ReferenceMassKg": 7400,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 594, "Steel": 266, "Exotic": 42 }
+      "Cost": { "Budget": 594, "Steel": 266, "PowerCells": 9, "SpecializedAlloys": 32, "RareEarthElements": 11, "Exotic": 0 }
     },
 
     {
       "Id": "ion_drive",
       "Name": "Ion Thruster Array",
       "Description": "Doctrine counter: Siege. Continuous ion propulsion (+80 km/s over 20 s).",
-      "DeltaVCapacityMs": 80000,
+      "DeltaVCapacityMs": 110000,
       "BurnDurationSeconds": 20,
       "ReferenceMassKg": 5000,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 300, "Steel": 100, "Exotic": 80 }
+      "Cost": { "Budget": 300, "Steel": 100, "PowerCells": 15, "SpecializedAlloys": 20, "RareEarthElements": 10, "AdvancedOre": 25, "Exotic": 0 }
     },
     {
       "Id": "plasma_accel",
       "Name": "Fireball",
       "Description": "Doctrine counter: Armor. High peak Δv (+120 km/s over 3 s).",
-      "DeltaVCapacityMs": 120000,
+      "DeltaVCapacityMs": 170000,
       "BurnDurationSeconds": 3,
       "ReferenceMassKg": 5000,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 400, "Steel": 150, "Exotic": 100 }
+      "Cost": { "Budget": 400, "Steel": 150, "PowerCells": 18, "SpecializedAlloys": 25, "RareEarthElements": 12, "AdvancedOre": 30, "Exotic": 0 }
     },
     {
       "Id": "p3_09_arcjet",
       "Name": "Arcjet Mk III",
       "Description": "Doctrine counter: Swarm. Huge sustained Δv (+162000 m/s over 21.6 s).",
-      "DeltaVCapacityMs": 162000,
+      "DeltaVCapacityMs": 220000,
       "BurnDurationSeconds": 21.6,
       "ReferenceMassKg": 16300,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 1200, "Steel": 745, "Exotic": 238 }
+      "Cost": { "Budget": 1200, "Steel": 745, "PowerCells": 60, "SpecializedAlloys": 100, "RareEarthElements": 40, "AdvancedOre": 140, "Exotic": 0 }
     },
     {
       "Id": "p3_14_ion_sustainer",
       "Name": "Ion Sustainer Mk III",
       "Description": "Doctrine counter: Evasion. Strong Δv with short-ish burn (+174000 m/s over 4.1 s).",
-      "DeltaVCapacityMs": 174000,
+      "DeltaVCapacityMs": 240000,
       "BurnDurationSeconds": 4.1,
       "ReferenceMassKg": 8300,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 1200, "Steel": 605, "Exotic": 190 }
+      "Cost": { "Budget": 1200, "Steel": 605, "PowerCells": 55, "SpecializedAlloys": 90, "RareEarthElements": 35, "AdvancedOre": 120, "Exotic": 0 }
     },
     {
       "Id": "p3_18_cold_gas_blip",
       "Name": "Cold-Gas Blip Mk III",
       "Description": "Doctrine counter: Jamming. Low-signature maneuvering (+88000 m/s over 8.9 s).",
-      "DeltaVCapacityMs": 88000,
+      "DeltaVCapacityMs": 120000,
       "BurnDurationSeconds": 8.9,
       "ReferenceMassKg": 12700,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 992, "Steel": 442, "Exotic": 135 }
+      "Cost": { "Budget": 992, "Steel": 442, "PowerCells": 40, "SpecializedAlloys": 65, "RareEarthElements": 25, "AdvancedOre": 85, "Exotic": 0 }
     }
   ],
 
@@ -279,6 +279,43 @@
     },
 
     {
+      "Id": "g1_00_surplus_fins",
+      "Slot": "Guidance",
+      "Name": "Surplus Fins Mk I",
+      "Description": "Cheap stabilization. HitTol x1.03",
+      "HitToleranceBonus": 1.03,
+      "Penetration": 1.0,
+      "ImpactCoupling": 1.0,
+      "DefenseBonus": 0.0,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 20, "Steel": 10, "Exotic": 0 }
+    },
+    {
+      "Id": "m1_00_brittle_piercer",
+      "Slot": "Payload",
+      "Name": "Brittle Piercer Mk I",
+      "Description": "Cheap penetrator tip. Pen x1.02; Defense -0.01",
+      "HitToleranceBonus": 1.0,
+      "Penetration": 1.02,
+      "ImpactCoupling": 1.0,
+      "DefenseBonus": -0.01,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 24, "Steel": 12, "Exotic": 0 }
+    },
+    {
+      "Id": "a1_00_spall_liner",
+      "Slot": "Armor",
+      "Name": "Spall Liner Mk I",
+      "Description": "Cheap internal liner. Defense +0.01; HitTol x1.02",
+      "HitToleranceBonus": 1.02,
+      "Penetration": 1.0,
+      "ImpactCoupling": 1.0,
+      "DefenseBonus": 0.01,
+      "RequiredTechLevel": 1,
+      "Cost": { "Budget": 22, "Steel": 12, "Exotic": 0 }
+    },
+
+    {
       "Id": "g1_01_spin_stabilizer",
       "Slot": "Guidance",
       "Name": "Spin Stabilizer Mk I",
@@ -294,10 +331,10 @@
       "Id": "g1_05_home_on_jam_logic",
       "Slot": "Guidance",
       "Name": "Home-on-Jam Logic Mk I",
-      "Description": "Doctrine counter: Jamming. ImpactCoupling x1.04; HitTol x1.16; Defense +0.04",
+      "Description": "Doctrine counter: Jamming. ImpactCoupling x1.25; HitTol x1.16; Defense +0.04",
       "HitToleranceBonus": 1.16,
       "Penetration": 0.98,
-      "ImpactCoupling": 1.04,
+      "ImpactCoupling": 1.25,
       "DefenseBonus": 0.04,
       "RequiredTechLevel": 1,
       "Cost": { "Budget": 97, "Steel": 51, "Exotic": 0 }
@@ -306,13 +343,13 @@
       "Id": "g1_08_cross_coupled_gyros",
       "Slot": "Guidance",
       "Name": "Cross-Coupled Gyros Mk I",
-      "Description": "Doctrine counter: Armor. ImpactCoupling x1.06; HitTol x1.20; Pen x0.96; Defense -0.04",
+      "Description": "Doctrine counter: Armor. ImpactCoupling x1.30; HitTol x1.20; Pen x0.96; Defense -0.04",
       "HitToleranceBonus": 1.20,
       "Penetration": 0.96,
-      "ImpactCoupling": 1.06,
+      "ImpactCoupling": 1.30,
       "DefenseBonus": -0.04,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 123, "Steel": 64, "Exotic": 6 }
+      "Cost": { "Budget": 123, "Steel": 64, "PowerCells": 3, "Exotic": 0 }
     },
     {
       "Id": "g1_13_decoy_discriminator",
@@ -330,13 +367,13 @@
       "Id": "g1_19_phase_lead_controller",
       "Slot": "Guidance",
       "Name": "Phase-Lead Controller Mk I",
-      "Description": "Doctrine counter: Swarm. ImpactCoupling x1.08; HitTol x1.28; Pen x0.95; Defense -0.06",
+      "Description": "Doctrine counter: Swarm. ImpactCoupling x1.35; HitTol x1.28; Pen x0.95; Defense -0.06",
       "HitToleranceBonus": 1.28,
       "Penetration": 0.95,
-      "ImpactCoupling": 1.08,
+      "ImpactCoupling": 1.35,
       "DefenseBonus": -0.06,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 141, "Steel": 73, "Exotic": 10 }
+      "Cost": { "Budget": 141, "Steel": 73, "PowerCells": 5, "Exotic": 0 }
     },
 
     {
@@ -349,7 +386,7 @@
       "ImpactCoupling": 1.0,
       "DefenseBonus": 0.02,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 160, "Steel": 80, "Exotic": 35 }
+      "Cost": { "Budget": 160, "Steel": 80, "PowerCells": 4, "SpecializedAlloys": 18, "RareEarthElements": 6, "Exotic": 0 }
     },
     {
       "Id": "bird_brain",
@@ -361,43 +398,43 @@
       "ImpactCoupling": 1.02,
       "DefenseBonus": -0.03,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 110, "Steel": 40, "Exotic": 15 }
+      "Cost": { "Budget": 110, "Steel": 40, "PowerCells": 3, "SpecializedAlloys": 10, "RareEarthElements": 4, "Exotic": 0 }
     },
     {
       "Id": "g2_05_home_on_jam_logic",
       "Slot": "Guidance",
       "Name": "Home-on-Jam Logic Mk II",
-      "Description": "Doctrine counter: Jamming. ImpactCoupling x1.08; HitTol x1.28; Defense +0.08",
+      "Description": "Doctrine counter: Jamming. ImpactCoupling x1.35; HitTol x1.28; Defense +0.08",
       "HitToleranceBonus": 1.28,
       "Penetration": 0.98,
-      "ImpactCoupling": 1.08,
+      "ImpactCoupling": 1.35,
       "DefenseBonus": 0.08,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 186, "Steel": 103, "Exotic": 21 }
+      "Cost": { "Budget": 186, "Steel": 103, "PowerCells": 4, "SpecializedAlloys": 12, "RareEarthElements": 5, "Exotic": 0 }
     },
     {
       "Id": "g2_06_swarm_classifier",
       "Slot": "Guidance",
       "Name": "Swarm Classifier Mk II",
-      "Description": "Doctrine counter: Swarm. ImpactCoupling x1.12; Pen x0.94; HitTol x1.14",
+      "Description": "Doctrine counter: Swarm. ImpactCoupling x1.45; Pen x0.94; HitTol x1.14",
       "HitToleranceBonus": 1.14,
       "Penetration": 0.94,
-      "ImpactCoupling": 1.12,
+      "ImpactCoupling": 1.45,
       "DefenseBonus": -0.02,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 174, "Steel": 97, "Exotic": 18 }
+      "Cost": { "Budget": 174, "Steel": 97, "PowerCells": 3, "SpecializedAlloys": 11, "RareEarthElements": 4, "Exotic": 0 }
     },
     {
       "Id": "g2_11_reflex_trigger_loop",
       "Slot": "Guidance",
       "Name": "Reflex Trigger Loop Mk II",
-      "Description": "Doctrine counter: Armor. Pen x1.01; ImpactCoupling x1.05; HitTol x1.34; Defense -0.05",
+      "Description": "Doctrine counter: Armor. Pen x1.01; ImpactCoupling x1.35; HitTol x1.34; Defense -0.05",
       "HitToleranceBonus": 1.34,
       "Penetration": 1.01,
-      "ImpactCoupling": 1.05,
+      "ImpactCoupling": 1.35,
       "DefenseBonus": -0.05,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 192, "Steel": 106, "Exotic": 22 }
+      "Cost": { "Budget": 192, "Steel": 106, "PowerCells": 4, "SpecializedAlloys": 13, "RareEarthElements": 5, "Exotic": 0 }
     },
 
     {
@@ -410,19 +447,19 @@
       "ImpactCoupling": 1.0,
       "DefenseBonus": 0.0,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 200, "Steel": 50, "Exotic": 50 }
+      "Cost": { "Budget": 200, "Steel": 50, "PowerCells": 8, "SpecializedAlloys": 16, "RareEarthElements": 6, "AdvancedOre": 18, "Exotic": 0 }
     },
     {
       "Id": "g3_05_home_on_jam_logic",
       "Slot": "Guidance",
       "Name": "Home-on-Jam Logic Mk III",
-      "Description": "Doctrine counter: Jamming. ImpactCoupling x1.14; HitTol x1.38; Defense +0.10",
+      "Description": "Doctrine counter: Jamming. ImpactCoupling x1.60; HitTol x1.38; Defense +0.10",
       "HitToleranceBonus": 1.38,
       "Penetration": 0.98,
-      "ImpactCoupling": 1.14,
+      "ImpactCoupling": 1.60,
       "DefenseBonus": 0.10,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 300, "Steel": 155, "Exotic": 56 }
+      "Cost": { "Budget": 300, "Steel": 155, "PowerCells": 10, "SpecializedAlloys": 18, "RareEarthElements": 7, "AdvancedOre": 20, "Exotic": 0 }
     },
     {
       "Id": "g3_12_intercept_anticipator",
@@ -434,7 +471,7 @@
       "ImpactCoupling": 1.06,
       "DefenseBonus": -0.08,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 294, "Steel": 152, "Exotic": 55 }
+      "Cost": { "Budget": 294, "Steel": 152, "PowerCells": 10, "SpecializedAlloys": 18, "RareEarthElements": 7, "AdvancedOre": 20, "Exotic": 0 }
     },
     {
       "Id": "g3_14_low_observable_tracker",
@@ -446,19 +483,19 @@
       "ImpactCoupling": 1.02,
       "DefenseBonus": 0.18,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 300, "Steel": 155, "Exotic": 56 }
+      "Cost": { "Budget": 300, "Steel": 155, "PowerCells": 10, "SpecializedAlloys": 18, "RareEarthElements": 7, "AdvancedOre": 20, "Exotic": 0 }
     },
     {
       "Id": "g3_19_phase_lead_controller",
       "Slot": "Guidance",
       "Name": "Phase-Lead Controller Mk III",
-      "Description": "Doctrine counter: Swarm. Extreme lead logic. ImpactCoupling x1.18; HitTol x1.65; Defense -0.10",
+      "Description": "Doctrine counter: Swarm. Extreme lead logic. ImpactCoupling x1.80; HitTol x1.65; Defense -0.10",
       "HitToleranceBonus": 1.65,
       "Penetration": 0.99,
-      "ImpactCoupling": 1.18,
+      "ImpactCoupling": 1.80,
       "DefenseBonus": -0.10,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 360, "Steel": 185, "Exotic": 70 }
+      "Cost": { "Budget": 360, "Steel": 185, "PowerCells": 12, "SpecializedAlloys": 22, "RareEarthElements": 8, "AdvancedOre": 25, "Exotic": 0 }
     },
 
     {
@@ -471,7 +508,7 @@
       "ImpactCoupling": 0.95,
       "DefenseBonus": 0.18,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 102, "Steel": 54, "Exotic": 2 }
+      "Cost": { "Budget": 102, "Steel": 54, "PowerCells": 1, "Exotic": 0 }
     },
     {
       "Id": "a1_03_decoy_skin",
@@ -495,7 +532,7 @@
       "ImpactCoupling": 1.0,
       "DefenseBonus": 0.14,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 118, "Steel": 62, "Exotic": 5 }
+      "Cost": { "Budget": 118, "Steel": 62, "PowerCells": 3, "Exotic": 0 }
     },
     {
       "Id": "a1_12_reactive_tiles",
@@ -507,7 +544,7 @@
       "ImpactCoupling": 1.05,
       "DefenseBonus": 0.22,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 128, "Steel": 66, "Exotic": 7 }
+      "Cost": { "Budget": 128, "Steel": 66, "PowerCells": 4, "Exotic": 0 }
     },
     {
       "Id": "a1_15_siege_bracing",
@@ -519,7 +556,7 @@
       "ImpactCoupling": 1.10,
       "DefenseBonus": 0.26,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 134, "Steel": 70, "Exotic": 9 }
+      "Cost": { "Budget": 134, "Steel": 70, "PowerCells": 5, "Exotic": 0 }
     },
 
     {
@@ -532,7 +569,7 @@
       "ImpactCoupling": 0.96,
       "DefenseBonus": 0.28,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 140, "Steel": 60, "Exotic": 30 }
+      "Cost": { "Budget": 140, "Steel": 60, "PowerCells": 4, "SpecializedAlloys": 14, "RareEarthElements": 5, "Exotic": 0 }
     },
     {
       "Id": "a2_01_ablative_wrap",
@@ -544,7 +581,7 @@
       "ImpactCoupling": 0.95,
       "DefenseBonus": 0.24,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 193, "Steel": 106, "Exotic": 22 }
+      "Cost": { "Budget": 193, "Steel": 106, "PowerCells": 4, "SpecializedAlloys": 12, "RareEarthElements": 5, "Exotic": 0 }
     },
     {
       "Id": "a2_08_active_skirts",
@@ -556,7 +593,7 @@
       "ImpactCoupling": 1.0,
       "DefenseBonus": 0.20,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 229, "Steel": 125, "Exotic": 31 }
+      "Cost": { "Budget": 229, "Steel": 125, "PowerCells": 5, "SpecializedAlloys": 16, "RareEarthElements": 6, "Exotic": 0 }
     },
     {
       "Id": "a2_12_reactive_tiles",
@@ -568,7 +605,7 @@
       "ImpactCoupling": 1.08,
       "DefenseBonus": 0.33,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 239, "Steel": 129, "Exotic": 33 }
+      "Cost": { "Budget": 239, "Steel": 129, "PowerCells": 5, "SpecializedAlloys": 18, "RareEarthElements": 7, "Exotic": 0 }
     },
     {
       "Id": "a2_18_ghost_layer",
@@ -580,7 +617,7 @@
       "ImpactCoupling": 1.0,
       "DefenseBonus": 0.40,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 269, "Steel": 144, "Exotic": 39 }
+      "Cost": { "Budget": 269, "Steel": 144, "PowerCells": 6, "SpecializedAlloys": 20, "RareEarthElements": 8, "Exotic": 0 }
     },
 
     {
@@ -593,7 +630,7 @@
       "ImpactCoupling": 0.98,
       "DefenseBonus": 0.12,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 190, "Steel": 170, "Exotic": 40 }
+      "Cost": { "Budget": 190, "Steel": 170, "PowerCells": 10, "SpecializedAlloys": 18, "RareEarthElements": 7, "AdvancedOre": 22, "Exotic": 0 }
     },
     {
       "Id": "hardened",
@@ -605,31 +642,31 @@
       "ImpactCoupling": 1.0,
       "DefenseBonus": 0.50,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 260, "Steel": 120, "Exotic": 60 }
+      "Cost": { "Budget": 260, "Steel": 120, "PowerCells": 12, "SpecializedAlloys": 22, "RareEarthElements": 9, "AdvancedOre": 28, "Exotic": 0 }
     },
     {
       "Id": "a3_12_reactive_tiles",
       "Slot": "Armor",
       "Name": "Reactive Tiles Mk III",
-      "Description": "Doctrine counter: ArmorSiege. Defense +0.45; ImpactCoupling x1.10; Pen x0.93",
+      "Description": "Doctrine counter: ArmorSiege. Defense +0.45; ImpactCoupling x1.60; Pen x0.93",
       "HitToleranceBonus": 0.99,
       "Penetration": 0.93,
-      "ImpactCoupling": 1.10,
+      "ImpactCoupling": 1.60,
       "DefenseBonus": 0.45,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 375, "Steel": 192, "Exotic": 73 }
+      "Cost": { "Budget": 375, "Steel": 192, "PowerCells": 15, "SpecializedAlloys": 25, "RareEarthElements": 10, "AdvancedOre": 34, "Exotic": 0 }
     },
     {
       "Id": "a3_15_siege_bracing",
       "Slot": "Armor",
       "Name": "Siege Bracing Mk III",
-      "Description": "Doctrine counter: Siege. Defense +0.47; ImpactCoupling x1.14; HitTol x0.94",
+      "Description": "Doctrine counter: Siege. Defense +0.47; ImpactCoupling x1.70; HitTol x0.94",
       "HitToleranceBonus": 0.94,
       "Penetration": 0.95,
-      "ImpactCoupling": 1.14,
+      "ImpactCoupling": 1.70,
       "DefenseBonus": 0.47,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 381, "Steel": 196, "Exotic": 75 }
+      "Cost": { "Budget": 381, "Steel": 196, "PowerCells": 15, "SpecializedAlloys": 26, "RareEarthElements": 10, "AdvancedOre": 35, "Exotic": 0 }
     },
     {
       "Id": "a3_18_ghost_layer",
@@ -641,7 +678,7 @@
       "ImpactCoupling": 1.02,
       "DefenseBonus": 0.55,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 407, "Steel": 208, "Exotic": 80 }
+      "Cost": { "Budget": 407, "Steel": 208, "PowerCells": 16, "SpecializedAlloys": 28, "RareEarthElements": 11, "AdvancedOre": 38, "Exotic": 0 }
     },
 
     {
@@ -654,7 +691,7 @@
       "ImpactCoupling": 1.02,
       "DefenseBonus": -0.04,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 80, "Steel": 60, "Exotic": 10 }
+      "Cost": { "Budget": 80, "Steel": 60, "PowerCells": 5, "Exotic": 0 }
     },
     {
       "Id": "p1_02_shaped_liner",
@@ -666,7 +703,7 @@
       "ImpactCoupling": 1.10,
       "DefenseBonus": -0.06,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 139, "Steel": 72, "Exotic": 10 }
+      "Cost": { "Budget": 139, "Steel": 72, "PowerCells": 5, "Exotic": 0 }
     },
     {
       "Id": "p1_04_spall_cone",
@@ -678,7 +715,7 @@
       "ImpactCoupling": 0.95,
       "DefenseBonus": 0.02,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 133, "Steel": 69, "Exotic": 9 }
+      "Cost": { "Budget": 133, "Steel": 69, "PowerCells": 5, "Exotic": 0 }
     },
     {
       "Id": "p1_05_proximity_burst",
@@ -690,7 +727,7 @@
       "ImpactCoupling": 0.90,
       "DefenseBonus": 0.04,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 173, "Steel": 89, "Exotic": 18 }
+      "Cost": { "Budget": 173, "Steel": 89, "PowerCells": 9, "Exotic": 0 }
     },
     {
       "Id": "p1_14_stealth_punisher_tag",
@@ -702,7 +739,7 @@
       "ImpactCoupling": 1.06,
       "DefenseBonus": -0.05,
       "RequiredTechLevel": 1,
-      "Cost": { "Budget": 133, "Steel": 69, "Exotic": 9 }
+      "Cost": { "Budget": 133, "Steel": 69, "PowerCells": 5, "Exotic": 0 }
     },
 
     {
@@ -715,7 +752,7 @@
       "ImpactCoupling": 1.04,
       "DefenseBonus": -0.02,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 210, "Steel": 140, "Exotic": 45 }
+      "Cost": { "Budget": 210, "Steel": 140, "PowerCells": 5, "SpecializedAlloys": 20, "RareEarthElements": 7, "Exotic": 0 }
     },
     {
       "Id": "shaped",
@@ -727,7 +764,7 @@
       "ImpactCoupling": 1.16,
       "DefenseBonus": -0.05,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 150, "Steel": 80, "Exotic": 30 }
+      "Cost": { "Budget": 150, "Steel": 80, "PowerCells": 4, "SpecializedAlloys": 14, "RareEarthElements": 5, "Exotic": 0 }
     },
     {
       "Id": "fragmentation",
@@ -739,7 +776,7 @@
       "ImpactCoupling": 0.92,
       "DefenseBonus": 0.03,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 120, "Steel": 70, "Exotic": 20 }
+      "Cost": { "Budget": 120, "Steel": 70, "PowerCells": 3, "SpecializedAlloys": 10, "RareEarthElements": 4, "Exotic": 0 }
     },
     {
       "Id": "p2_06_standoff_fuse",
@@ -751,7 +788,7 @@
       "ImpactCoupling": 1.12,
       "DefenseBonus": -0.03,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 193, "Steel": 106, "Exotic": 22 }
+      "Cost": { "Budget": 193, "Steel": 106, "PowerCells": 4, "SpecializedAlloys": 12, "RareEarthElements": 5, "Exotic": 0 }
     },
     {
       "Id": "p2_15_maneuver_trap_fuze",
@@ -763,32 +800,32 @@
       "ImpactCoupling": 0.98,
       "DefenseBonus": 0.06,
       "RequiredTechLevel": 2,
-      "Cost": { "Budget": 235, "Steel": 127, "Exotic": 32 }
+      "Cost": { "Budget": 235, "Steel": 127, "PowerCells": 5, "SpecializedAlloys": 15, "RareEarthElements": 6, "Exotic": 0 }
     },
 
     {
       "Id": "coupling_liner",
       "Slot": "Payload",
       "Name": "Coupling Liner",
-      "Description": "Doctrine counter: Kinetics. ImpactCoupling x1.15 (stable conversion).",
+      "Description": "Doctrine counter: Kinetics. ImpactCoupling x1.70 (stable conversion).",
       "HitToleranceBonus": 1.0,
       "Penetration": 1.0,
-      "ImpactCoupling": 1.15,
+      "ImpactCoupling": 1.70,
       "DefenseBonus": 0.0,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 230, "Steel": 160, "Exotic": 55 }
+      "Cost": { "Budget": 230, "Steel": 160, "PowerCells": 12, "SpecializedAlloys": 20, "RareEarthElements": 8, "AdvancedOre": 26, "Exotic": 0 }
     },
     {
       "Id": "p3_02_shaped_liner",
       "Slot": "Payload",
       "Name": "Shaped Liner Mk III",
-      "Description": "Doctrine counter: Siege. Pen x1.42; ImpactCoupling x1.22; HitTol x0.93; Defense -0.06",
+      "Description": "Doctrine counter: Siege. Pen x1.42; ImpactCoupling x1.60; HitTol x0.93; Defense -0.06",
       "HitToleranceBonus": 0.93,
       "Penetration": 1.42,
-      "ImpactCoupling": 1.22,
+      "ImpactCoupling": 1.60,
       "DefenseBonus": -0.06,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 338, "Steel": 174, "Exotic": 65 }
+      "Cost": { "Budget": 338, "Steel": 174, "PowerCells": 14, "SpecializedAlloys": 22, "RareEarthElements": 9, "AdvancedOre": 30, "Exotic": 0 }
     },
     {
       "Id": "p3_12_fragment_lattice",
@@ -800,7 +837,7 @@
       "ImpactCoupling": 0.96,
       "DefenseBonus": 0.06,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 495, "Steel": 252, "Exotic": 100 }
+      "Cost": { "Budget": 495, "Steel": 252, "PowerCells": 20, "SpecializedAlloys": 35, "RareEarthElements": 14, "AdvancedOre": 45, "Exotic": 0 }
     },
     {
       "Id": "p3_14_stealth_punisher_tag",
@@ -812,7 +849,7 @@
       "ImpactCoupling": 1.10,
       "DefenseBonus": -0.03,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 311, "Steel": 160, "Exotic": 59 }
+      "Cost": { "Budget": 311, "Steel": 160, "PowerCells": 15, "SpecializedAlloys": 24, "RareEarthElements": 9, "AdvancedOre": 32, "Exotic": 0 }
     },
     {
       "Id": "p3_16_dense_sandwich",
@@ -824,7 +861,7 @@
       "ImpactCoupling": 1.08,
       "DefenseBonus": -0.05,
       "RequiredTechLevel": 3,
-      "Cost": { "Budget": 369, "Steel": 190, "Exotic": 72 }
+      "Cost": { "Budget": 369, "Steel": 190, "PowerCells": 16, "SpecializedAlloys": 28, "RareEarthElements": 11, "AdvancedOre": 36, "Exotic": 0 }
     }
   ]
 }

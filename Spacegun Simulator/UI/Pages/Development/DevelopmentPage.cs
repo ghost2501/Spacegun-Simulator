@@ -1,6 +1,7 @@
 using Spacegun_Simulator.UI.Theme;
 using Spacegun_Simulator.Ballistics;
 using Spacegun_Simulator.Core;
+using Spacegun_Simulator.Development.Shared;
 using Spacegun_Simulator.Development.Technology;
 
 namespace Spacegun_Simulator.UI.Pages.Development;
@@ -46,9 +47,14 @@ public sealed class DevelopmentPage : PageBase
         var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (DevelopmentPage requires GameState).");
 
         _lines.Add("=== AVAILABLE RESOURCES ===");
-        _lines.Add($"  Budget: {game.AccumulatedResources["Budget"]:F0}");
-        _lines.Add($"  Steel:  {game.AccumulatedResources["Steel"]:F0} tons");
-        _lines.Add($"  Exotic: {game.AccumulatedResources["Exotic"]:F1} units");
+        ResourceCostLedger.EnsureKeys(game.AccumulatedResources);
+        _lines.Add($"  Budget:            {game.AccumulatedResources["Budget"]:F0}");
+        _lines.Add($"  Steel:             {game.AccumulatedResources["Steel"]:F0} tons");
+        _lines.Add($"  Power Cells:       {game.AccumulatedResources["PowerCells"]:F0}");
+        _lines.Add($"  Specialized Alloys:{game.AccumulatedResources["SpecializedAlloys"]:F0}");
+        _lines.Add($"  Rare Earth:        {game.AccumulatedResources["RareEarthElements"]:F0}");
+        _lines.Add($"  Advanced Ore:      {game.AccumulatedResources["AdvancedOre"]:F0}");
+        _lines.Add($"  Exotic:            {game.AccumulatedResources["Exotic"]:F1} units");
         _lines.Add("");
 
         if (!string.IsNullOrWhiteSpace(_message))

@@ -2,6 +2,7 @@ using Spacegun_Simulator.UI.Theme;
 using Spacegun_Simulator.Ballistics;
 using Spacegun_Simulator.Core;
 using Spacegun_Simulator.Development.Projectiles;
+using Spacegun_Simulator.Development.Shared;
 using Spacegun_Simulator.Development.Technology;
 using Spacegun_Simulator.Development.Weapons;
 
@@ -120,12 +121,18 @@ public sealed class ProjectileDevelopmentPage : PageBase
     {
         var game = ui.Game ?? throw new InvalidOperationException("UiContext.Game is null (ProjectileDevelopmentPage requires GameState). ");
 
+		ResourceCostLedger.EnsureKeys(game.AccumulatedResources);
+
         _lines.Clear();
         _optionLineRanges.Clear();
 
-        _lines.Add(Clamp60($"  Budget: {game.AccumulatedResources["Budget"]:F0}"));
-        _lines.Add(Clamp60($"  Steel:  {game.AccumulatedResources["Steel"]:F0} tons"));
-        _lines.Add(Clamp60($"  Exotic: {game.AccumulatedResources["Exotic"]:F1} units"));
+        _lines.Add(Clamp60($"  Budget:            {game.AccumulatedResources["Budget"]:F0}"));
+        _lines.Add(Clamp60($"  Steel:             {game.AccumulatedResources["Steel"]:F0} tons"));
+        _lines.Add(Clamp60($"  Power Cells:       {game.AccumulatedResources["PowerCells"]:F0}"));
+        _lines.Add(Clamp60($"  Specialized Alloys:{game.AccumulatedResources["SpecializedAlloys"]:F0}"));
+        _lines.Add(Clamp60($"  Rare Earth:        {game.AccumulatedResources["RareEarthElements"]:F0}"));
+        _lines.Add(Clamp60($"  Advanced Ore:      {game.AccumulatedResources["AdvancedOre"]:F0}"));
+        _lines.Add(Clamp60($"  Exotic:            {game.AccumulatedResources["Exotic"]:F1} units"));
         _lines.Add(string.Empty);
 
         _lines.Add("=== GUN SPECIFICATIONS ===");
@@ -205,7 +212,7 @@ public sealed class ProjectileDevelopmentPage : PageBase
             _lines.Add(Clamp60($"    Mass: {core.MassKg} kg"));
             _lines.Add(Clamp60($"    Base KE (gun only): {baseKe:N0} MJ"));
             if (opt.Kind == ComponentOptionKind.Offer)
-                _lines.Add(Clamp60($"    Buy Cost: {core.Cost.Budget:F0} Budget, {core.Cost.Steel:F0} Steel, {core.Cost.ExoticMaterials:F0} Exotic"));
+				_lines.Add(Clamp60($"    Buy Cost: {ResourceCostLedger.FormatCost(core.Cost)}"));
             _lines.Add(Clamp60($"    {core.Description}"));
             _lines.Add(string.Empty);
             int end = _lines.Count - 1;
@@ -269,7 +276,7 @@ public sealed class ProjectileDevelopmentPage : PageBase
                 _lines.Add(Clamp60($"    Max Velocity: {maxVelocity:N0} m/s ({maxVelocity / 1000:N0} km/s)"));
                 _lines.Add(Clamp60($"    Max KE: {maxKe:N0} MJ"));
                 if (opt.Kind == ComponentOptionKind.Offer)
-                    _lines.Add(Clamp60($"    Buy Cost: {prop.Cost.Budget:F0} Budget, {prop.Cost.Steel:F0} Steel, {prop.Cost.ExoticMaterials:F0} Exotic"));
+					_lines.Add(Clamp60($"    Buy Cost: {ResourceCostLedger.FormatCost(prop.Cost)}"));
                 _lines.Add(Clamp60($"    {prop.Description}"));
             }
 
@@ -324,7 +331,7 @@ public sealed class ProjectileDevelopmentPage : PageBase
             if (!string.IsNullOrEmpty(bonusText))
                 _lines.Add(Clamp60($"    Bonuses: {bonusText}"));
             if (opt.Kind == ModuleOptionKind.Offer && !enh.IsNone)
-                _lines.Add(Clamp60($"    Buy Cost: {enh.Cost.Budget:F0} Budget, {enh.Cost.Steel:F0} Steel, {enh.Cost.ExoticMaterials:F0} Exotic"));
+				_lines.Add(Clamp60($"    Buy Cost: {ResourceCostLedger.FormatCost(enh.Cost)}"));
             _lines.Add(Clamp60($"    {enh.Description}"));
             _lines.Add(string.Empty);
             int end = _lines.Count - 1;
@@ -353,6 +360,26 @@ public sealed class ProjectileDevelopmentPage : PageBase
                 + _selectedGuidance.Cost.Steel
                 + _selectedPayload.Cost.Steel
                 + _selectedArmor.Cost.Steel,
+			powerCells: _selectedCore.Cost.PowerCells
+				+ _selectedPropulsion.Cost.PowerCells
+				+ _selectedGuidance.Cost.PowerCells
+				+ _selectedPayload.Cost.PowerCells
+				+ _selectedArmor.Cost.PowerCells,
+			specializedAlloys: _selectedCore.Cost.SpecializedAlloys
+				+ _selectedPropulsion.Cost.SpecializedAlloys
+				+ _selectedGuidance.Cost.SpecializedAlloys
+				+ _selectedPayload.Cost.SpecializedAlloys
+				+ _selectedArmor.Cost.SpecializedAlloys,
+			rareEarthElements: _selectedCore.Cost.RareEarthElements
+				+ _selectedPropulsion.Cost.RareEarthElements
+				+ _selectedGuidance.Cost.RareEarthElements
+				+ _selectedPayload.Cost.RareEarthElements
+				+ _selectedArmor.Cost.RareEarthElements,
+			advancedOre: _selectedCore.Cost.AdvancedOre
+				+ _selectedPropulsion.Cost.AdvancedOre
+				+ _selectedGuidance.Cost.AdvancedOre
+				+ _selectedPayload.Cost.AdvancedOre
+				+ _selectedArmor.Cost.AdvancedOre,
             exotic: _selectedCore.Cost.ExoticMaterials
                 + _selectedPropulsion.Cost.ExoticMaterials
                 + _selectedGuidance.Cost.ExoticMaterials
@@ -425,10 +452,7 @@ public sealed class ProjectileDevelopmentPage : PageBase
             _lines.Add("Confirm build? (Y/N)");
         }
 
-        static string FormatCost(Spacegun_Simulator.Development.Shared.ResourceCost cost)
-        {
-            return $"{cost.Budget:F0}B {cost.Steel:F0}St {cost.ExoticMaterials:F0}Ex";
-        }
+		static string FormatCost(Spacegun_Simulator.Development.Shared.ResourceCost cost) => ResourceCostLedger.FormatCost(cost);
     }
 
     private void BuildResultLines(GameState game)
@@ -439,9 +463,13 @@ public sealed class ProjectileDevelopmentPage : PageBase
         _lines.Add(string.Empty);
 
         _lines.Add("Remaining Resources:");
-        _lines.Add(Clamp60($"  Budget: {game.AccumulatedResources["Budget"]:F0}"));
-        _lines.Add(Clamp60($"  Steel:  {game.AccumulatedResources["Steel"]:F0}"));
-        _lines.Add(Clamp60($"  Exotic: {game.AccumulatedResources["Exotic"]:F1}"));
+        _lines.Add(Clamp60($"  Budget:            {game.AccumulatedResources["Budget"]:F0}"));
+        _lines.Add(Clamp60($"  Steel:             {game.AccumulatedResources["Steel"]:F0}"));
+        _lines.Add(Clamp60($"  Power Cells:       {game.AccumulatedResources["PowerCells"]:F0}"));
+        _lines.Add(Clamp60($"  Specialized Alloys:{game.AccumulatedResources["SpecializedAlloys"]:F0}"));
+        _lines.Add(Clamp60($"  Rare Earth:        {game.AccumulatedResources["RareEarthElements"]:F0}"));
+        _lines.Add(Clamp60($"  Advanced Ore:      {game.AccumulatedResources["AdvancedOre"]:F0}"));
+        _lines.Add(Clamp60($"  Exotic:            {game.AccumulatedResources["Exotic"]:F1}"));
         _lines.Add(string.Empty);
 
         _lines.Add("Press any key to go back...");
@@ -744,16 +772,15 @@ public sealed class ProjectileDevelopmentPage : PageBase
 
                 if (opt.Kind == ComponentOptionKind.Offer)
                 {
-                    if (!CanAffordCost(opt.Core.Cost, game.AccumulatedResources))
+					ResourceCostLedger.EnsureKeys(game.AccumulatedResources);
+					if (!ResourceCostLedger.CanAfford(game.AccumulatedResources, opt.Core.Cost))
                     {
                         _inlineMessage = "✗ Cannot afford this core offer.";
                         RebuildLines(ui);
                         return PageResult.Stay;
                     }
 
-                    game.AccumulatedResources["Budget"] -= opt.Core.Cost.Budget;
-                    game.AccumulatedResources["Steel"] -= opt.Core.Cost.Steel;
-                    game.AccumulatedResources["Exotic"] -= opt.Core.Cost.ExoticMaterials;
+					ResourceCostLedger.Spend(game.AccumulatedResources, opt.Core.Cost);
 
                     game.ProjectileModShop.OwnedCoreIds.Add(opt.Core.Id);
                     RemoveCoreOfferId(opt.Core.Id, game);
@@ -799,16 +826,15 @@ public sealed class ProjectileDevelopmentPage : PageBase
 
                 if (opt.Kind == ComponentOptionKind.Offer)
                 {
-                    if (!CanAffordCost(opt.Propulsion.Cost, game.AccumulatedResources))
+					ResourceCostLedger.EnsureKeys(game.AccumulatedResources);
+					if (!ResourceCostLedger.CanAfford(game.AccumulatedResources, opt.Propulsion.Cost))
                     {
                         _inlineMessage = "✗ Cannot afford this propulsion offer.";
                         RebuildLines(ui);
                         return PageResult.Stay;
                     }
 
-                    game.AccumulatedResources["Budget"] -= opt.Propulsion.Cost.Budget;
-                    game.AccumulatedResources["Steel"] -= opt.Propulsion.Cost.Steel;
-                    game.AccumulatedResources["Exotic"] -= opt.Propulsion.Cost.ExoticMaterials;
+					ResourceCostLedger.Spend(game.AccumulatedResources, opt.Propulsion.Cost);
 
                     game.ProjectileModShop.OwnedPropulsionIds.Add(opt.Propulsion.Id);
                     RemovePropulsionOfferId(opt.Propulsion.Id, game);
@@ -863,16 +889,15 @@ public sealed class ProjectileDevelopmentPage : PageBase
                 }
 
                 // Offer: attempt purchase.
-                if (!CanAffordCost(opt.Module.Cost, game.AccumulatedResources))
+				ResourceCostLedger.EnsureKeys(game.AccumulatedResources);
+				if (!ResourceCostLedger.CanAfford(game.AccumulatedResources, opt.Module.Cost))
                 {
                     _inlineMessage = "✗ Cannot afford this module offer.";
                     RebuildLines(ui);
                     return PageResult.Stay;
                 }
 
-                game.AccumulatedResources["Budget"] -= opt.Module.Cost.Budget;
-                game.AccumulatedResources["Steel"] -= opt.Module.Cost.Steel;
-                game.AccumulatedResources["Exotic"] -= opt.Module.Cost.ExoticMaterials;
+				ResourceCostLedger.Spend(game.AccumulatedResources, opt.Module.Cost);
 
                 game.ProjectileModShop.TryAddOwned(slot, opt.Module.Id);
                 RemoveOfferId(slot, opt.Module.Id, game);
@@ -941,12 +966,11 @@ public sealed class ProjectileDevelopmentPage : PageBase
         }
     }
 
-    private static bool CanAffordCost(Spacegun_Simulator.Development.Shared.ResourceCost cost, Dictionary<string, double> resources)
-    {
-        return resources.GetValueOrDefault("Budget", 0) >= cost.Budget
-            && resources.GetValueOrDefault("Steel", 0) >= cost.Steel
-            && resources.GetValueOrDefault("Exotic", 0) >= cost.ExoticMaterials;
-    }
+	private static bool CanAffordCost(Spacegun_Simulator.Development.Shared.ResourceCost cost, Dictionary<string, double> resources)
+	{
+		ResourceCostLedger.EnsureKeys(resources);
+		return ResourceCostLedger.CanAfford(resources, cost);
+	}
 
     private PageResult GoBackToCore()
     {

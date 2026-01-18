@@ -231,6 +231,7 @@ namespace Spacegun_Simulator.Core
             EnsureKey("SpecializedAlloys");
             EnsureKey("RareEarthElements");
             EnsureKey("PowerCells");
+            EnsureKey("AdvancedOre");
             EnsureKey("Exotic");
 
             void EnsureKey(string key)
@@ -946,17 +947,10 @@ namespace Spacegun_Simulator.Core
         {
             var available = TechUnlock.GetAvailableUnlocks(TechTree);
 
-            // Filter by affordability
-            return available.Where(tech =>
-            {
-                double budget = AccumulatedResources.ContainsKey("Budget") ? AccumulatedResources["Budget"] : 0;
-                double steel = AccumulatedResources.ContainsKey("Steel") ? AccumulatedResources["Steel"] : 0;
-                double exotic = AccumulatedResources.ContainsKey("Exotic") ? AccumulatedResources["Exotic"] : 0;
-
-                return budget >= tech.ResearchCost.Budget &&
-                       steel >= tech.ResearchCost.Steel &&
-                       exotic >= tech.ResearchCost.ExoticMaterials;
-            }).ToList();
+			// Filter by affordability
+			return available
+				.Where(tech => TechUnlock.CanAffordResearch(tech, AccumulatedResources))
+				.ToList();
         }
 
         // ====================================================================
@@ -1169,6 +1163,21 @@ namespace Spacegun_Simulator.Core
             if (TechTree?.CurrentLevel != null && TechTree.CurrentLevel.TryGetValue(TechTree.TechType.Projectiles, out int p))
                 projectilesTechLevel = Math.Max(1, p);
 
+            // Safety: ensure we never offer items requiring locked-tier resources.
+            bool CostEligible(ResourceCost cost, int mkTier)
+            {
+                if (!ResourceCostLedger.IsCostAllowedForMkTier(cost, mkTier))
+                    return false;
+                if (TechTree is null)
+                    return false;
+                return ResourceCostLedger.AreAllRequiredResourcesUnlocked(cost, TechTree);
+            }
+
+            bool IsAffordable(ResourceCost cost)
+            {
+                return ResourceCostLedger.CanAfford(AccumulatedResources, cost);
+            }
+
             var rng = CreateDeterministicRng("ProjectileModShop", CurrentWaveNumber);
             ProjectileModShop.ClearOffersForNewWave(CurrentWaveNumber);
 
@@ -1184,41 +1193,174 @@ namespace Spacegun_Simulator.Core
 
             void FillCoreOffers(int count)
             {
-                var eligible = ProjectilesCatalog.Cores
-                    .Where(c => c is not null
-                        && c.RequiredTechLevel == projectilesTechLevel
-                        && !ProjectileModShop.OwnedCoreIds.Contains(c.Id))
-                    .ToList();
+                // Include items at or below current tech.
+                // Prefer current-tech items, but always try to mix in lower-tech options so the
+                // shop doesn't become entirely unaffordable when Tier-3 resources are scarce.
+                var byLevel = new List<ProjectileCore>[projectilesTechLevel + 1];
+                for (int lvl = 0; lvl < byLevel.Length; lvl++)
+                    byLevel[lvl] = new List<ProjectileCore>();
 
-                for (int i = eligible.Count - 1; i > 0; i--)
+                foreach (var c in ProjectilesCatalog.Cores)
                 {
-                    int j = rng.Next(i + 1);
-                    (eligible[i], eligible[j]) = (eligible[j], eligible[i]);
+                    if (c is null) continue;
+                    if (c.RequiredTechLevel > projectilesTechLevel) continue;
+                    if (!CostEligible(c.Cost, c.RequiredTechLevel)) continue;
+                    if (ProjectileModShop.OwnedCoreIds.Contains(c.Id)) continue;
+                    byLevel[c.RequiredTechLevel].Add(c);
                 }
 
-                int take = Math.Min(count, eligible.Count);
-                for (int i = 0; i < take; i++)
-                    ProjectileModShop.CoreOfferIds.Add(eligible[i].Id);
+                for (int lvl = 1; lvl <= projectilesTechLevel; lvl++)
+                    ShuffleInPlace(byLevel[lvl]);
+
+                int needed = count;
+                int minAffordable = Math.Min(1, count);
+                int affordableSelected = 0;
+                int lvlCursor = projectilesTechLevel;
+                while (needed > 0)
+                {
+                    // Walk downward through tiers, selecting at most one from each per pass.
+                    if (lvlCursor < 1)
+                        lvlCursor = projectilesTechLevel;
+
+                    if (byLevel[lvlCursor].Count > 0)
+                    {
+                        int pickIndex = 0;
+                        if (affordableSelected < minAffordable)
+                        {
+                            int idx = byLevel[lvlCursor].FindIndex(x => IsAffordable(x.Cost));
+                            if (idx >= 0)
+                                pickIndex = idx;
+                        }
+
+                        var picked = byLevel[lvlCursor][pickIndex];
+                        ProjectileModShop.CoreOfferIds.Add(picked.Id);
+                        if (IsAffordable(picked.Cost))
+                            affordableSelected++;
+                        byLevel[lvlCursor].RemoveAt(pickIndex);
+                        needed--;
+                    }
+
+                    lvlCursor--;
+
+                    // Bail if nothing remains at any level.
+                    if (needed > 0 && !AnyRemaining(byLevel))
+                        break;
+                }
+
+                // If we still didn't hit affordability target, try to swap in any remaining affordable candidates.
+                while (affordableSelected < minAffordable)
+                {
+                    ProjectileCore? replacement = null;
+                    int replacementLevel = -1;
+                    for (int lvl = 1; lvl <= projectilesTechLevel; lvl++)
+                    {
+                        int idx = byLevel[lvl].FindIndex(x => IsAffordable(x.Cost));
+                        if (idx >= 0)
+                        {
+                            replacement = byLevel[lvl][idx];
+                            replacementLevel = lvl;
+                            byLevel[lvl].RemoveAt(idx);
+                            break;
+                        }
+                    }
+
+                    if (replacement is null)
+                        break;
+
+                    int replaceIndex = ProjectileModShop.CoreOfferIds.FindIndex(id =>
+                    {
+                        var core = ProjectilesCatalog.Cores.FirstOrDefault(c => c is not null && string.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase));
+                        return core is not null && !IsAffordable(core.Cost);
+                    });
+
+                    if (replaceIndex < 0)
+                        break;
+
+                    ProjectileModShop.CoreOfferIds[replaceIndex] = replacement.Id;
+                    affordableSelected++;
+                }
             }
 
             void FillPropulsionOffers(int count)
             {
-                var eligible = ProjectilesCatalog.PropulsionSystems
-                    .Where(p => p is not null
-                        && !string.Equals(p.Id, "none", StringComparison.OrdinalIgnoreCase)
-                        && p.RequiredTechLevel == projectilesTechLevel
-                        && !ProjectileModShop.OwnedPropulsionIds.Contains(p.Id))
-                    .ToList();
+                var byLevel = new List<PropulsionSystem>[projectilesTechLevel + 1];
+                for (int lvl = 0; lvl < byLevel.Length; lvl++)
+                    byLevel[lvl] = new List<PropulsionSystem>();
 
-                for (int i = eligible.Count - 1; i > 0; i--)
+                foreach (var p in ProjectilesCatalog.PropulsionSystems)
                 {
-                    int j = rng.Next(i + 1);
-                    (eligible[i], eligible[j]) = (eligible[j], eligible[i]);
+                    if (p is null) continue;
+                    if (string.Equals(p.Id, "none", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (p.RequiredTechLevel > projectilesTechLevel) continue;
+                    if (!CostEligible(p.Cost, p.RequiredTechLevel)) continue;
+                    if (ProjectileModShop.OwnedPropulsionIds.Contains(p.Id)) continue;
+                    byLevel[p.RequiredTechLevel].Add(p);
                 }
 
-                int take = Math.Min(count, eligible.Count);
-                for (int i = 0; i < take; i++)
-                    ProjectileModShop.PropulsionOfferIds.Add(eligible[i].Id);
+                for (int lvl = 1; lvl <= projectilesTechLevel; lvl++)
+                    ShuffleInPlace(byLevel[lvl]);
+
+                int needed = count;
+                int minAffordable = Math.Min(1, count);
+                int affordableSelected = 0;
+                int lvlCursor = projectilesTechLevel;
+                while (needed > 0)
+                {
+                    if (lvlCursor < 1)
+                        lvlCursor = projectilesTechLevel;
+
+                    if (byLevel[lvlCursor].Count > 0)
+                    {
+                        int pickIndex = 0;
+                        if (affordableSelected < minAffordable)
+                        {
+                            int idx = byLevel[lvlCursor].FindIndex(x => IsAffordable(x.Cost));
+                            if (idx >= 0)
+                                pickIndex = idx;
+                        }
+
+                        var picked = byLevel[lvlCursor][pickIndex];
+                        ProjectileModShop.PropulsionOfferIds.Add(picked.Id);
+                        if (IsAffordable(picked.Cost))
+                            affordableSelected++;
+                        byLevel[lvlCursor].RemoveAt(pickIndex);
+                        needed--;
+                    }
+
+                    lvlCursor--;
+                    if (needed > 0 && !AnyRemaining(byLevel))
+                        break;
+                }
+
+                while (affordableSelected < minAffordable)
+                {
+                    PropulsionSystem? replacement = null;
+                    for (int lvl = 1; lvl <= projectilesTechLevel; lvl++)
+                    {
+                        int idx = byLevel[lvl].FindIndex(x => IsAffordable(x.Cost));
+                        if (idx >= 0)
+                        {
+                            replacement = byLevel[lvl][idx];
+                            byLevel[lvl].RemoveAt(idx);
+                            break;
+                        }
+                    }
+
+                    if (replacement is null)
+                        break;
+
+                    int replaceIndex = ProjectileModShop.PropulsionOfferIds.FindIndex(id =>
+                    {
+                        var prop = ProjectilesCatalog.PropulsionSystems.FirstOrDefault(p => p is not null && string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase));
+                        return prop is not null && !IsAffordable(prop.Cost);
+                    });
+
+                    if (replaceIndex < 0)
+                        break;
+
+                    ProjectileModShop.PropulsionOfferIds[replaceIndex] = replacement.Id;
+                    affordableSelected++;
+                }
             }
 
             void FillOffersForSlot(
@@ -1226,24 +1368,104 @@ namespace Spacegun_Simulator.Core
                 List<string> offers,
                 HashSet<string> owned)
             {
-                var eligible = ProjectilesCatalog.Enhancements
-                    .Where(e => e is not null
-                        && e.Slot == slot
-                        && !e.IsNone
-                        && e.RequiredTechLevel == projectilesTechLevel
-                        && !owned.Contains(e.Id))
-                    .ToList();
+                var byLevel = new List<ProjectileEnhancement>[projectilesTechLevel + 1];
+                for (int lvl = 0; lvl < byLevel.Length; lvl++)
+                    byLevel[lvl] = new List<ProjectileEnhancement>();
 
-                // Deterministic Fisher-Yates shuffle using the per-wave shop RNG.
-                for (int i = eligible.Count - 1; i > 0; i--)
+                foreach (var e in ProjectilesCatalog.Enhancements)
                 {
-                    int j = rng.Next(i + 1);
-                    (eligible[i], eligible[j]) = (eligible[j], eligible[i]);
+                    if (e is null) continue;
+                    if (e.Slot != slot) continue;
+                    if (e.IsNone) continue;
+                    if (e.RequiredTechLevel > projectilesTechLevel) continue;
+                    if (!CostEligible(e.Cost, e.RequiredTechLevel)) continue;
+                    if (owned.Contains(e.Id)) continue;
+                    byLevel[e.RequiredTechLevel].Add(e);
                 }
 
-                int take = Math.Min(offersPerSlot, eligible.Count);
-                for (int i = 0; i < take; i++)
-                    offers.Add(eligible[i].Id);
+                for (int lvl = 1; lvl <= projectilesTechLevel; lvl++)
+                    ShuffleInPlace(byLevel[lvl]);
+
+                int needed = offersPerSlot;
+                int minAffordable = 1;
+                int affordableSelected = 0;
+                int lvlCursor = projectilesTechLevel;
+                while (needed > 0)
+                {
+                    if (lvlCursor < 1)
+                        lvlCursor = projectilesTechLevel;
+
+                    if (byLevel[lvlCursor].Count > 0)
+                    {
+                        int pickIndex = 0;
+                        if (affordableSelected < minAffordable)
+                        {
+                            int idx = byLevel[lvlCursor].FindIndex(x => IsAffordable(x.Cost));
+                            if (idx >= 0)
+                                pickIndex = idx;
+                        }
+
+                        var picked = byLevel[lvlCursor][pickIndex];
+                        offers.Add(picked.Id);
+                        if (IsAffordable(picked.Cost))
+                            affordableSelected++;
+                        byLevel[lvlCursor].RemoveAt(pickIndex);
+                        needed--;
+                    }
+
+                    lvlCursor--;
+                    if (needed > 0 && !AnyRemaining(byLevel))
+                        break;
+                }
+
+                while (affordableSelected < minAffordable)
+                {
+                    ProjectileEnhancement? replacement = null;
+                    for (int lvl = 1; lvl <= projectilesTechLevel; lvl++)
+                    {
+                        int idx = byLevel[lvl].FindIndex(x => IsAffordable(x.Cost));
+                        if (idx >= 0)
+                        {
+                            replacement = byLevel[lvl][idx];
+                            byLevel[lvl].RemoveAt(idx);
+                            break;
+                        }
+                    }
+
+                    if (replacement is null)
+                        break;
+
+                    int replaceIndex = offers.FindIndex(id =>
+                    {
+                        var enh = ProjectilesCatalog.Enhancements.FirstOrDefault(e => e is not null && string.Equals(e.Id, id, StringComparison.OrdinalIgnoreCase));
+                        return enh is not null && !IsAffordable(enh.Cost);
+                    });
+
+                    if (replaceIndex < 0)
+                        break;
+
+                    offers[replaceIndex] = replacement.Id;
+                    affordableSelected++;
+                }
+            }
+
+            bool AnyRemaining<T>(List<T>[] byLevel)
+            {
+                for (int lvl = 1; lvl < byLevel.Length; lvl++)
+                {
+                    if (byLevel[lvl].Count > 0)
+                        return true;
+                }
+                return false;
+            }
+
+            void ShuffleInPlace<T>(List<T> list)
+            {
+                for (int i = list.Count - 1; i > 0; i--)
+                {
+                    int j = rng.Next(i + 1);
+                    (list[i], list[j]) = (list[j], list[i]);
+                }
             }
         }
 

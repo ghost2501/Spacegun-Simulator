@@ -107,14 +107,38 @@ namespace Spacegun_Simulator.Core
         public int Steel { get; set; }
         public int Exotic { get; set; }
 
+        public int PowerCells { get; set; }
+        public int SpecializedAlloys { get; set; }
+        public int RareEarthElements { get; set; }
+        public int AdvancedOre { get; set; }
+
         [JsonConstructor]
-        public ResourceCostConfig(int budget, int steel, int exotic)
+        public ResourceCostConfig(
+            int budget = 0,
+            int steel = 0,
+            int exotic = 0,
+            int powerCells = 0,
+            int specializedAlloys = 0,
+            int rareEarthElements = 0,
+            int advancedOre = 0)
         {
             Budget = budget;
             Steel = steel;
             Exotic = exotic;
+
+            PowerCells = powerCells;
+            SpecializedAlloys = specializedAlloys;
+            RareEarthElements = rareEarthElements;
+            AdvancedOre = advancedOre;
         }
 
-        public Spacegun_Simulator.Development.Shared.ResourceCost ToResourceCost() => new(Budget, Steel, Exotic);
+        public Spacegun_Simulator.Development.Shared.ResourceCost ToResourceCost() => new(
+            budget: Budget,
+            steel: Steel,
+            powerCells: PowerCells,
+            specializedAlloys: SpecializedAlloys,
+            rareEarthElements: RareEarthElements,
+            advancedOre: AdvancedOre,
+            exotic: Exotic);
     }
 }

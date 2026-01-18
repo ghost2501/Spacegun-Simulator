@@ -256,6 +256,10 @@ namespace Spacegun_Simulator.Development.Projectiles
         public ResourceCost TotalCost => new(
             budget: Core.Cost.Budget + Propulsion.Cost.Budget + GuidanceModule.Cost.Budget + PayloadModule.Cost.Budget + ArmorModule.Cost.Budget,
             steel: Core.Cost.Steel + Propulsion.Cost.Steel + GuidanceModule.Cost.Steel + PayloadModule.Cost.Steel + ArmorModule.Cost.Steel,
+            powerCells: Core.Cost.PowerCells + Propulsion.Cost.PowerCells + GuidanceModule.Cost.PowerCells + PayloadModule.Cost.PowerCells + ArmorModule.Cost.PowerCells,
+            specializedAlloys: Core.Cost.SpecializedAlloys + Propulsion.Cost.SpecializedAlloys + GuidanceModule.Cost.SpecializedAlloys + PayloadModule.Cost.SpecializedAlloys + ArmorModule.Cost.SpecializedAlloys,
+            rareEarthElements: Core.Cost.RareEarthElements + Propulsion.Cost.RareEarthElements + GuidanceModule.Cost.RareEarthElements + PayloadModule.Cost.RareEarthElements + ArmorModule.Cost.RareEarthElements,
+            advancedOre: Core.Cost.AdvancedOre + Propulsion.Cost.AdvancedOre + GuidanceModule.Cost.AdvancedOre + PayloadModule.Cost.AdvancedOre + ArmorModule.Cost.AdvancedOre,
             exotic: Core.Cost.ExoticMaterials + Propulsion.Cost.ExoticMaterials + GuidanceModule.Cost.ExoticMaterials + PayloadModule.Cost.ExoticMaterials + ArmorModule.Cost.ExoticMaterials
         );
 
@@ -349,10 +353,9 @@ namespace Spacegun_Simulator.Development.Projectiles
         /// </summary>
         public static bool CanAfford(CraftedProjectile projectile, Dictionary<string, double> accumulatedResources)
         {
-            var cost = projectile.TotalCost;
-            return accumulatedResources.GetValueOrDefault("Budget", 0) >= cost.Budget &&
-                   accumulatedResources.GetValueOrDefault("Steel", 0) >= cost.Steel &&
-                   accumulatedResources.GetValueOrDefault("Exotic", 0) >= cost.ExoticMaterials;
+			var cost = projectile.TotalCost;
+			ResourceCostLedger.EnsureKeys(accumulatedResources);
+			return ResourceCostLedger.CanAfford(accumulatedResources, cost);
         }
     }
 }

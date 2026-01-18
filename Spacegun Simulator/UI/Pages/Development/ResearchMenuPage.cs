@@ -1,5 +1,6 @@
 ﻿using Spacegun_Simulator.UI.Theme;
 using Spacegun_Simulator.Core;
+using Spacegun_Simulator.Development.Shared;
 using Spacegun_Simulator.Development.Technology;
 
 namespace Spacegun_Simulator.UI.Pages.Development;
@@ -68,7 +69,7 @@ public sealed class ResearchMenuPage : PageBase
 
 			_lines.Add($"{affordMark} {selectMark} [{i + 1}] {unlock.TechType} ({unlock.FromLevel} → {unlock.ToLevel})");
 			_lines.Add($"    {unlock.Description}");
-			_lines.Add($"    Cost: {unlock.ResearchCost.Budget:F0} Budget, {unlock.ResearchCost.Steel:F0} Steel, {unlock.ResearchCost.ExoticMaterials:F0} Exotic");
+			_lines.Add($"    Cost: {ResourceCostLedger.FormatCost(unlock.ResearchCost)}");
 			_lines.Add("");
 
 			int endLineExclusive = _lines.Count;

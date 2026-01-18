@@ -89,8 +89,10 @@ namespace Spacegun_Simulator.Core
                 TierEnemyDensityKgM3Max: [6_000.0, 8_000.0, 10_000.0, 15_000.0, 20_000.0],
 
                 // Bulk modulus range drives the derived fracture energy model.
-                TierEnemyBulkModulusGpaMin: [200.0, 250.0, 300.0, 350.0, 400.0],
-                TierEnemyBulkModulusGpaMax: [220.0, 280.0, 320.0, 380.0, 420.0],
+                // NOTE: tuned to make unmodded shots fall off earlier (Tier 1+),
+                // while keeping Tier 0 reliably solvable.
+                TierEnemyBulkModulusGpaMin: [200.0, 650.0, 1600.0, 1750.0, 1600.0],
+                TierEnemyBulkModulusGpaMax: [220.0, 760.0, 1800.0, 2000.0, 1850.0],
 
                 // Fracture strain used in E ~= 1/2 K eps^2 V.
                 // Raised so KE gating remains meaningful at high muzzle velocities.

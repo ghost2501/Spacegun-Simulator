@@ -27,6 +27,10 @@
       "properties": {
         "Budget": { "type": "number", "minimum": 0 },
         "Steel": { "type": "number", "minimum": 0 },
+        "PowerCells": { "type": "number", "minimum": 0 },
+        "SpecializedAlloys": { "type": "number", "minimum": 0 },
+        "RareEarthElements": { "type": "number", "minimum": 0 },
+        "AdvancedOre": { "type": "number", "minimum": 0 },
         "Exotic": { "type": "number", "minimum": 0 }
       }
     },

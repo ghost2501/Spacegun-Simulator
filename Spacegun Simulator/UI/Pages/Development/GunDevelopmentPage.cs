@@ -131,6 +131,14 @@ public sealed class GunDevelopmentPage : PageBase
                     continue;
             }
 
+			// Store correctness: never show upgrades that require currently-locked resources.
+			// Tier is inferred from the upgrade's min tech gating (defaults to MKI).
+			int mkTier = Math.Max(def.MinWeaponsTechLevel ?? 1, def.MinProjectilesTechLevel ?? 1);
+			if (!ResourceCostLedger.IsCostAllowedForMkTier(def.Cost, mkTier))
+				continue;
+			if (!ResourceCostLedger.AreAllRequiredResourcesUnlocked(def.Cost, game.TechTree))
+				continue;
+
             _upgrades.Add(new UpgradeOption(
                 Name: def.Name,
                 Description: def.Description,
@@ -289,10 +297,16 @@ public sealed class GunDevelopmentPage : PageBase
         _lines.Clear();
         _upgradeLineRanges.Clear();
 
+		ResourceCostLedger.EnsureKeys(game.AccumulatedResources);
+
         _lines.Add("=== AVAILABLE RESOURCES ===");
-        _lines.Add($"  Budget: {game.AccumulatedResources["Budget"]:F0}");
-        _lines.Add($"  Steel:  {game.AccumulatedResources["Steel"]:F0} tons");
-        _lines.Add($"  Exotic: {game.AccumulatedResources["Exotic"]:F1} units");
+        _lines.Add($"  Budget:            {game.AccumulatedResources["Budget"]:F0}");
+        _lines.Add($"  Steel:             {game.AccumulatedResources["Steel"]:F0} tons");
+        _lines.Add($"  Power Cells:        {game.AccumulatedResources["PowerCells"]:F0}");
+        _lines.Add($"  Specialized Alloys: {game.AccumulatedResources["SpecializedAlloys"]:F0}");
+        _lines.Add($"  Rare Earth:         {game.AccumulatedResources["RareEarthElements"]:F0}");
+        _lines.Add($"  Advanced Ore:       {game.AccumulatedResources["AdvancedOre"]:F0}");
+        _lines.Add($"  Exotic:             {game.AccumulatedResources["Exotic"]:F1} units");
         _lines.Add(string.Empty);
 
         int weaponsTech = game.TechTree.CurrentLevel[TechTree.TechType.Weapons];
@@ -341,14 +355,14 @@ public sealed class GunDevelopmentPage : PageBase
         for (int i = 0; i < _upgrades.Count; i++)
         {
             var up = _upgrades[i];
-            bool canAfford = CanAfford(game, up.Cost);
+			bool canAfford = ResourceCostLedger.CanAfford(game.AccumulatedResources, up.Cost);
             string affordMark = canAfford ? "✓" : "✗";
             string cursor = i == _selectedIndex ? ">" : " ";
 
             int start = _lines.Count;
             _lines.Add($"{cursor} [{i + 1}] {affordMark} {up.Name}");
             _lines.Add($"    {up.Description}");
-            _lines.Add($"    Cost: {up.Cost.Budget:F0} Budget, {up.Cost.Steel:F0} Steel, {up.Cost.ExoticMaterials:F0} Exotic");
+			_lines.Add($"    Cost: {ResourceCostLedger.FormatCost(up.Cost)}");
             _lines.Add(string.Empty);
             int endExclusive = _lines.Count;
 
@@ -385,14 +399,16 @@ public sealed class GunDevelopmentPage : PageBase
     {
         var up = _upgrades[Math.Clamp(_selectedIndex, 0, Math.Max(0, _upgrades.Count - 1))];
 
+		ResourceCostLedger.EnsureKeys(game.AccumulatedResources);
+
         ui.WriteLine("=== CONFIRM UPGRADE ===");
         ui.WriteLine();
         ui.WriteLine($"Apply: {up.Name}");
         ui.WriteLine($"  {up.Description}");
-        ui.WriteLine($"Cost: {up.Cost.Budget:F0} Budget, {up.Cost.Steel:F0} Steel, {up.Cost.ExoticMaterials:F0} Exotic");
+		ui.WriteLine($"Cost: {ResourceCostLedger.FormatCost(up.Cost)}");
         ui.WriteLine();
 
-        if (!CanAfford(game, up.Cost))
+		if (!ResourceCostLedger.CanAfford(game.AccumulatedResources, up.Cost))
         {
             ui.WriteLine("✗ Cannot afford this upgrade.");
             ui.WriteLine();
@@ -479,8 +495,10 @@ public sealed class GunDevelopmentPage : PageBase
 
         var up = _upgrades[Math.Clamp(_selectedIndex, 0, _upgrades.Count - 1)];
 
+		ResourceCostLedger.EnsureKeys(game.AccumulatedResources);
+
         // If unaffordable, any key returns to list.
-        if (!CanAfford(game, up.Cost))
+		if (!ResourceCostLedger.CanAfford(game.AccumulatedResources, up.Cost))
         {
             _mode = Mode.List;
             return PageResult.Stay;
@@ -488,10 +506,7 @@ public sealed class GunDevelopmentPage : PageBase
 
         if (key.Key == ConsoleKey.Y)
         {
-            // Deduct resources and apply upgrade.
-            game.AccumulatedResources["Budget"] -= up.Cost.Budget;
-            game.AccumulatedResources["Steel"] -= up.Cost.Steel;
-            game.AccumulatedResources["Exotic"] -= up.Cost.ExoticMaterials;
+			ResourceCostLedger.Spend(game.AccumulatedResources, up.Cost);
 
             up.Apply(game);
 
@@ -511,12 +526,5 @@ public sealed class GunDevelopmentPage : PageBase
         }
 
         return PageResult.Stay;
-    }
-
-    private static bool CanAfford(GameState game, ResourceCost cost)
-    {
-        return game.AccumulatedResources["Budget"] >= cost.Budget
-            && game.AccumulatedResources["Steel"] >= cost.Steel
-            && game.AccumulatedResources["Exotic"] >= cost.ExoticMaterials;
     }
 }

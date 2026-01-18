@@ -14,7 +14,7 @@
       "Id": "PropellantOptimization",
       "Name": "Propellant Optimization",
       "Description": "Increase propellant energy density by 20% (material-capped)",
-      "Cost": { "Budget": 350, "Steel": 200, "Exotic": 50 },
+      "Cost": { "Budget": 350, "Steel": 200, "PowerCells": 4, "Exotic": 0 },
       "RequiresPropulsion": "Chemical",
       "Parameters": { "Multiplier": 1.2 }
     },
@@ -23,7 +23,7 @@
       "Id": "PowerCapacitorUpgrade",
       "Name": "Power Capacitor Upgrade",
       "Description": "Increase power capacity by 20%",
-      "Cost": { "Budget": 350, "Steel": 200, "Exotic": 50 },
+      "Cost": { "Budget": 350, "Steel": 200, "PowerCells": 4, "Exotic": 0 },
       "RequiresPropulsion": "NonChemical",
       "Parameters": { "Multiplier": 1.2 }
     },
@@ -32,7 +32,7 @@
       "Id": "BarrelExtension",
       "Name": "Barrel Extension",
       "Description": "Increase barrel length by 10% (improves effective range)",
-      "Cost": { "Budget": 450, "Steel": 350, "Exotic": 70 },
+      "Cost": { "Budget": 450, "Steel": 350, "PowerCells": 5, "Exotic": 0 },
       "Parameters": { "Multiplier": 1.1, "Max": 200.0 }
     },
 
@@ -40,7 +40,7 @@
       "Id": "CeramicLiner",
       "Name": "Ceramic Liner",
       "Description": "Reduce wear moderately",
-      "Cost": { "Budget": 350, "Steel": 250, "Exotic": 70 },
+      "Cost": { "Budget": 350, "Steel": 250, "SpecializedAlloys": 20, "RareEarthElements": 6, "Exotic": 0 },
       "MinWeaponsTechLevel": 2,
       "Parameters": { "WearMultiplier": 0.8 }
     },
@@ -49,7 +49,7 @@
       "Id": "ReinforcedBarrel",
       "Name": "Reinforced Barrel",
       "Description": "Reduce barrel degradation per shot by 40%",
-      "Cost": { "Budget": 500, "Steel": 350, "Exotic": 120 },
+      "Cost": { "Budget": 500, "Steel": 350, "PowerCells": 8, "SpecializedAlloys": 30, "RareEarthElements": 11, "AdvancedOre": 35, "Exotic": 0 },
       "MinWeaponsTechLevel": 3,
       "Prerequisites": ["CeramicLiner"],
       "Parameters": { "WearMultiplier": 0.6 }
@@ -59,7 +59,7 @@
       "Id": "HighTempCoating",
       "Name": "High Temperature Coating",
       "Description": "Reduce heat-driven wear",
-      "Cost": { "Budget": 450, "Steel": 300, "Exotic": 180 },
+      "Cost": { "Budget": 450, "Steel": 300, "PowerCells": 9, "SpecializedAlloys": 34, "RareEarthElements": 12, "AdvancedOre": 40, "Exotic": 0 },
       "MinWeaponsTechLevel": 3,
       "Prerequisites": ["CeramicLiner"],
       "Parameters": { "WearMultiplier": 0.75 }
@@ -69,7 +69,7 @@
       "Id": "GuidanceCalibration",
       "Name": "Guidance Calibration",
       "Description": "Improve guidance to counter enemy maneuverability (+15%)",
-      "Cost": { "Budget": 500, "Steel": 250, "Exotic": 160 },
+      "Cost": { "Budget": 500, "Steel": 250, "PowerCells": 10, "SpecializedAlloys": 32, "RareEarthElements": 12, "AdvancedOre": 38, "Exotic": 0 },
       "MinProjectilesTechLevel": 3,
       "RequiresGuidanceMod": true,
       "Parameters": { "Multiplier": 1.15, "MinInput": 0.1, "Max": 3.0 }
@@ -79,7 +79,7 @@
       "Id": "TrackingComputer",
       "Name": "Tracking Computer",
       "Description": "Transmit tracking data so guidance can follow the target",
-      "Cost": { "Budget": 450, "Steel": 250, "Exotic": 140 },
+      "Cost": { "Budget": 450, "Steel": 250, "SpecializedAlloys": 35, "RareEarthElements": 12, "Exotic": 0 },
       "MinWeaponsTechLevel": 2,
       "MinProjectilesTechLevel": 2,
       "RequiresGuidanceMod": true,
@@ -94,7 +94,7 @@
       "Id": "GuidanceFins",
       "Name": "Guidance Fins",
       "Description": "Improve hit tolerance (+8%) (requires guidance)",
-      "Cost": { "Budget": 420, "Steel": 220, "Exotic": 140 },
+      "Cost": { "Budget": 420, "Steel": 220, "PowerCells": 8, "SpecializedAlloys": 28, "RareEarthElements": 10, "AdvancedOre": 32, "Exotic": 0 },
       "MinProjectilesTechLevel": 3,
       "RequiresGuidanceMod": true,
       "Modifiers": [
@@ -106,7 +106,7 @@
       "Id": "LightweightSabot",
       "Name": "Lightweight Sabot",
       "Description": "Reduce projectile mass by 8% (improves velocity envelope)",
-      "Cost": { "Budget": 380, "Steel": 200, "Exotic": 110 },
+      "Cost": { "Budget": 380, "Steel": 200, "SpecializedAlloys": 28, "RareEarthElements": 10, "Exotic": 0 },
       "MinProjectilesTechLevel": 2,
       "Modifiers": [
         { "Key": "Projectile.MassKg", "Op": "Mul", "Value": 0.92 }
@@ -117,7 +117,7 @@
       "Id": "DensePenetrator",
       "Name": "Dense Penetrator",
       "Description": "Increase penetration (+10%), slightly heavier projectile (+5%)",
-      "Cost": { "Budget": 520, "Steel": 350, "Exotic": 180 },
+      "Cost": { "Budget": 520, "Steel": 350, "SpecializedAlloys": 45, "RareEarthElements": 15, "Exotic": 0 },
       "MinProjectilesTechLevel": 2,
       "Prerequisites": ["LightweightSabot"],
       "Modifiers": [
@@ -129,12 +129,12 @@
     {
       "Id": "CouplingLiner",
       "Name": "Coupling Liner",
-      "Description": "Increase impact coupling (+8%)",
-      "Cost": { "Budget": 600, "Steel": 400, "Exotic": 220 },
-      "MinProjectilesTechLevel": 3,
+      "Description": "Increase impact coupling (+35%)",
+      "Cost": { "Budget": 600, "Steel": 400, "PowerCells": 12, "SpecializedAlloys": 60, "RareEarthElements": 20, "Exotic": 0 },
+      "MinProjectilesTechLevel": 2,
       "Prerequisites": ["DensePenetrator"],
       "Modifiers": [
-        { "Key": "Projectile.ImpactCouplingMult", "Op": "Mul", "Value": 1.08 }
+        { "Key": "Projectile.ImpactCouplingMult", "Op": "Mul", "Value": 1.35 }
       ]
     },
 
@@ -142,11 +142,48 @@
       "Id": "ProjectileArmor",
       "Name": "Projectile Armor",
       "Description": "Increase projectile defense rating (+0.10)",
-      "Cost": { "Budget": 480, "Steel": 420, "Exotic": 160 },
+      "Cost": { "Budget": 480, "Steel": 420, "PowerCells": 9, "SpecializedAlloys": 30, "RareEarthElements": 11, "AdvancedOre": 36, "Exotic": 0 },
       "MinProjectilesTechLevel": 3,
       "Modifiers": [
         { "Key": "Projectile.DefenseRating01", "Op": "Add", "Value": 0.10 },
         { "Key": "Projectile.DefenseRating01", "Op": "ClampMax", "Value": 0.90 }
+      ]
+    },
+
+    {
+      "Id": "LaunchOverclock",
+      "Name": "Launch Overclock",
+      "Description": "Increase max launch velocity (+60%). Increases barrel wear (+35%).",
+      "Cost": { "Budget": 950, "Steel": 650, "PowerCells": 18, "SpecializedAlloys": 70, "RareEarthElements": 24, "AdvancedOre": 60, "Exotic": 0 },
+      "MinWeaponsTechLevel": 3,
+      "Parameters": { "WearMultiplier": 1.35 },
+      "Modifiers": [
+        { "Key": "Shot.MaxLaunchVelocityMs", "Op": "Mul", "Value": 1.6 },
+        { "Key": "Shot.MaxLaunchVelocityMs", "Op": "ClampMin", "Value": 1.0 }
+      ]
+    },
+
+    {
+      "Id": "ChamberPolish",
+      "Name": "Chamber Polish",
+      "Description": "Slightly increase max launch velocity (+10%). Minor additional wear (+5%).",
+      "Cost": { "Budget": 260, "Steel": 180, "Exotic": 0 },
+      "MinWeaponsTechLevel": 1,
+      "Parameters": { "WearMultiplier": 1.05 },
+      "Modifiers": [
+        { "Key": "Shot.MaxLaunchVelocityMs", "Op": "Mul", "Value": 1.10 },
+        { "Key": "Shot.MaxLaunchVelocityMs", "Op": "ClampMin", "Value": 1.0 }
+      ]
+    },
+
+    {
+      "Id": "FractureLiner",
+      "Name": "Fracture Liner",
+      "Description": "Increase effective fracture energy (+15%).",
+      "Cost": { "Budget": 420, "Steel": 260, "PowerCells": 3, "Exotic": 0 },
+      "MinWeaponsTechLevel": 2,
+      "Modifiers": [
+        { "Key": "Shot.EffectiveFractureEnergyMJ", "Op": "Mul", "Value": 1.15 }
       ]
     }
   ]
