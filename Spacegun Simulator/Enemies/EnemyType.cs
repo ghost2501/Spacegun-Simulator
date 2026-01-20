@@ -25,6 +25,12 @@ namespace Spacegun_Simulator.Enemies
         public EnemyArchetype Archetype { get; set; } = null!;
 
         /// <summary>
+        /// A secondary archetype used for campaign variety.
+        /// Waves may occasionally swap to this archetype while keeping the campaign's primary identity.
+        /// </summary>
+        public EnemyArchetype? SecondaryArchetype { get; set; }
+
+        /// <summary>
         /// Custom name generated for this specific enemy type.
         /// </summary>
         public string CustomName { get; set; } = string.Empty;
@@ -64,8 +70,16 @@ namespace Spacegun_Simulator.Enemies
             // Select random base archetype
             var archetype = EnemyArchetypeCatalog.SelectRandom(rng);
 
+            // Select a secondary archetype for additional per-wave variety (best-effort).
+            var secondaryPool = EnemyArchetypeCatalog.CampaignArchetypes
+                .Where(a => a is not null && !string.Equals(a.Id, archetype.Id, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            EnemyArchetype? secondary = secondaryPool.Length > 0 ? secondaryPool[rng.Next(secondaryPool.Length)] : null;
+
+            var primaryDoctrine = EnemyDoctrineCatalog.SelectPrimaryDoctrine(archetype, rng);
+
             // Generate custom name for this enemy type
-            string customName = EnemyNaming.GenerateCampaignName(archetype.Name, rng);
+            string customName = EnemyNaming.GenerateCampaignName(archetype, primaryDoctrine, rng);
 
             string description = GenerateDescription(archetype, customName);
 
@@ -76,7 +90,9 @@ namespace Spacegun_Simulator.Enemies
                 description: description
             );
 
-            enemyType.PrimaryDoctrine = EnemyDoctrineCatalog.SelectPrimaryDoctrine(archetype, rng);
+            enemyType.SecondaryArchetype = secondary;
+
+            enemyType.PrimaryDoctrine = primaryDoctrine;
             return enemyType;
         }
 

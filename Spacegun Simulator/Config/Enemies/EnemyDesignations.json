@@ -23,5 +23,31 @@
   "StealthChanceForLateTiers": 0.3,
 
   "CampaignNamePrefixes": ["Relativistic", "Hypervelocity", "Ablative", "Tungsten", "Osmium", "Guided", "Terminal", "Fragment", "Ballistic", "Kinetic"],
-  "CampaignNameSuffixes": ["Impactor", "Dart", "Slug", "Penetrator", "RKV", "Shard", "Rod", "Bus", "Boulder", "Package"]
+  "CampaignNameSuffixes": ["Impactor", "Dart", "Slug", "Penetrator", "RKV", "Shard", "Rod", "Bus", "Boulder", "Package"],
+
+  "TargetNameIncludeSerial": false,
+
+  "TargetNamePrefixesByDoctrine": {
+    "None": ["Kinetic", "Ballistic", "Terminal"],
+
+    "Kinetics": ["Kinetic", "Ballistic", "Hypervelocity", "Terminal"],
+    "Evasion": ["Evasive", "Skirmisher", "Agile", "Jinking"],
+    "Armor": ["Armored", "Plated", "Reinforced", "Fortified"],
+    "Stealth": ["Stealth", "Low-Observable", "Ghost", "Black"],
+    "Swarm": ["Swarm", "Cluster", "Pack", "Spall"],
+    "Sniper": ["Sniper", "Guided", "Precision", "Relativistic"],
+    "Jamming": ["Jamming", "Noisy", "Decoy", "Scrambler"],
+    "Siege": ["Siege", "Breaker", "Cracker", "Bombard"],
+
+    "StealthEvasion": ["Ghost", "Stealth", "Jinking", "Low-Observable"],
+    "ArmorSiege": ["Fortified", "Reinforced", "Siege", "Breaker"]
+  },
+
+  "TargetNameSuffixesByArchetypeId": {
+    "scout": ["Needle", "Dart", "Shard"],
+    "balanced": ["Slug", "Penetrator", "Impactor"],
+    "titan": ["Boulder", "Mass Driver", "Colossus"],
+    "sniper": ["RKV", "Rod", "Kinetic Vehicle"],
+    "beachball": ["Beachball"]
+  }
 }

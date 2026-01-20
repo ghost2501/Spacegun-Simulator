@@ -30,7 +30,27 @@
     "StealthChanceForLateTiers": { "type": "number", "minimum": 0, "maximum": 1 },
 
     "CampaignNamePrefixes": { "type": "array", "items": { "type": "string", "minLength": 1, "pattern": "\\S" }, "minItems": 1 },
-    "CampaignNameSuffixes": { "type": "array", "items": { "type": "string", "minLength": 1, "pattern": "\\S" }, "minItems": 1 }
+    "CampaignNameSuffixes": { "type": "array", "items": { "type": "string", "minLength": 1, "pattern": "\\S" }, "minItems": 1 },
+
+    "TargetNameIncludeSerial": { "type": "boolean" },
+
+    "TargetNamePrefixesByDoctrine": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "minLength": 1, "pattern": "\\S" },
+        "minItems": 1
+      }
+    },
+
+    "TargetNameSuffixesByArchetypeId": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "minLength": 1, "pattern": "\\S" },
+        "minItems": 1
+      }
+    }
   },
   "required": [
     "TargetCountBase",

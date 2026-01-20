@@ -9,6 +9,7 @@ namespace Spacegun_Simulator.Enemies
         {
             public string Id { get; set; } = string.Empty;
             public string ArchetypeId { get; set; } = string.Empty;
+            public string SecondaryArchetypeId { get; set; } = string.Empty;
             public string CustomName { get; set; } = string.Empty;
             public string Description { get; set; } = string.Empty;
 

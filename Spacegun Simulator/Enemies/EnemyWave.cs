@@ -207,7 +207,26 @@ namespace Spacegun_Simulator.Enemies
             EnemyGenerationRuleset ruleset,
             EnemyType? campaignEnemyType = null)
         {
+            return GenerateWave(waveNumber, rng, ruleset, campaignEnemyType, archetypeRng: null);
+        }
+
+        /// <summary>
+        /// Generate a wave.
+        /// When a campaign enemy type is provided, the campaign archetype remains the primary identity,
+        /// but individual waves may occasionally swap to a different campaign archetype for variety.
+        ///
+        /// Provide a separate <paramref name="archetypeRng"/> to avoid perturbing the main wave RNG.
+        /// </summary>
+        public static EnemyWave GenerateWave(
+            int waveNumber,
+            Random rng,
+            EnemyGenerationRuleset ruleset,
+            EnemyType? campaignEnemyType,
+            Random? archetypeRng)
+        {
             if (rng is null) throw new ArgumentNullException(nameof(rng));
+
+            archetypeRng ??= rng;
 
             // If we have a campaign enemy type (ongoing game), use it
             if (campaignEnemyType != null)
@@ -241,12 +260,66 @@ namespace Spacegun_Simulator.Enemies
                     }
                 }
 
-                return GenerateWaveFromArchetype(waveNumber, campaignEnemyType.Archetype, rng, ruleset, doctrine, source);
+                var waveArchetype = SelectWaveArchetypeForCampaign(campaignEnemyType, tierIndex, archetypeRng, ruleset);
+                return GenerateWaveFromArchetype(waveNumber, waveArchetype, rng, ruleset, doctrine, source);
             }
 
             // Fallback: Generate with random archetype
             var archetype = EnemyArchetypeCatalog.SelectRandom(rng);
             return GenerateWaveFromArchetype(waveNumber, archetype, rng, ruleset, EnemyDoctrine.None, EnemyDoctrineSource.None);
+        }
+
+        private static EnemyArchetype SelectWaveArchetypeForCampaign(
+            EnemyType campaignEnemyType,
+            int tierIndex,
+            Random rng,
+            EnemyGenerationRuleset ruleset)
+        {
+            if (campaignEnemyType is null) throw new ArgumentNullException(nameof(campaignEnemyType));
+            if (rng is null) throw new ArgumentNullException(nameof(rng));
+
+            var primary = campaignEnemyType.Archetype;
+            var secondary = campaignEnemyType.SecondaryArchetype;
+
+            // Pure mode is meant to be legible and predictable: keep the archetype consistent.
+            if (ruleset == EnemyGenerationRuleset.Pure)
+                return primary;
+
+            // Keep wave-1 identity stable, then introduce strong variety.
+            // We bias toward primary+secondary to keep an overall campaign "feel" while avoiding repetition.
+            (double primaryWeight, double secondaryWeight, double wildcardWeight) = tierIndex switch
+            {
+                0 => (1.00, 0.00, 0.00),
+                1 => (0.45, 0.40, 0.15),
+                2 => (0.35, 0.45, 0.20),
+                _ => (0.30, 0.45, 0.25)
+            };
+
+            double roll = rng.NextDouble();
+            double total = primaryWeight + secondaryWeight + wildcardWeight;
+            if (total <= 0.0)
+                return primary;
+            roll *= total;
+
+            if (roll < primaryWeight)
+                return primary;
+            roll -= primaryWeight;
+
+            if (secondary is not null && roll < secondaryWeight)
+                return secondary;
+            roll -= secondaryWeight;
+
+            // Wildcard: choose from all campaign archetypes excluding primary+secondary.
+            var pool = EnemyArchetypeCatalog.CampaignArchetypes
+                .Where(a => a is not null
+                    && !string.Equals(a.Id, primary.Id, StringComparison.OrdinalIgnoreCase)
+                    && (secondary is null || !string.Equals(a.Id, secondary.Id, StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
+
+            if (pool.Length == 0)
+                return secondary ?? primary;
+
+            return pool[rng.Next(pool.Length)];
         }
 
         /// <summary>
@@ -301,7 +374,7 @@ namespace Spacegun_Simulator.Enemies
             wave.AverageVelocity = Math.Clamp(rawVel * doctrineProfile.VelocityMultiplier, enemyMinVel, enemyMaxVel);
 
             // Generate target with stats
-            var target = GenerateTargetFromArchetype(waveNumber, tierIndex, archetype, rng, ruleset, doctrineProfile);
+            var target = GenerateTargetFromArchetype(waveNumber, tierIndex, archetype, rng, ruleset, doctrine, doctrineProfile);
             wave.Targets.Add(target);
 
             // Canonical meaning: CrossSection is radar cross-sectional AREA in m^2.
@@ -335,7 +408,8 @@ namespace Spacegun_Simulator.Enemies
             EnemyArchetype archetype,
             Random rng,
             EnemyGenerationRuleset ruleset,
-            EnemyDoctrineProfile doctrine)
+            EnemyDoctrine doctrine,
+            EnemyDoctrineProfile doctrineProfile)
         {
             if (rng is null) throw new ArgumentNullException(nameof(rng));
 
@@ -366,10 +440,10 @@ namespace Spacegun_Simulator.Enemies
                 offense = rng.NextDouble() * offMax;
 
                 // Apply doctrine multipliers (soft counters).
-                acceleration *= doctrine.AccelerationMultiplier;
-                maneuverability *= doctrine.ManeuverabilityMultiplier;
-                defense *= doctrine.DefenseMultiplier;
-                offense *= doctrine.OffenseMultiplier;
+                acceleration *= doctrineProfile.AccelerationMultiplier;
+                maneuverability *= doctrineProfile.ManeuverabilityMultiplier;
+                defense *= doctrineProfile.DefenseMultiplier;
+                offense *= doctrineProfile.OffenseMultiplier;
 
                 // Keep factors in reasonable bounds.
                 maneuverability = Math.Clamp(maneuverability, 0.0, 1.0);
@@ -431,7 +505,7 @@ namespace Spacegun_Simulator.Enemies
 
             return new EnemyTarget
             {
-                Name = $"{archetype.Name} #{rng.Next(100, 999)}",
+                Name = EnemyNaming.GenerateTargetName(archetype, doctrine, rng),
                 Altitude = 0,
                 Velocity = 0,
                 CrossSection = crossSectionM2,

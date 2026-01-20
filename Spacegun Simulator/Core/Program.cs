@@ -68,6 +68,16 @@ namespace Spacegun_Simulator.Core
                 return;
             }
 
+            // Enemy wave sampling report (headless).
+            // Writes a CSV with N sampled enemies per wave, for all modes x difficulties.
+            if (args.Any(a => string.Equals(a, "--enemy-sample-csv", StringComparison.OrdinalIgnoreCase)
+                           || string.Equals(a, "--enemy-samples-csv", StringComparison.OrdinalIgnoreCase)
+                           || string.Equals(a, "--enemy-wave-sample-csv", StringComparison.OrdinalIgnoreCase)))
+            {
+                RunEnemySampleCsv(args);
+                return;
+            }
+
             // Headless full-campaign simulation.
             // Purpose: quickly test economy + tech progression without manual firing input.
             // Notes:
@@ -1683,6 +1693,215 @@ namespace Spacegun_Simulator.Core
                     return long.MaxValue;
                 return ySteel + yBudget + yExotic;
             }
+        }
+
+        private static void RunEnemySampleCsv(string[] args)
+        {
+            // Match the tuning harness and main game: load config/tuning overrides.
+            GameConfigLoader.LoadIfExists();
+            EnemyConfigLoader.LoadOrThrow();
+            DevelopmentTuningLoader.LoadIfExists();
+            WeaponsTuningLoader.LoadIfExists();
+            WeaponsUpgradesLoader.LoadIfExists();
+            ProjectilesCatalogLoader.LoadIfExists();
+
+            string csvPath = TryParseStringArg(args, "--enemy-sample-csv")
+                          ?? TryParseStringArg(args, "--enemy-samples-csv")
+                          ?? TryParseStringArg(args, "--enemy-wave-sample-csv")
+                          ?? "Releases/EnemySamples_latest.csv";
+
+            int baseSeed = TryParseIntArg(args, "--enemy-sample-seed")
+                        ?? TryParseIntArg(args, "--seed")
+                        ?? 12345;
+
+            int samplesPerWave = TryParseIntArg(args, "--enemy-samples-per-wave")
+                              ?? TryParseIntArg(args, "--enemy-sample-count")
+                              ?? 5;
+            samplesPerWave = Math.Clamp(samplesPerWave, 1, 50);
+
+            int waves = TryParseIntArg(args, "--waves")
+                     ?? TryParseIntArg(args, "--enemy-sample-waves")
+                     ?? GameConstants.TotalWaves;
+            waves = Math.Clamp(waves, 1, GameConstants.TotalWaves);
+
+            // Always overwrite for deterministic reports.
+            try
+            {
+                if (File.Exists(csvPath))
+                    File.Delete(csvPath);
+            }
+            catch { }
+
+            static int DeriveSeed(int seed, GameModeId mode, GameDifficulty difficulty, string purpose, int waveNumber)
+            {
+                unchecked
+                {
+                    uint hash = 2166136261;
+                    void Add(string s)
+                    {
+                        for (int i = 0; i < s.Length; i++)
+                        {
+                            hash ^= s[i];
+                            hash *= 16777619;
+                        }
+                    }
+
+                    Add(seed.ToString());
+                    Add("|");
+                    Add(((int)mode).ToString());
+                    Add("|");
+                    Add(((int)difficulty).ToString());
+                    Add("|");
+                    Add(purpose);
+                    Add("|");
+                    Add(waveNumber.ToString());
+                    return (int)hash;
+                }
+            }
+
+            static string CsvEscape(string s)
+            {
+                if (s is null)
+                    return "";
+                if (s.Contains('"') || s.Contains(',') || s.Contains('\n') || s.Contains('\r'))
+                    return '"' + s.Replace("\"", "\"\"") + '"';
+                return s;
+            }
+
+            static string F(double v) => v.ToString("G17", System.Globalization.CultureInfo.InvariantCulture);
+
+            Console.WriteLine("[ENEMY SAMPLE CSV] writing..." +
+                $" path={csvPath} waves={waves} samplesPerWave={samplesPerWave} seed={baseSeed}");
+
+            using var sw = new StreamWriter(csvPath, append: false, encoding: System.Text.Encoding.UTF8);
+
+            // Header
+            sw.WriteLine(string.Join(",",
+                "ModeId",
+                "Difficulty",
+                "Ruleset",
+                "BaseSeed",
+                "WaveNumber",
+                "TierIndex",
+                "TierWaveIndex",
+                "SampleIndex",
+                "CampaignArchetypeId",
+                "CampaignArchetypeName",
+                "CampaignSecondaryArchetypeId",
+                "CampaignSecondaryArchetypeName",
+                "CampaignPrimaryDoctrine",
+                "WaveArchetypeId",
+                "WaveArchetypeName",
+                "WaveDoctrine",
+                "WaveDoctrineSource",
+                "ThreatCount",
+                "InitialDistanceM",
+                "AverageVelocityMs",
+                "HasStealthCoating",
+                "WaveAvgRcsM2",
+                "ModeRcsMultiplier",
+                "DifficultyRcsMultiplier",
+                "EffectiveRcsM2",
+                "TargetName",
+                "TargetMassTons",
+                "TargetDensityKgM3",
+                "TargetBulkModulusGpa",
+                "TargetFractureEnergyMJ",
+                "TargetCrossSectionM2",
+                "TargetAccelerationMs2",
+                "TargetManeuverability01",
+                "TargetDefense01",
+                "TargetOffense01"
+            ));
+
+            var allModes = Enum.GetValues(typeof(GameModeId)).Cast<GameModeId>().OrderBy(m => (int)m).ToArray();
+            var allDiffs = Enum.GetValues(typeof(GameDifficulty)).Cast<GameDifficulty>().OrderBy(d => (int)d).ToArray();
+
+            foreach (var modeId in allModes)
+            {
+                var modeDef = GameModeCatalog.Get(modeId);
+                var ruleset = GameModeTuning.IsPureMode(modeDef) ? EnemyGenerationRuleset.Pure : EnemyGenerationRuleset.Full;
+                double modeRcsMult = GameModeTuning.Current.GetDetectionRcsMultiplier(modeDef);
+
+                foreach (var diff in allDiffs)
+                {
+                    var diffCfg = DifficultyConfig.GetConfig(diff);
+                    double diffRcsMult = diffCfg.TargetRcsMultiplier;
+
+                    var campaignRng = new Random(DeriveSeed(baseSeed, modeId, diff, "CampaignEnemyType", waveNumber: 0));
+                    var campaignType = EnemyType.GenerateForCampaign(campaignRng);
+
+                    for (int waveNumber = 1; waveNumber <= waves; waveNumber++)
+                    {
+                        var tier = GameConstants.GetTierForWave(waveNumber);
+                        int tierWaveIndex = waveNumber - tier.StartWave + 1;
+
+                        for (int sampleIndex = 1; sampleIndex <= samplesPerWave; sampleIndex++)
+                        {
+                            EnemyWave wave;
+
+                            // Keep behavior aligned with gameplay: tutorial waves are gated by difficulty config.
+                            if (diffCfg.IsTutorialMode)
+                            {
+                                var r = new Random(DeriveSeed(baseSeed, modeId, diff, $"TutorialWaveSample{sampleIndex}", waveNumber));
+                                wave = EnemyWave.GenerateTutorialWave(waveNumber, r);
+                            }
+                            else
+                            {
+                                var waveRng = new Random(DeriveSeed(baseSeed, modeId, diff, $"WaveSample{sampleIndex}", waveNumber));
+                                var archetypeRng = new Random(DeriveSeed(baseSeed, modeId, diff, "WaveArchetype", waveNumber));
+                                wave = EnemyWave.GenerateWave(waveNumber, waveRng, ruleset, campaignType, archetypeRng);
+                            }
+
+                            var target = wave.Targets.FirstOrDefault();
+                            if (target is null)
+                                continue;
+
+                            double effectiveRcs = wave.AverageRadarCrossSection * modeRcsMult * diffRcsMult;
+
+                            sw.WriteLine(string.Join(",",
+                                CsvEscape(modeId.ToString()),
+                                CsvEscape(diff.ToString()),
+                                CsvEscape(ruleset.ToString()),
+                                baseSeed.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                                waveNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                                tier.TierIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                                tierWaveIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                                sampleIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                                CsvEscape(campaignType.Archetype.Id),
+                                CsvEscape(campaignType.Archetype.Name),
+                                CsvEscape(campaignType.SecondaryArchetype?.Id ?? string.Empty),
+                                CsvEscape(campaignType.SecondaryArchetype?.Name ?? string.Empty),
+                                CsvEscape(campaignType.PrimaryDoctrine.ToString()),
+                                CsvEscape(wave.Archetype.Id),
+                                CsvEscape(wave.Archetype.Name),
+                                CsvEscape(wave.Doctrine.ToString()),
+                                CsvEscape(wave.DoctrineSource.ToString()),
+                                wave.ThreatCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                                F(wave.InitialDistance),
+                                F(wave.AverageVelocity),
+                                wave.HasStealthCoating ? "1" : "0",
+                                F(wave.AverageRadarCrossSection),
+                                F(modeRcsMult),
+                                F(diffRcsMult),
+                                F(effectiveRcs),
+                                CsvEscape(target.Name),
+                                F(target.Mass),
+                                F(target.DensityKgM3),
+                                F(target.BulkModulusGpa),
+                                F(target.FractureEnergy),
+                                F(target.CrossSection),
+                                F(target.Acceleration),
+                                F(target.Maneuverability),
+                                F(target.Defense),
+                                F(target.Offense)
+                            ));
+                        }
+                    }
+                }
+            }
+
+            Console.WriteLine($"[ENEMY SAMPLE CSV] done: {csvPath}");
         }
 
         private static (double Steel, double Budget, double Exotic, double AdvancedOre, double PowerCells, double SpecializedAlloys, double RareEarthElements) AutoAllocateAllYears(GameState game)

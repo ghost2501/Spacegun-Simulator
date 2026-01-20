@@ -63,7 +63,12 @@ namespace Spacegun_Simulator.Enemies
             if (cfg.CrossSectionRanges is null || cfg.CrossSectionRanges.Count == 0)
                 throw new InvalidOperationException($"Missing or empty required property 'CrossSectionRanges' in '{relativePath}'.");
 
-            EnemyNaming.ReplaceAll(cfg.CampaignNamePrefixes, cfg.CampaignNameSuffixes);
+            EnemyNaming.ReplaceAll(
+                cfg.CampaignNamePrefixes,
+                cfg.CampaignNameSuffixes,
+                targetNameIncludeSerial: cfg.TargetNameIncludeSerial ?? true,
+                cfg.TargetNamePrefixesByDoctrine,
+                cfg.TargetNameSuffixesByArchetypeId);
 
             var cross = new Dictionary<string, (double Min, double Max)>(StringComparer.OrdinalIgnoreCase);
             foreach (var kvp in cfg.CrossSectionRanges)
@@ -163,6 +168,13 @@ namespace Spacegun_Simulator.Enemies
 
             public string[]? CampaignNamePrefixes { get; set; }
             public string[]? CampaignNameSuffixes { get; set; }
+
+            public bool? TargetNameIncludeSerial { get; set; }
+
+            // Optional: more semantic target naming.
+            // Keys are EnemyDoctrine enum names and EnemyArchetype ids.
+            public Dictionary<string, string[]>? TargetNamePrefixesByDoctrine { get; set; }
+            public Dictionary<string, string[]>? TargetNameSuffixesByArchetypeId { get; set; }
         }
 
         private sealed class EnemyArchetypesConfig
@@ -198,10 +210,55 @@ namespace Spacegun_Simulator.Enemies
         private static string[] _prefixes = Array.Empty<string>();
         private static string[] _suffixes = Array.Empty<string>();
 
-        public static void ReplaceAll(string[]? prefixes, string[]? suffixes)
+        private static Dictionary<string, string[]> _targetPrefixesByDoctrine = new(StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, string[]> _targetSuffixesByArchetypeId = new(StringComparer.OrdinalIgnoreCase);
+
+        private static bool _targetNameIncludeSerial = true;
+
+        public static void ReplaceAll(
+            string[]? prefixes,
+            string[]? suffixes,
+            bool targetNameIncludeSerial,
+            Dictionary<string, string[]>? targetPrefixesByDoctrine,
+            Dictionary<string, string[]>? targetSuffixesByArchetypeId)
         {
             _prefixes = (prefixes ?? Array.Empty<string>()).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
             _suffixes = (suffixes ?? Array.Empty<string>()).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+
+            _targetNameIncludeSerial = targetNameIncludeSerial;
+
+            _targetPrefixesByDoctrine = NormalizePoolMap(targetPrefixesByDoctrine);
+            _targetSuffixesByArchetypeId = NormalizePoolMap(targetSuffixesByArchetypeId);
+        }
+
+        public static void ReplaceAll(string[]? prefixes, string[]? suffixes)
+        {
+            ReplaceAll(prefixes, suffixes, targetNameIncludeSerial: true, targetPrefixesByDoctrine: null, targetSuffixesByArchetypeId: null);
+        }
+
+        private static Dictionary<string, string[]> NormalizePoolMap(Dictionary<string, string[]>? map)
+        {
+            var result = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+            if (map is null)
+                return result;
+
+            foreach (var kvp in map)
+            {
+                if (string.IsNullOrWhiteSpace(kvp.Key))
+                    continue;
+
+                var cleaned = (kvp.Value ?? Array.Empty<string>())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Select(s => s.Trim())
+                    .ToArray();
+
+                if (cleaned.Length == 0)
+                    continue;
+
+                result[kvp.Key.Trim()] = cleaned;
+            }
+
+            return result;
         }
 
         public static string GenerateCampaignName(string archetypeName, Random rng)
@@ -212,6 +269,141 @@ namespace Spacegun_Simulator.Enemies
                 throw new InvalidOperationException("Enemy naming pools not loaded. Ensure EnemyConfigLoader.LoadOrThrow() is called during startup.");
 
             return $"{archetypeName}-Class {_prefixes[rng.Next(_prefixes.Length)]} {_suffixes[rng.Next(_suffixes.Length)]}";
+        }
+
+        public static string GenerateCampaignName(EnemyArchetype archetype, EnemyDoctrine doctrine, Random rng)
+        {
+            if (rng is null) throw new ArgumentNullException(nameof(rng));
+            if (archetype is null) throw new ArgumentNullException(nameof(archetype));
+
+            if (_prefixes.Length == 0 || _suffixes.Length == 0)
+                throw new InvalidOperationException("Enemy naming pools not loaded. Ensure EnemyConfigLoader.LoadOrThrow() is called during startup.");
+
+            static string Norm(string s) => (s ?? string.Empty).Trim().ToLowerInvariant();
+
+            string PickNonMatching(string[] pool, string? not1, string? not2)
+            {
+                if (pool.Length == 0)
+                    return string.Empty;
+
+                for (int tries = 0; tries < 12; tries++)
+                {
+                    string candidate = pool[rng.Next(pool.Length)];
+                    string c = Norm(candidate);
+                    if (!string.IsNullOrWhiteSpace(c)
+                        && c != not1
+                        && c != not2)
+                        return candidate.Trim();
+                }
+
+                return (pool[rng.Next(pool.Length)] ?? string.Empty).Trim();
+            }
+
+            // Prefer semantic pools if configured; otherwise fall back to the legacy campaign pools.
+            string doctrineKey = doctrine.ToString();
+            string[] prefixPool = _targetPrefixesByDoctrine.TryGetValue(doctrineKey, out var dp)
+                ? dp
+                : _prefixes;
+
+            string[] suffixPool = _targetSuffixesByArchetypeId.TryGetValue(archetype.Id, out var ap)
+                ? ap
+                : _suffixes;
+
+            string prefix = PickNonMatching(prefixPool, not1: null, not2: null);
+            string p = Norm(prefix);
+            string suffix = PickNonMatching(suffixPool, not1: null, not2: p);
+            string s = Norm(suffix);
+
+            string callSign = string.IsNullOrWhiteSpace(prefix)
+                ? suffix
+                : (string.IsNullOrWhiteSpace(suffix) || s == p)
+                    ? prefix
+                    : $"{prefix} {suffix}";
+
+            if (string.IsNullOrWhiteSpace(callSign))
+                callSign = $"{_prefixes[rng.Next(_prefixes.Length)]} {_suffixes[rng.Next(_suffixes.Length)]}";
+
+            return $"{archetype.Name}-Class {callSign}";
+        }
+
+        public static string GenerateTargetName(EnemyArchetype archetype, EnemyDoctrine doctrine, Random rng)
+        {
+            if (rng is null) throw new ArgumentNullException(nameof(rng));
+
+            if (archetype is null) throw new ArgumentNullException(nameof(archetype));
+
+            // Best-effort: if naming pools aren't loaded (tests/partial harness), fall back safely.
+            if (_prefixes.Length == 0 || _suffixes.Length == 0)
+            {
+                int serialFallback = rng.Next(100, 999);
+                return _targetNameIncludeSerial
+                    ? $"{archetype.Name} #{serialFallback}"
+                    : archetype.Name;
+            }
+
+            static string Norm(string s) => (s ?? string.Empty).Trim().ToLowerInvariant();
+
+            string PickNonMatching(string[] pool, string? not1, string? not2)
+            {
+                if (pool.Length == 0)
+                    return string.Empty;
+
+                // Try a few times to avoid collisions while staying deterministic.
+                // (If the pool is small, we may still end up with collisions.)
+                for (int tries = 0; tries < 12; tries++)
+                {
+                    string candidate = pool[rng.Next(pool.Length)];
+                    string c = Norm(candidate);
+                    if (!string.IsNullOrWhiteSpace(c)
+                        && c != not1
+                        && c != not2)
+                        return candidate.Trim();
+                }
+
+                // Fallback: accept whatever the RNG gives us.
+                return (pool[rng.Next(pool.Length)] ?? string.Empty).Trim();
+            }
+
+            string doctrineKey = doctrine.ToString();
+            string[] prefixPool = _targetPrefixesByDoctrine.TryGetValue(doctrineKey, out var dp)
+                ? dp
+                : _prefixes;
+
+            string[] suffixPool = _targetSuffixesByArchetypeId.TryGetValue(archetype.Id, out var ap)
+                ? ap
+                : _suffixes;
+
+            // Avoid nonsensical collisions if pools overlap.
+            // (We don't have a designation anymore, so we only avoid prefix==suffix.)
+
+            string prefix = PickNonMatching(prefixPool, not1: null, not2: null);
+            string p = Norm(prefix);
+            string suffix = PickNonMatching(suffixPool, not1: null, not2: p);
+            string s = Norm(suffix);
+
+            // If the pools are very small, we may still collide; de-dup gracefully.
+            string callSign = string.IsNullOrWhiteSpace(prefix)
+                ? suffix
+                : (string.IsNullOrWhiteSpace(suffix) || s == p)
+                    ? prefix
+                    : $"{prefix} {suffix}";
+
+            // The name itself should be indicative of the challenge:
+            // prefix implies doctrine, suffix implies archetype.
+            // Example: "Stealth Needle #517" or "Siege Boulder #517"
+            // Always consume the serial RNG draw to preserve determinism for any later uses of this RNG.
+            int serial = rng.Next(100, 999);
+
+            if (_targetNameIncludeSerial)
+            {
+                return string.IsNullOrWhiteSpace(callSign)
+                    ? $"{archetype.Name} #{serial}"
+                    : $"{callSign} #{serial}";
+            }
+
+            return string.IsNullOrWhiteSpace(callSign)
+                ? archetype.Name
+                : callSign;
         }
     }
 }

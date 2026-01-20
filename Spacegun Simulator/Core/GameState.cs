@@ -219,6 +219,7 @@ namespace Spacegun_Simulator.Core
         }
 
         private Random CreateWaveRng(int waveNumber) => CreateDeterministicRng("Wave", waveNumber);
+        private Random CreateWaveArchetypeRng(int waveNumber) => CreateDeterministicRng("WaveArchetype", waveNumber);
         private Random CreateEventRng(int waveNumber) => CreateDeterministicRng("Event", waveNumber);
 
         private void InitializeResourceAccumulation(bool reset = true)
@@ -314,7 +315,12 @@ namespace Spacegun_Simulator.Core
                 var preGenProblem = PreGeneratedWaves[CurrentWaveIndex];
 
                 // Generate wave data for display (detection stats), but use cached trajectory
-                CurrentWave = EnemyWave.GenerateWave(CurrentWaveNumber, CreateWaveRng(CurrentWaveNumber), enemyRuleset, CampaignEnemyType);
+                CurrentWave = EnemyWave.GenerateWave(
+                    CurrentWaveNumber,
+                    CreateWaveRng(CurrentWaveNumber),
+                    enemyRuleset,
+                    CampaignEnemyType,
+                    CreateWaveArchetypeRng(CurrentWaveNumber));
                 CurrentWave.Targets = CurrentWave.Targets.Take(1).ToList();
 
                 // Apply pre-generated trajectory data to ensure consistency
@@ -336,7 +342,12 @@ namespace Spacegun_Simulator.Core
             else
             {
                 // Fallback: Generate wave fresh (for testing or if pre-generation was skipped)
-                CurrentWave = EnemyWave.GenerateWave(CurrentWaveNumber, CreateWaveRng(CurrentWaveNumber), enemyRuleset, CampaignEnemyType);
+                CurrentWave = EnemyWave.GenerateWave(
+                    CurrentWaveNumber,
+                    CreateWaveRng(CurrentWaveNumber),
+                    enemyRuleset,
+                    CampaignEnemyType,
+                    CreateWaveArchetypeRng(CurrentWaveNumber));
                 CurrentWave.Targets = CurrentWave.Targets.Take(1).ToList();
             }
 
@@ -1703,7 +1714,12 @@ namespace Spacegun_Simulator.Core
             {
                 try
                 {
-                    var wave = EnemyWave.GenerateWave(waveNumber, CreateWaveRng(waveNumber), enemyRuleset, CampaignEnemyType);
+                    var wave = EnemyWave.GenerateWave(
+                        waveNumber,
+                        CreateWaveRng(waveNumber),
+                        enemyRuleset,
+                        CampaignEnemyType,
+                        CreateWaveArchetypeRng(waveNumber));
                     wave.Targets = wave.Targets.Take(1).ToList();
 
                     var tier = GameConstants.GetTierForWave(waveNumber);

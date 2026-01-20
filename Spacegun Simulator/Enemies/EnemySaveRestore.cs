@@ -45,6 +45,7 @@ namespace Spacegun_Simulator.Enemies
         public sealed record CampaignEnemyTypeSnapshot(
             string Id,
             string ArchetypeId,
+            string SecondaryArchetypeId,
             string CustomName,
             string Description,
             string PrimaryDoctrine
@@ -152,6 +153,45 @@ namespace Spacegun_Simulator.Enemies
                 snapshot.CustomName,
                 snapshot.Description
             );
+
+            // Secondary archetype: used for per-wave variety.
+            // Backward compatible: if missing/unknown, deterministically pick one from current config.
+            EnemyArchetype? secondary = null;
+            if (!string.IsNullOrWhiteSpace(snapshot.SecondaryArchetypeId))
+            {
+                secondary = EnemyArchetypeCatalog.TryGetById(snapshot.SecondaryArchetypeId);
+            }
+
+            if (secondary is null)
+            {
+                unchecked
+                {
+                    uint hash = 2166136261;
+                    void Add(string s)
+                    {
+                        for (int i = 0; i < s.Length; i++)
+                        {
+                            hash ^= s[i];
+                            hash *= 16777619;
+                        }
+                    }
+
+                    Add(snapshot.Id);
+                    Add("|");
+                    Add(snapshot.ArchetypeId);
+                    Add("|SecondaryArchetype");
+
+                    var rng = new Random((int)hash);
+                    var pool = EnemyArchetypeCatalog.CampaignArchetypes
+                        .Where(a => a is not null && !string.Equals(a.Id, archetype.Id, StringComparison.OrdinalIgnoreCase))
+                        .ToArray();
+                    if (pool.Length > 0)
+                        secondary = pool[rng.Next(pool.Length)];
+                }
+            }
+
+            if (secondary is not null && !string.Equals(secondary.Id, archetype.Id, StringComparison.OrdinalIgnoreCase))
+                type.SecondaryArchetype = secondary;
 
             if (!string.IsNullOrWhiteSpace(snapshot.PrimaryDoctrine)
                 && Enum.TryParse<EnemyDoctrine>(snapshot.PrimaryDoctrine, ignoreCase: true, out var doctrine))

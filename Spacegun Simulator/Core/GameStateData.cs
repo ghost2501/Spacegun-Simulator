@@ -295,6 +295,7 @@ namespace Spacegun_Simulator.Core
 
                 CampaignEnemyTypeId = gameState.CampaignEnemyType?.Id ?? string.Empty,
                 CampaignEnemyTypeArchetypeId = gameState.CampaignEnemyType?.Archetype?.Id ?? string.Empty,
+                CampaignEnemyTypeSecondaryArchetypeId = gameState.CampaignEnemyType?.SecondaryArchetype?.Id ?? string.Empty,
                 CampaignEnemyTypeCustomName = gameState.CampaignEnemyType?.CustomName ?? string.Empty,
                 CampaignEnemyTypeDescription = gameState.CampaignEnemyType?.Description ?? string.Empty,
                 CampaignEnemyTypePrimaryDoctrine = gameState.CampaignEnemyType?.PrimaryDoctrine.ToString() ?? string.Empty,
@@ -586,6 +587,7 @@ namespace Spacegun_Simulator.Core
                 var snapshot = new EnemySaveRestore.CampaignEnemyTypeSnapshot(
                     Id: CampaignEnemyTypeId,
                     ArchetypeId: CampaignEnemyTypeArchetypeId,
+                    SecondaryArchetypeId: CampaignEnemyTypeSecondaryArchetypeId,
                     CustomName: CampaignEnemyTypeCustomName,
                     Description: CampaignEnemyTypeDescription,
                     PrimaryDoctrine: CampaignEnemyTypePrimaryDoctrine

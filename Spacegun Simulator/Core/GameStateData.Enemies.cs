@@ -184,6 +184,12 @@ namespace Spacegun_Simulator.Core
             set => Enemy.CampaignEnemyType.ArchetypeId = value ?? string.Empty;
         }
 
+        public string CampaignEnemyTypeSecondaryArchetypeId
+        {
+            get => Enemy.CampaignEnemyType.SecondaryArchetypeId;
+            set => Enemy.CampaignEnemyType.SecondaryArchetypeId = value ?? string.Empty;
+        }
+
         public string CampaignEnemyTypeCustomName
         {
             get => Enemy.CampaignEnemyType.CustomName;
