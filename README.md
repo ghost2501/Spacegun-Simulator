@@ -1,4 +1,4 @@
-# 🔫 Spacegun Simulator
+#  Spacegun Simulator
 
 <img width="2576" height="1287" alt="Title" src="https://github.com/user-attachments/assets/61f3d142-3b8b-422e-ae6f-da765e5315d8" />
 
@@ -16,7 +16,7 @@ Feel free to open an issue or start a discussion. Advise or corrections are essp
 
 ---
 
-## 🛰️ Overview
+##  Overview
 
 **Spacegun Simulator** is a **terminal-based physics and engineering simulation game** set in an alternate 1930s–1940s timeline.
 
@@ -37,7 +37,7 @@ nb. Any input, esp maths corrections, would be greatly appreciated.
 
 ---
 
-## ⚙️ Core Pillars
+##  Core Pillars
 
 - **Real physics calculations** (no hidden RNG at the point of firing)
 - **Command-line interface** with ASCII art and page-based UI
@@ -47,7 +47,7 @@ nb. Any input, esp maths corrections, would be greatly appreciated.
 
 ---
 
-## 🕰️ Narrative Setting
+##  Narrative Setting
 
 **Alternate Timeline – 1930s**
 
@@ -81,7 +81,7 @@ Hitting an object the size of a bus, moving at thousands of kilometers per hour,
 
 ---
 
-## 🖥️ Aesthetic
+##  Aesthetic
 
 - **retro-futurism**
 - Benign dystopia
@@ -91,9 +91,9 @@ Hitting an object the size of a bus, moving at thousands of kilometers per hour,
 
 ---
 
-## 🎮 Gameplay Loop
+##  Gameplay Loop
 
-### 1️⃣ Detection Phase
+### 1️ Detection Phase
 
 A new target is generated with known physical parameters:
 
@@ -107,7 +107,7 @@ This information is **truthful and complete** — success depends on interpretat
 
 ---
 
-### 2️⃣ Resource Phases
+### 2️ Resource Phases
 
 **Time is the primary currency.**
 
@@ -116,28 +116,28 @@ The time until impact determines how many actions you can take.
 Time is spent on:
 
 - Collecting resources  
-- Researching new technologies (in development)
-- Unlock new projectile designs (in development)
+- Researching new technologies
+- Unlock new projectile designs
 
 Spending time is always a tradeoff.
 
 ---
 
-### 3️⃣ Development Phase
+### 3️ Development Phase
 
 Use gathered resources to:
 
 
-- Manufacturing projectile components  (in development)
-- Reinforcing or repairing the gun  (in development)
-- Improve barrel strength, tolerances, and recoil handling  (in development)
+- Manufacturing projectile components
+- Reinforcing or repairing the gun
+- Improve barrel strength, tolerances, and recoil handling
 - Push engineering limits closer to required kinetic energy  
 
 Technology is deterministic — but choosing *what* to develop matters.
 
 ---
 
-### 4️⃣ Firing Phase (The Moment)
+### 4 Firing Phase (The Moment)
 
 Using only the provided tools:
 
@@ -159,7 +159,7 @@ There is no second chance.
 
 ---
 
-## ✅ Success & Failure
+## Success & Failure
 
 - **Success:**  
   Proceed to the next wave (25 total waves)
@@ -171,7 +171,7 @@ There is no second chance.
 
 ---
 
-## ⚠️ Difficulty Philosophy
+## Difficulty Philosophy
 
 Difficulty scales **numerically**, not artificially.
 
@@ -187,7 +187,7 @@ Failure is always explainable.
 
 ---
 
-## 💾 Saving & Permadeath
+## Saving & Permadeath
 
 - Auto-save on every page load  
 - **One save slot**  
@@ -197,7 +197,7 @@ Failure is always explainable.
 
 ---
 
-## 🎧 Audio
+## Audio
 
 Spacegun Simulator includes a deeply customisable **procedural, lo-fi soundscape** synth:
 
@@ -208,7 +208,7 @@ Spacegun Simulator includes a deeply customisable **procedural, lo-fi soundscape
 
 ---
 
-## 🛠️ Technology
+## Technology
 
 - **Language:** C#  
 - **Platform:** .NET  
